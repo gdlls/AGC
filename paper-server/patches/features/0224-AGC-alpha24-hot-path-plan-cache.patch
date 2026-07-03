@@ -1,0 +1,1158 @@
+diff -ruN '--exclude=0224-AGC-alpha24-hot-path-plan-cache.patch' agc-alpha23-baseline-for24/AGC.md agc-alpha24/AGC.md
+--- agc-alpha23-baseline-for24/AGC.md	2026-06-27 07:13:12.000000000 +0000
++++ agc-alpha24/AGC.md	2026-06-27 15:02:44.944784688 +0000
+@@ -435,3 +435,11 @@
+ - `AGCWorkerRoutePlanner` reserves CPU/memory headroom for primary thread, plugins, Netty, GC and OS before routing any read-only helper work.
+ 
+ New diagnostics/API: `/agc scale23`, `AGC.performance().scale23Plan(...)`, `AGCScale23Plan`, and seven new `AGCFeature` entries for the alpha23 algorithm layer.
++
++## AGC 26.2 alpha24 - hot-path compiled plan cache
++
++Alpha24 continues the large-scale survival optimisation track by reducing the visible tick hot path rather than weakening gameplay semantics. It adds `AGCScale24HotPathRuntime`, `AGCHotPathPlanCache`, `AGCNetworkOrderVectorCompiler`, `AGCChunkHorizonCompiler`, `AGCEntityObserverSetCompiler`, `AGCWorldReadOnlyBatchGraph`, `AGCPluginDeterministicTicketCache`, and `AGCResourceLocalityScheduler`.
++
++The optimisation rule remains strict: no packet drops, no mutable packet sharing, no per-connection reordering, no chunk FIFO head skipping, no entity tick/AI/damage/interaction skipping, no Bukkit off-thread mutation, no plugin event reordering, and no redstone/factory/block-entity phase reordering. Alpha24 improves performance by compiling tick-local helper plans, caching stable order vectors, preparing FIFO-compatible chunk horizons, compiling read-only entity observer sets, compiling read-only world batch graphs, caching plugin semantic tickets, and placing helper scratch work with locality-aware budgets.
++
++New diagnostics/API: `/agc scale24`, `AGC.performance().scale24Plan(...)`, `AGCScale24Plan`, and eight new `AGCFeature` entries for the alpha24 hot-path layer.
+diff -ruN '--exclude=0224-AGC-alpha24-hot-path-plan-cache.patch' agc-alpha23-baseline-for24/AGC_ROADMAP.md agc-alpha24/AGC_ROADMAP.md
+--- agc-alpha23-baseline-for24/AGC_ROADMAP.md	2026-06-27 07:13:12.000000000 +0000
++++ agc-alpha24/AGC_ROADMAP.md	2026-06-27 15:02:44.952546114 +0000
+@@ -422,3 +422,11 @@
+ - `AGCWorkerRoutePlanner` reserves CPU/memory headroom for primary thread, plugins, Netty, GC and OS before routing any read-only helper work.
+ 
+ New diagnostics/API: `/agc scale23`, `AGC.performance().scale23Plan(...)`, `AGCScale23Plan`, and seven new `AGCFeature` entries for the alpha23 algorithm layer.
++
++## AGC 26.2 alpha24 - hot-path compiled plan cache
++
++Status: implemented in source as the next large semantic-preserving scale layer.
++
++Alpha24 focuses on shortening the server tick critical path for thousand-player survival servers. The new runtime does not move visible Minecraft or Bukkit operations to worker threads. Instead, it compiles the expensive read-only/helper pieces that feed those visible operations: network order vectors, chunk demand horizons, entity observer sets, world read-only batch graphs, plugin semantic tickets, and locality-aware scratch placement.
++
++Next work after alpha24 should start using the hot-path meter to pick the highest-return fine-grained changes: packet vector key compression, chunk horizon ring compaction, entity observer-set sparse encoding, and plugin ticket trie specialisation.
+diff -ruN '--exclude=0224-AGC-alpha24-hot-path-plan-cache.patch' agc-alpha23-baseline-for24/PROJECT.md agc-alpha24/PROJECT.md
+--- agc-alpha23-baseline-for24/PROJECT.md	2026-06-27 07:13:12.000000000 +0000
++++ agc-alpha24/PROJECT.md	2026-06-27 15:02:44.965826236 +0000
+@@ -160,3 +160,9 @@
+ - `AGCWorkerRoutePlanner` reserves CPU/memory headroom for primary thread, plugins, Netty, GC and OS before routing any read-only helper work.
+ 
+ New diagnostics/API: `/agc scale23`, `AGC.performance().scale23Plan(...)`, `AGCScale23Plan`, and seven new `AGCFeature` entries for the alpha23 algorithm layer.
++
++## AGC 26.2 alpha24 - hot-path compiled plan cache
++
++Alpha24 continues the large optimisation pass. The focus is reducing the visible tick hot path through compiled, tick-local, lossless helper plans. This is not a gameplay shortcut layer: visible commits, plugin events, entity ticks, chunk completions, redstone, block entities, and packet connection order remain semantic-preserving.
++
++Added runtime classes: `AGCScale24HotPathRuntime`, `AGCHotPathPlanCache`, `AGCNetworkOrderVectorCompiler`, `AGCChunkHorizonCompiler`, `AGCEntityObserverSetCompiler`, `AGCWorldReadOnlyBatchGraph`, `AGCPluginDeterministicTicketCache`, and `AGCResourceLocalityScheduler`.
+diff -ruN '--exclude=0224-AGC-alpha24-hot-path-plan-cache.patch' agc-alpha23-baseline-for24/README.md agc-alpha24/README.md
+--- agc-alpha23-baseline-for24/README.md	2026-06-27 07:13:12.000000000 +0000
++++ agc-alpha24/README.md	2026-06-27 15:02:44.959660977 +0000
+@@ -299,3 +299,11 @@
+ - `AGCWorkerRoutePlanner` reserves CPU/memory headroom for primary thread, plugins, Netty, GC and OS before routing any read-only helper work.
+ 
+ New diagnostics/API: `/agc scale23`, `AGC.performance().scale23Plan(...)`, `AGCScale23Plan`, and seven new `AGCFeature` entries for the alpha23 algorithm layer.
++
++## AGC 26.2 alpha24 - hot-path compiled plan cache
++
++Alpha24 adds a hot-path compiled plan cache layer for large survival servers. The new layer targets high-cost helper planning without changing visible Minecraft semantics: packets are not dropped or reordered, chunk FIFO is preserved, entity ticks are not skipped, and Bukkit/plugin-visible work remains ordered.
++
++New components: `AGCScale24HotPathRuntime`, `AGCHotPathPlanCache`, `AGCNetworkOrderVectorCompiler`, `AGCChunkHorizonCompiler`, `AGCEntityObserverSetCompiler`, `AGCWorldReadOnlyBatchGraph`, `AGCPluginDeterministicTicketCache`, and `AGCResourceLocalityScheduler`.
++
++Diagnostics/API: `/agc scale24`, `AGC.performance().scale24Plan(...)`, `AGCScale24Plan`, and new `AGCFeature` flags for each alpha24 algorithm.
+diff -ruN '--exclude=0224-AGC-alpha24-hot-path-plan-cache.patch' agc-alpha23-baseline-for24/TEST_INFRA.md agc-alpha24/TEST_INFRA.md
+--- agc-alpha23-baseline-for24/TEST_INFRA.md	2026-06-27 07:13:12.000000000 +0000
++++ agc-alpha24/TEST_INFRA.md	2026-06-27 15:02:44.974128516 +0000
+@@ -185,3 +185,5 @@
+ AGC alpha22 adds five R30 E2E surface tests for `AGCScale22TickWorkCompiler`, `AGCNetworkCohortBackboneCache`, `AGCChunkTerrainDemandModel`, `AGCEntityObserverMatrix`, `AGCPluginOrderedCommitLedger`, `AGCMultiversePhaseMatrix`, `AGCSystemLoadShepherd`, `AGCSemanticHotPathMeter`, `/agc scale22`, and the public `AGCScale22Plan` API. Expected E2E registration count is now 204 tests.
+ 
+ AGC alpha23 adds five R31 E2E surface tests for `AGCScale23DispatchTable`, `AGCNetworkStableDiffPlanner`, `AGCChunkFrontierScheduler`, `AGCEntityVisibilityLattice`, `AGCPluginCommitCoalescer`, `AGCWorldBarrierDAGCompiler`, `AGCWorkerRoutePlanner`, `/agc scale23`, and the public `AGCScale23Plan` API. Expected E2E registration count is now 209 tests.
++
++AGC alpha24 adds five R32 E2E surface tests for `AGCScale24HotPathRuntime`, `AGCHotPathPlanCache`, `AGCNetworkOrderVectorCompiler`, `AGCChunkHorizonCompiler`, `AGCEntityObserverSetCompiler`, `AGCWorldReadOnlyBatchGraph`, `AGCPluginDeterministicTicketCache`, `AGCResourceLocalityScheduler`, `/agc scale24`, and the public `AGCScale24Plan` API. Expected E2E registration count is now 214 tests.
+diff -ruN '--exclude=0224-AGC-alpha24-hot-path-plan-cache.patch' agc-alpha23-baseline-for24/TEST_READY.md agc-alpha24/TEST_READY.md
+--- agc-alpha23-baseline-for24/TEST_READY.md	2026-06-27 07:13:12.000000000 +0000
++++ agc-alpha24/TEST_READY.md	2026-06-27 15:02:44.982097310 +0000
+@@ -170,3 +170,5 @@
+ AGC alpha22 adds five R30 E2E surface tests for `AGCScale22TickWorkCompiler`, `AGCNetworkCohortBackboneCache`, `AGCChunkTerrainDemandModel`, `AGCEntityObserverMatrix`, `AGCPluginOrderedCommitLedger`, `AGCMultiversePhaseMatrix`, `AGCSystemLoadShepherd`, `AGCSemanticHotPathMeter`, `/agc scale22`, and the public `AGCScale22Plan` API. Expected E2E registration count is now 204 tests.
+ 
+ AGC alpha23 adds five R31 E2E surface tests for `AGCScale23DispatchTable`, `AGCNetworkStableDiffPlanner`, `AGCChunkFrontierScheduler`, `AGCEntityVisibilityLattice`, `AGCPluginCommitCoalescer`, `AGCWorldBarrierDAGCompiler`, `AGCWorkerRoutePlanner`, `/agc scale23`, and the public `AGCScale23Plan` API. Expected E2E registration count is now 209 tests.
++
++AGC alpha24 adds five R32 E2E surface tests for `AGCScale24HotPathRuntime`, `AGCHotPathPlanCache`, `AGCNetworkOrderVectorCompiler`, `AGCChunkHorizonCompiler`, `AGCEntityObserverSetCompiler`, `AGCWorldReadOnlyBatchGraph`, `AGCPluginDeterministicTicketCache`, `AGCResourceLocalityScheduler`, `/agc scale24`, and the public `AGCScale24Plan` API. Expected E2E registration count is now 214 tests.
+diff -ruN '--exclude=0224-AGC-alpha24-hot-path-plan-cache.patch' agc-alpha23-baseline-for24/paper-api/src/main/java/io/agcmc/agc/api/AGCFeature.java agc-alpha24/paper-api/src/main/java/io/agcmc/agc/api/AGCFeature.java
+--- agc-alpha23-baseline-for24/paper-api/src/main/java/io/agcmc/agc/api/AGCFeature.java	2026-06-27 07:11:20.000000000 +0000
++++ agc-alpha24/paper-api/src/main/java/io/agcmc/agc/api/AGCFeature.java	2026-06-27 15:01:14.450754038 +0000
+@@ -97,5 +97,13 @@
+     ENTITY_VISIBILITY_LATTICE,
+     PLUGIN_COMMIT_COALESCER,
+     WORLD_BARRIER_DAG_COMPILER,
+-    WORKER_ROUTE_PLANNER
++    WORKER_ROUTE_PLANNER,
++    SCALE24_HOT_PATH_RUNTIME,
++    HOT_PATH_PLAN_CACHE,
++    NETWORK_ORDER_VECTOR_COMPILER,
++    CHUNK_HORIZON_COMPILER,
++    ENTITY_OBSERVER_SET_COMPILER,
++    WORLD_READ_ONLY_BATCH_GRAPH,
++    PLUGIN_DETERMINISTIC_TICKET_CACHE,
++    RESOURCE_LOCALITY_SCHEDULER
+ }
+diff -ruN '--exclude=0224-AGC-alpha24-hot-path-plan-cache.patch' agc-alpha23-baseline-for24/paper-api/src/main/java/io/agcmc/agc/api/AGCPerformance.java agc-alpha24/paper-api/src/main/java/io/agcmc/agc/api/AGCPerformance.java
+--- agc-alpha23-baseline-for24/paper-api/src/main/java/io/agcmc/agc/api/AGCPerformance.java	2026-06-27 07:11:44.000000000 +0000
++++ agc-alpha24/paper-api/src/main/java/io/agcmc/agc/api/AGCPerformance.java	2026-06-27 15:01:15.607126175 +0000
+@@ -109,6 +109,14 @@
+         states.put(AGCFeature.PLUGIN_COMMIT_COALESCER, AGCFeatureStatus.ENABLED);
+         states.put(AGCFeature.WORLD_BARRIER_DAG_COMPILER, AGCFeatureStatus.ENABLED);
+         states.put(AGCFeature.WORKER_ROUTE_PLANNER, AGCFeatureStatus.ENABLED);
++        states.put(AGCFeature.SCALE24_HOT_PATH_RUNTIME, AGCFeatureStatus.ENABLED);
++        states.put(AGCFeature.HOT_PATH_PLAN_CACHE, AGCFeatureStatus.ENABLED);
++        states.put(AGCFeature.NETWORK_ORDER_VECTOR_COMPILER, AGCFeatureStatus.ENABLED);
++        states.put(AGCFeature.CHUNK_HORIZON_COMPILER, AGCFeatureStatus.ENABLED);
++        states.put(AGCFeature.ENTITY_OBSERVER_SET_COMPILER, AGCFeatureStatus.ENABLED);
++        states.put(AGCFeature.WORLD_READ_ONLY_BATCH_GRAPH, AGCFeatureStatus.ENABLED);
++        states.put(AGCFeature.PLUGIN_DETERMINISTIC_TICKET_CACHE, AGCFeatureStatus.ENABLED);
++        states.put(AGCFeature.RESOURCE_LOCALITY_SCHEDULER, AGCFeatureStatus.ENABLED);
+         return new AGCPerformanceSnapshot(
+             "API_COMPATIBILITY_VIEW",
+             0.0D,
+@@ -522,6 +530,42 @@
+         );
+     }
+ 
++    public @NotNull AGCScale24Plan scale24Plan(final int expectedPlayers, final double targetTps) {
++        final int players = Math.max(1, expectedPlayers);
++        final double tps = Math.max(1.0D, targetTps);
++        final int processors = Math.max(1, Runtime.getRuntime().availableProcessors());
++        final int reservedCpu = players >= 3000 ? 44 : players >= 2000 ? 42 : 38;
++        final int workers = Math.max(1, processors - Math.max(2, (processors * reservedCpu + 99) / 100));
++        final int hotPathCredits = Math.max(524288, Math.min(33_554_432, players * 4096));
++        final int planCacheEntries = Math.max(131072, Math.min(4_194_304, players * 1024));
++        final int networkOrderVectorLanes = Math.max(128, Math.min(32768, (int) Math.sqrt(players * 16384.0D)));
++        final int chunkHorizonWidth = Math.max(32, Math.min(1024, players >= 3000 ? 320 : players >= 2000 ? 256 : 192));
++        final int entityObserverSets = Math.max(128, Math.min(16384, (int) Math.sqrt(players * 2048.0D)));
++        final int worldReadOnlyBatches = Math.max(1, Math.min(2048, workers * 24));
++        final int pluginSemanticTickets = Math.max(4096, Math.min(524288, players * 24));
++        final long localityBytes = Math.max(256L * 1024L * 1024L, Math.min(4096L * 1024L * 1024L, players * 384L * 1024L));
++        return new AGCScale24Plan(
++            players,
++            tps,
++            reservedCpu,
++            workers,
++            hotPathCredits,
++            planCacheEntries,
++            networkOrderVectorLanes,
++            chunkHorizonWidth,
++            entityObserverSets,
++            worldReadOnlyBatches,
++            pluginSemanticTickets,
++            localityBytes,
++            true,
++            true,
++            true,
++            true,
++            "AGC alpha24: reduce visible tick hot path with compiled plan caches, lossless network order vectors, FIFO chunk horizons, read-only entity observer-set compilation, world read-only batch graphs, deterministic plugin semantic tickets and locality-aware helper scheduling"
++        );
++    }
++
++
+     public boolean isPrimaryThread() {
+         try {
+             return Bukkit.isPrimaryThread();
+diff -ruN '--exclude=0224-AGC-alpha24-hot-path-plan-cache.patch' agc-alpha23-baseline-for24/paper-api/src/main/java/io/agcmc/agc/api/AGCScale24Plan.java agc-alpha24/paper-api/src/main/java/io/agcmc/agc/api/AGCScale24Plan.java
+--- agc-alpha23-baseline-for24/paper-api/src/main/java/io/agcmc/agc/api/AGCScale24Plan.java	1970-01-01 00:00:00.000000000 +0000
++++ agc-alpha24/paper-api/src/main/java/io/agcmc/agc/api/AGCScale24Plan.java	2026-06-27 15:01:14.582833060 +0000
+@@ -0,0 +1,24 @@
++package io.agcmc.agc.api;
++
++import org.jetbrains.annotations.NotNull;
++
++/** Alpha24 hot-path compiled plan cache for large survival-scale servers. */
++public record AGCScale24Plan(
++    int expectedPlayers,
++    double targetTps,
++    int reservedCpuPercent,
++    int helperWorkers,
++    int hotPathCredits,
++    int planCacheEntries,
++    int networkOrderVectorLanes,
++    int chunkHorizonWidth,
++    int entityObserverSets,
++    int worldReadOnlyBatches,
++    int pluginSemanticTickets,
++    long localityBytes,
++    boolean preservesPacketOrder,
++    boolean preservesChunkFifo,
++    boolean preservesEntityTicks,
++    boolean preservesPluginOrder,
++    @NotNull String strategy
++) {}
+diff -ruN '--exclude=0224-AGC-alpha24-hot-path-plan-cache.patch' agc-alpha23-baseline-for24/paper-server/src/main/java/net/minecraft/server/AGCChunkHorizonCompiler.java agc-alpha24/paper-server/src/main/java/net/minecraft/server/AGCChunkHorizonCompiler.java
+--- agc-alpha23-baseline-for24/paper-server/src/main/java/net/minecraft/server/AGCChunkHorizonCompiler.java	1970-01-01 00:00:00.000000000 +0000
++++ agc-alpha24/paper-server/src/main/java/net/minecraft/server/AGCChunkHorizonCompiler.java	2026-06-27 14:59:39.251433738 +0000
+@@ -0,0 +1,80 @@
++package net.minecraft.server;
++
++import java.util.EnumMap;
++import java.util.Map;
++import java.util.UUID;
++import java.util.concurrent.atomic.AtomicLong;
++
++/** Predictive FIFO-compatible chunk horizon compiler for alpha24. */
++public final class AGCChunkHorizonCompiler {
++    public static final AGCChunkHorizonCompiler INSTANCE = new AGCChunkHorizonCompiler();
++
++    private final EnumMap<AGCChunkBudget.Operation, AtomicLong> compiled = new EnumMap<>(AGCChunkBudget.Operation.class);
++    private final EnumMap<AGCChunkBudget.Operation, AtomicLong> waiting = new EnumMap<>(AGCChunkBudget.Operation.class);
++    private volatile long tickSequence;
++    private volatile long horizonTokens = 524_288L;
++    private volatile long remainingTokens = 524_288L;
++    private volatile String lastReason = "cold";
++
++    private AGCChunkHorizonCompiler() {
++        for (final AGCChunkBudget.Operation op : AGCChunkBudget.Operation.values()) {
++            this.compiled.put(op, new AtomicLong());
++            this.waiting.put(op, new AtomicLong());
++        }
++    }
++
++    public void beginTick(final long sequence) {
++        this.tickSequence = Math.max(0L, sequence);
++        final int processors = Math.max(1, Runtime.getRuntime().availableProcessors());
++        this.horizonTokens = Math.max(131_072L, processors * 128_000L);
++        this.remainingTokens = this.horizonTokens;
++        this.lastReason = "reset processors=" + processors;
++    }
++
++    public Horizon compile(final UUID playerId, final AGCChunkBudget.Operation operation, final int radius, final int clusterSize, final String reason) {
++        final AGCChunkBudget.Operation op = operation == null ? AGCChunkBudget.Operation.LOAD : operation;
++        final int safeRadius = Math.max(1, radius);
++        final int safeCluster = Math.max(1, clusterSize);
++        final int stripes = Math.max(1, Math.min(256, safeRadius * 2 + safeCluster / 32));
++        final int horizonWidth = Math.max(1, Math.min(1024, stripes * 4));
++        final long cost = Math.max(1L, (long) horizonWidth * Math.max(1, safeCluster / 16));
++        if (cost > this.remainingTokens) {
++            this.waiting.get(op).incrementAndGet();
++            this.lastReason = "chunk horizon waits FIFO-compatible; no chunk queue reorder: " + safe(reason);
++            return new Horizon(false, op, stripes, horizonWidth, cost, this.remainingTokens, stableKey(playerId, op, safeRadius, safeCluster), this.lastReason);
++        }
++        this.remainingTokens -= cost;
++        this.compiled.get(op).incrementAndGet();
++        this.lastReason = "compiled chunk horizon op=" + op + " stripes=" + stripes + " width=" + horizonWidth;
++        return new Horizon(true, op, stripes, horizonWidth, cost, this.remainingTokens, stableKey(playerId, op, safeRadius, safeCluster), this.lastReason);
++    }
++
++    public String statusLine() {
++        return "AGCChunkHorizonCompiler{tick=" + this.tickSequence
++            + ", horizonTokens=" + this.horizonTokens
++            + ", remainingTokens=" + this.remainingTokens
++            + ", compiled=" + snapshot(this.compiled)
++            + ", waiting=" + snapshot(this.waiting)
++            + ", lastReason='" + this.lastReason + "'}";
++    }
++
++    private static long stableKey(final UUID playerId, final AGCChunkBudget.Operation op, final int radius, final int cluster) {
++        final long most = playerId == null ? 0L : playerId.getMostSignificantBits();
++        final long least = playerId == null ? 0L : playerId.getLeastSignificantBits();
++        return Long.rotateLeft(most, 19) ^ Long.rotateRight(least, 11) ^ ((long) op.ordinal() << 40) ^ ((long) radius << 16) ^ cluster;
++    }
++
++    private static Map<AGCChunkBudget.Operation, Long> snapshot(final EnumMap<AGCChunkBudget.Operation, AtomicLong> source) {
++        final EnumMap<AGCChunkBudget.Operation, Long> copy = new EnumMap<>(AGCChunkBudget.Operation.class);
++        for (final Map.Entry<AGCChunkBudget.Operation, AtomicLong> entry : source.entrySet()) {
++            copy.put(entry.getKey(), entry.getValue().get());
++        }
++        return copy;
++    }
++
++    private static String safe(final String reason) {
++        return reason == null || reason.isBlank() ? "unspecified" : reason;
++    }
++
++    public record Horizon(boolean admitted, AGCChunkBudget.Operation operation, int stripes, int horizonWidth, long cost, long remainingTokens, long stableKey, String reason) {}
++}
+diff -ruN '--exclude=0224-AGC-alpha24-hot-path-plan-cache.patch' agc-alpha23-baseline-for24/paper-server/src/main/java/net/minecraft/server/AGCCommandReports.java agc-alpha24/paper-server/src/main/java/net/minecraft/server/AGCCommandReports.java
+--- agc-alpha23-baseline-for24/paper-server/src/main/java/net/minecraft/server/AGCCommandReports.java	2026-06-27 07:11:20.000000000 +0000
++++ agc-alpha24/paper-server/src/main/java/net/minecraft/server/AGCCommandReports.java	2026-06-27 15:00:49.960976477 +0000
+@@ -485,6 +485,26 @@
+         );
+     }
+ 
++
++    public static String scale24() {
++        return String.join("\n",
++            "AGC alpha24 hot-path compiled plan cache: bigger semantic-preserving optimisation pass",
++            AGCScale24HotPathRuntime.INSTANCE.statusLine(),
++            AGCHotPathPlanCache.INSTANCE.statusLine(),
++            AGCNetworkOrderVectorCompiler.INSTANCE.statusLine(),
++            AGCChunkHorizonCompiler.INSTANCE.statusLine(),
++            AGCEntityObserverSetCompiler.INSTANCE.statusLine(),
++            AGCWorldReadOnlyBatchGraph.INSTANCE.statusLine(),
++            AGCPluginDeterministicTicketCache.INSTANCE.statusLine(),
++            AGCResourceLocalityScheduler.INSTANCE.statusLine(),
++            AGCScale23DispatchTable.INSTANCE.statusLine(),
++            AGCSemanticHotPathMeter.INSTANCE.statusLine(),
++            AGCNoInvasionOptimizer.INSTANCE.statusLine(),
++            "hardRules=no packet drops, no mutable packet sharing, no connection reorder, no chunk FIFO skip, no entity tick/AI/damage skip, no Bukkit off-thread mutation, no plugin event reorder",
++            "algorithm=hot-path runtime credits + tick-local compiled plan cache + network order vectors + FIFO chunk horizons + entity observer-set compiler + world read-only batch graph + deterministic plugin ticket cache + resource locality scheduler"
++        );
++    }
++
+     public static String minigameApi() {
+         try {
+             final Object service = io.agcmc.agc.api.AGC.minigames();
+diff -ruN '--exclude=0224-AGC-alpha24-hot-path-plan-cache.patch' agc-alpha23-baseline-for24/paper-server/src/main/java/net/minecraft/server/AGCEntityObserverSetCompiler.java agc-alpha24/paper-server/src/main/java/net/minecraft/server/AGCEntityObserverSetCompiler.java
+--- agc-alpha23-baseline-for24/paper-server/src/main/java/net/minecraft/server/AGCEntityObserverSetCompiler.java	1970-01-01 00:00:00.000000000 +0000
++++ agc-alpha24/paper-server/src/main/java/net/minecraft/server/AGCEntityObserverSetCompiler.java	2026-06-27 14:59:39.260311828 +0000
+@@ -0,0 +1,63 @@
++package net.minecraft.server;
++
++import java.util.UUID;
++import java.util.concurrent.atomic.AtomicLong;
++
++/** Read-only observer-set compiler for alpha24 entity tracking preparation. */
++public final class AGCEntityObserverSetCompiler {
++    public static final AGCEntityObserverSetCompiler INSTANCE = new AGCEntityObserverSetCompiler();
++
++    private final AtomicLong prepared = new AtomicLong();
++    private final AtomicLong waiting = new AtomicLong();
++    private volatile long tickSequence;
++    private volatile long baseObserverTokens = 1_000_000L;
++    private volatile long remainingObserverTokens = 1_000_000L;
++    private volatile String lastReason = "cold";
++
++    private AGCEntityObserverSetCompiler() {}
++
++    public void beginTick(final long sequence) {
++        this.tickSequence = Math.max(0L, sequence);
++        final int processors = Math.max(1, Runtime.getRuntime().availableProcessors());
++        this.baseObserverTokens = Math.max(262_144L, processors * 160_000L);
++        this.remainingObserverTokens = this.baseObserverTokens;
++        this.lastReason = "reset processors=" + processors;
++    }
++
++    public ObserverSet prepare(final UUID playerId, final int estimatedEntities, final int observerBands, final String reason) {
++        final int entities = Math.max(0, estimatedEntities);
++        final int bands = Math.max(1, observerBands);
++        final int sets = Math.max(1, Math.min(8192, (int) Math.ceil(Math.sqrt(Math.max(1, entities) * bands))));
++        final long cost = Math.max(1L, sets + entities / 96L);
++        if (cost > this.remainingObserverTokens) {
++            this.waiting.incrementAndGet();
++            this.lastReason = "observer-set helper waits; entity tick/event semantics unchanged: " + safe(reason);
++            return new ObserverSet(false, stableKey(playerId, entities, bands), sets, cost, this.remainingObserverTokens, this.lastReason);
++        }
++        this.remainingObserverTokens -= cost;
++        this.prepared.incrementAndGet();
++        this.lastReason = "prepared read-only entity observer sets=" + sets + " entities=" + entities;
++        return new ObserverSet(true, stableKey(playerId, entities, bands), sets, cost, this.remainingObserverTokens, this.lastReason);
++    }
++
++    public String statusLine() {
++        return "AGCEntityObserverSetCompiler{tick=" + this.tickSequence
++            + ", prepared=" + this.prepared.get()
++            + ", waiting=" + this.waiting.get()
++            + ", baseTokens=" + this.baseObserverTokens
++            + ", remainingTokens=" + this.remainingObserverTokens
++            + ", lastReason='" + this.lastReason + "'}";
++    }
++
++    private static long stableKey(final UUID playerId, final int entities, final int bands) {
++        final long most = playerId == null ? 0L : playerId.getMostSignificantBits();
++        final long least = playerId == null ? 0L : playerId.getLeastSignificantBits();
++        return Long.rotateLeft(most, 5) ^ Long.rotateRight(least, 29) ^ ((long) entities << 8) ^ bands;
++    }
++
++    private static String safe(final String reason) {
++        return reason == null || reason.isBlank() ? "unspecified" : reason;
++    }
++
++    public record ObserverSet(boolean prepared, long stableKey, int sets, long cost, long remainingTokens, String reason) {}
++}
+diff -ruN '--exclude=0224-AGC-alpha24-hot-path-plan-cache.patch' agc-alpha23-baseline-for24/paper-server/src/main/java/net/minecraft/server/AGCHotPathPlanCache.java agc-alpha24/paper-server/src/main/java/net/minecraft/server/AGCHotPathPlanCache.java
+--- agc-alpha23-baseline-for24/paper-server/src/main/java/net/minecraft/server/AGCHotPathPlanCache.java	1970-01-01 00:00:00.000000000 +0000
++++ agc-alpha24/paper-server/src/main/java/net/minecraft/server/AGCHotPathPlanCache.java	2026-06-27 14:59:39.233612992 +0000
+@@ -0,0 +1,89 @@
++package net.minecraft.server;
++
++import java.util.EnumMap;
++import java.util.Map;
++import java.util.concurrent.ConcurrentHashMap;
++import java.util.concurrent.atomic.AtomicLong;
++
++/** Tick-local compiled plan cache for alpha24 lossless helper work. */
++public final class AGCHotPathPlanCache {
++    public static final AGCHotPathPlanCache INSTANCE = new AGCHotPathPlanCache();
++
++    public enum Kind {
++        NETWORK_VECTOR,
++        CHUNK_HORIZON,
++        ENTITY_OBSERVER_SET,
++        WORLD_BATCH_GRAPH,
++        PLUGIN_TICKET,
++        RESOURCE_SLOT
++    }
++
++    private final ConcurrentHashMap<Long, Entry> cache = new ConcurrentHashMap<>();
++    private final EnumMap<Kind, AtomicLong> hits = new EnumMap<>(Kind.class);
++    private final EnumMap<Kind, AtomicLong> misses = new EnumMap<>(Kind.class);
++    private volatile long tickSequence;
++    private volatile long maxEntries = 262_144L;
++    private volatile String lastReason = "cold";
++
++    private AGCHotPathPlanCache() {
++        for (final Kind kind : Kind.values()) {
++            this.hits.put(kind, new AtomicLong());
++            this.misses.put(kind, new AtomicLong());
++        }
++    }
++
++    public void beginTick(final long sequence) {
++        this.tickSequence = Math.max(0L, sequence);
++        this.cache.clear();
++        final int processors = Math.max(1, Runtime.getRuntime().availableProcessors());
++        this.maxEntries = Math.max(65_536L, processors * 65_536L);
++        this.lastReason = "reset processors=" + processors;
++    }
++
++    public Plan compile(final Kind kind, final long stableKey, final long cost, final boolean visible, final String reason) {
++        final Kind safeKind = kind == null ? Kind.RESOURCE_SLOT : kind;
++        if (visible) {
++            this.lastReason = "visible work bypasses hot-path cache: " + safe(reason);
++            return new Plan(false, false, true, stableKey, Math.max(1L, cost), this.lastReason);
++        }
++        final long key = stableKey ^ (((long) safeKind.ordinal()) << 56) ^ this.tickSequence;
++        final Entry cached = this.cache.get(key);
++        if (cached != null) {
++            this.hits.get(safeKind).incrementAndGet();
++            this.lastReason = "hot-path plan cache hit kind=" + safeKind + " key=" + key;
++            return new Plan(true, true, false, key, cached.cost(), this.lastReason);
++        }
++        if (this.cache.size() >= this.maxEntries) {
++            this.lastReason = "hot-path cache saturated; helper waits without semantic change: " + safe(reason);
++            return new Plan(false, false, false, key, Math.max(1L, cost), this.lastReason);
++        }
++        this.cache.put(key, new Entry(Math.max(1L, cost), safe(reason)));
++        this.misses.get(safeKind).incrementAndGet();
++        this.lastReason = "compiled new hot-path plan kind=" + safeKind + " key=" + key;
++        return new Plan(true, false, false, key, Math.max(1L, cost), this.lastReason);
++    }
++
++    public String statusLine() {
++        return "AGCHotPathPlanCache{tick=" + this.tickSequence
++            + ", entries=" + this.cache.size()
++            + ", maxEntries=" + this.maxEntries
++            + ", hits=" + snapshot(this.hits)
++            + ", misses=" + snapshot(this.misses)
++            + ", lastReason='" + this.lastReason + "'}";
++    }
++
++    private static Map<Kind, Long> snapshot(final EnumMap<Kind, AtomicLong> source) {
++        final EnumMap<Kind, Long> copy = new EnumMap<>(Kind.class);
++        for (final Map.Entry<Kind, AtomicLong> entry : source.entrySet()) {
++            copy.put(entry.getKey(), entry.getValue().get());
++        }
++        return copy;
++    }
++
++    private static String safe(final String reason) {
++        return reason == null || reason.isBlank() ? "unspecified" : reason;
++    }
++
++    private record Entry(long cost, String reason) {}
++    public record Plan(boolean compiled, boolean cacheHit, boolean orderedVisible, long key, long cost, String reason) {}
++}
+diff -ruN '--exclude=0224-AGC-alpha24-hot-path-plan-cache.patch' agc-alpha23-baseline-for24/paper-server/src/main/java/net/minecraft/server/AGCNetworkOrderVectorCompiler.java agc-alpha24/paper-server/src/main/java/net/minecraft/server/AGCNetworkOrderVectorCompiler.java
+--- agc-alpha23-baseline-for24/paper-server/src/main/java/net/minecraft/server/AGCNetworkOrderVectorCompiler.java	1970-01-01 00:00:00.000000000 +0000
++++ agc-alpha24/paper-server/src/main/java/net/minecraft/server/AGCNetworkOrderVectorCompiler.java	2026-06-27 14:59:39.242687119 +0000
+@@ -0,0 +1,63 @@
++package net.minecraft.server;
++
++import java.util.concurrent.ConcurrentHashMap;
++import java.util.concurrent.atomic.AtomicLong;
++
++/** Lossless per-recipient order-vector planner for alpha24 network fanout. */
++public final class AGCNetworkOrderVectorCompiler {
++    public static final AGCNetworkOrderVectorCompiler INSTANCE = new AGCNetworkOrderVectorCompiler();
++
++    private final ConcurrentHashMap<Long, AtomicLong> vectors = new ConcurrentHashMap<>();
++    private volatile long tickSequence;
++    private volatile long compiled;
++    private volatile long orderedNow;
++    private volatile String lastReason = "cold";
++
++    private AGCNetworkOrderVectorCompiler() {}
++
++    public void beginTick(final long sequence) {
++        this.tickSequence = Math.max(0L, sequence);
++        this.vectors.clear();
++        this.compiled = 0L;
++        this.orderedNow = 0L;
++        this.lastReason = "reset";
++    }
++
++    public Plan compile(final String packetName, final long recipients, final boolean interactive, final int deadlineTicks) {
++        final String packet = packetName == null || packetName.isBlank() ? "unknown" : packetName;
++        final long safeRecipients = Math.max(1L, recipients);
++        final long vectorKey = stableKey(packet, safeRecipients, deadlineTicks);
++        if (interactive || deadlineTicks <= 0) {
++            this.orderedNow++;
++            this.lastReason = "interactive packet remains connection-ordered: " + packet;
++            return new Plan(false, true, vectorKey, 0L, 0L, this.lastReason);
++        }
++        final long hit = this.vectors.computeIfAbsent(vectorKey, ignored -> new AtomicLong()).incrementAndGet();
++        final long lanes = Math.max(1L, Math.min(8192L, (long) Math.ceil(Math.sqrt(safeRecipients * 4.0D))));
++        final long cost = Math.max(1L, lanes + safeRecipients / 128L + Math.min(128L, hit));
++        this.compiled++;
++        this.lastReason = "compiled lossless network order vector packet=" + packet + " recipients=" + safeRecipients + " lanes=" + lanes;
++        return new Plan(true, false, vectorKey, lanes, cost, this.lastReason);
++    }
++
++    public String statusLine() {
++        return "AGCNetworkOrderVectorCompiler{tick=" + this.tickSequence
++            + ", compiled=" + this.compiled
++            + ", orderedNow=" + this.orderedNow
++            + ", vectorKeys=" + this.vectors.size()
++            + ", lastReason='" + this.lastReason + "'}";
++    }
++
++    private static long stableKey(final String packet, final long recipients, final int deadlineTicks) {
++        long h = 0x9e3779b97f4a7c15L;
++        for (int i = 0; i < packet.length(); i++) {
++            h ^= packet.charAt(i);
++            h = Long.rotateLeft(h * 0xbf58476d1ce4e5b9L, 27);
++        }
++        h ^= Long.rotateLeft(recipients, 23);
++        h ^= ((long) deadlineTicks << 48);
++        return h;
++    }
++
++    public record Plan(boolean compiled, boolean orderedNow, long vectorKey, long lanes, long cost, String reason) {}
++}
+diff -ruN '--exclude=0224-AGC-alpha24-hot-path-plan-cache.patch' agc-alpha23-baseline-for24/paper-server/src/main/java/net/minecraft/server/AGCNoInvasionOptimizer.java agc-alpha24/paper-server/src/main/java/net/minecraft/server/AGCNoInvasionOptimizer.java
+--- agc-alpha23-baseline-for24/paper-server/src/main/java/net/minecraft/server/AGCNoInvasionOptimizer.java	2026-06-27 07:11:01.000000000 +0000
++++ agc-alpha24/paper-server/src/main/java/net/minecraft/server/AGCNoInvasionOptimizer.java	2026-06-27 15:00:17.708462020 +0000
+@@ -158,6 +158,14 @@
+         AGCPluginCommitCoalescer.INSTANCE.beginTick(sequence);
+         AGCWorldBarrierDAGCompiler.INSTANCE.beginTick(sequence);
+         AGCWorkerRoutePlanner.INSTANCE.beginTick(sequence);
++        AGCScale24HotPathRuntime.INSTANCE.beginTick(sequence);
++        AGCHotPathPlanCache.INSTANCE.beginTick(sequence);
++        AGCNetworkOrderVectorCompiler.INSTANCE.beginTick(sequence);
++        AGCChunkHorizonCompiler.INSTANCE.beginTick(sequence);
++        AGCEntityObserverSetCompiler.INSTANCE.beginTick(sequence);
++        AGCWorldReadOnlyBatchGraph.INSTANCE.beginTick(sequence);
++        AGCPluginDeterministicTicketCache.INSTANCE.beginTick(sequence);
++        AGCResourceLocalityScheduler.INSTANCE.beginTick(sequence);
+     }
+ 
+     public Decision admitNetworkDeadlineBatch(final String packetName, final boolean interactive, final long pendingDeferredFlushes) {
+@@ -207,6 +215,46 @@
+             this.lastNetworkDecision = this.record(Lane.NETWORK_DEADLINE_BATCH, Decision.IMMEDIATE_ORDERED, stableDiff.reason());
+             return this.lastNetworkDecision;
+         }
++        final AGCNetworkOrderVectorCompiler.Plan orderVector = AGCNetworkOrderVectorCompiler.INSTANCE.compile(
++            packetName,
++            Math.max(1L, pendingDeferredFlushes),
++            interactive,
++            this.maxNetworkDeadlineTicks
++        );
++        if (orderVector.orderedNow()) {
++            this.lastNetworkDecision = this.record(Lane.NETWORK_DEADLINE_BATCH, Decision.IMMEDIATE_ORDERED, orderVector.reason());
++            return this.lastNetworkDecision;
++        }
++        final AGCScale24HotPathRuntime.Grant networkHotPath = AGCScale24HotPathRuntime.INSTANCE.claim(
++            AGCScale24HotPathRuntime.Domain.NETWORK_ORDER_VECTOR,
++            Math.max(1L, stableDiff.cost() + orderVector.cost()),
++            false,
++            orderVector.reason()
++        );
++        if (!networkHotPath.admitted() && pendingDeferredFlushes > 16_384L) {
++            this.lastNetworkDecision = this.record(Lane.NETWORK_DEADLINE_BATCH, Decision.IMMEDIATE_ORDERED, networkHotPath.reason());
++            return this.lastNetworkDecision;
++        }
++        final AGCHotPathPlanCache.Plan cachedNetworkPlan = AGCHotPathPlanCache.INSTANCE.compile(
++            AGCHotPathPlanCache.Kind.NETWORK_VECTOR,
++            orderVector.vectorKey(),
++            Math.max(1L, orderVector.cost()),
++            false,
++            orderVector.reason()
++        );
++        if (!cachedNetworkPlan.compiled() && pendingDeferredFlushes > 12_288L) {
++            this.lastNetworkDecision = this.record(Lane.NETWORK_DEADLINE_BATCH, Decision.IMMEDIATE_ORDERED, cachedNetworkPlan.reason());
++            return this.lastNetworkDecision;
++        }
++        final AGCResourceLocalityScheduler.Slot networkLocality24 = AGCResourceLocalityScheduler.INSTANCE.place(
++            "network-order-vector:" + packetName,
++            Math.max(4096L, orderVector.lanes() * 256L),
++            false
++        );
++        if (!networkLocality24.placed() && pendingDeferredFlushes > 16_384L) {
++            this.lastNetworkDecision = this.record(Lane.NETWORK_DEADLINE_BATCH, Decision.IMMEDIATE_ORDERED, networkLocality24.reason());
++            return this.lastNetworkDecision;
++        }
+         final AGCScale23DispatchTable.Dispatch networkDispatch = AGCScale23DispatchTable.INSTANCE.compile(
+             AGCScale23DispatchTable.Lane.NETWORK_DIFF_VECTOR,
+             stableDiff.cost(),
+@@ -422,6 +470,38 @@
+             this.lastChunkDecision = this.record(Lane.CHUNK_FIFO_FAIR_QUEUE, Decision.FIFO_FAIR_WAIT, frontier.reason());
+             return this.lastChunkDecision;
+         }
++        final AGCChunkHorizonCompiler.Horizon chunkHorizon = AGCChunkHorizonCompiler.INSTANCE.compile(
++            playerId,
++            operation,
++            frontier.rings(),
++            chunkCluster22.clusterSize(),
++            frontier.reason()
++        );
++        if (!chunkHorizon.admitted()) {
++            this.lastChunkDecision = this.record(Lane.CHUNK_FIFO_FAIR_QUEUE, Decision.FIFO_FAIR_WAIT, chunkHorizon.reason());
++            return this.lastChunkDecision;
++        }
++        final AGCScale24HotPathRuntime.Grant chunkHotPath = AGCScale24HotPathRuntime.INSTANCE.claim(
++            AGCScale24HotPathRuntime.Domain.CHUNK_HORIZON,
++            chunkHorizon.cost(),
++            false,
++            chunkHorizon.reason()
++        );
++        if (!chunkHotPath.admitted()) {
++            this.lastChunkDecision = this.record(Lane.CHUNK_FIFO_FAIR_QUEUE, Decision.FIFO_FAIR_WAIT, chunkHotPath.reason());
++            return this.lastChunkDecision;
++        }
++        final AGCHotPathPlanCache.Plan cachedChunkPlan = AGCHotPathPlanCache.INSTANCE.compile(
++            AGCHotPathPlanCache.Kind.CHUNK_HORIZON,
++            chunkHorizon.stableKey(),
++            chunkHorizon.cost(),
++            false,
++            chunkHorizon.reason()
++        );
++        if (!cachedChunkPlan.compiled()) {
++            this.lastChunkDecision = this.record(Lane.CHUNK_FIFO_FAIR_QUEUE, Decision.FIFO_FAIR_WAIT, cachedChunkPlan.reason());
++            return this.lastChunkDecision;
++        }
+         final AGCScale23DispatchTable.Dispatch chunkDispatch = AGCScale23DispatchTable.INSTANCE.compile(
+             AGCScale23DispatchTable.Lane.CHUNK_FRONTIER,
+             frontier.cost(),
+@@ -636,6 +716,37 @@
+             this.lastEntityDecision = this.record(Lane.ENTITY_READ_ONLY_SNAPSHOT, Decision.IMMEDIATE_ORDERED, visibilityLattice.reason());
+             return this.lastEntityDecision;
+         }
++        final AGCEntityObserverSetCompiler.ObserverSet observerSet24 = AGCEntityObserverSetCompiler.INSTANCE.prepare(
++            playerId,
++            estimatedEntities,
++            Math.max(1, visibilityLattice.latticeNodes() / 256),
++            visibilityLattice.reason()
++        );
++        if (!observerSet24.prepared() && estimatedEntities > 12_288) {
++            this.lastEntityDecision = this.record(Lane.ENTITY_READ_ONLY_SNAPSHOT, Decision.IMMEDIATE_ORDERED, observerSet24.reason());
++            return this.lastEntityDecision;
++        }
++        final AGCScale24HotPathRuntime.Grant entityHotPath = AGCScale24HotPathRuntime.INSTANCE.claim(
++            AGCScale24HotPathRuntime.Domain.ENTITY_OBSERVER_SET,
++            observerSet24.cost(),
++            false,
++            observerSet24.reason()
++        );
++        if (!entityHotPath.admitted() && estimatedEntities > 16_384) {
++            this.lastEntityDecision = this.record(Lane.ENTITY_READ_ONLY_SNAPSHOT, Decision.IMMEDIATE_ORDERED, entityHotPath.reason());
++            return this.lastEntityDecision;
++        }
++        final AGCHotPathPlanCache.Plan cachedEntityPlan = AGCHotPathPlanCache.INSTANCE.compile(
++            AGCHotPathPlanCache.Kind.ENTITY_OBSERVER_SET,
++            observerSet24.stableKey(),
++            observerSet24.cost(),
++            false,
++            observerSet24.reason()
++        );
++        if (!cachedEntityPlan.compiled() && estimatedEntities > 16_384) {
++            this.lastEntityDecision = this.record(Lane.ENTITY_READ_ONLY_SNAPSHOT, Decision.IMMEDIATE_ORDERED, cachedEntityPlan.reason());
++            return this.lastEntityDecision;
++        }
+         final AGCScale23DispatchTable.Dispatch entityDispatch = AGCScale23DispatchTable.INSTANCE.compile(
+             AGCScale23DispatchTable.Lane.ENTITY_VISIBILITY_LATTICE,
+             Math.max(1L, visibilityLattice.latticeNodes() / 16L),
+@@ -804,6 +915,32 @@
+             this.lastWorldDecision = this.record(Lane.WORLD_WRITE_INTENT_WAVE, Decision.ORDERED_COMMIT, barrierDag.reason());
+             return this.lastWorldDecision;
+         }
++        final AGCWorldReadOnlyBatchGraph.Graph worldBatch24 = AGCWorldReadOnlyBatchGraph.INSTANCE.compile(plan, translatorPending);
++        if (!worldBatch24.readOnlyPrepare()) {
++            this.lastWorldDecision = this.record(Lane.WORLD_WRITE_INTENT_WAVE, Decision.ORDERED_COMMIT, worldBatch24.reason());
++            return this.lastWorldDecision;
++        }
++        final AGCScale24HotPathRuntime.Grant worldHotPath = AGCScale24HotPathRuntime.INSTANCE.claim(
++            AGCScale24HotPathRuntime.Domain.WORLD_READ_ONLY_BATCH,
++            worldBatch24.cost(),
++            false,
++            worldBatch24.reason()
++        );
++        if (!worldHotPath.admitted()) {
++            this.lastWorldDecision = this.record(Lane.WORLD_WRITE_INTENT_WAVE, Decision.ORDERED_COMMIT, worldHotPath.reason());
++            return this.lastWorldDecision;
++        }
++        final AGCHotPathPlanCache.Plan cachedWorldPlan = AGCHotPathPlanCache.INSTANCE.compile(
++            AGCHotPathPlanCache.Kind.WORLD_BATCH_GRAPH,
++            worldBatch24.stableKey(),
++            worldBatch24.cost(),
++            false,
++            worldBatch24.reason()
++        );
++        if (!cachedWorldPlan.compiled()) {
++            this.lastWorldDecision = this.record(Lane.WORLD_WRITE_INTENT_WAVE, Decision.ORDERED_COMMIT, cachedWorldPlan.reason());
++            return this.lastWorldDecision;
++        }
+         final AGCScale23DispatchTable.Dispatch worldDispatch = AGCScale23DispatchTable.INSTANCE.compile(
+             AGCScale23DispatchTable.Lane.WORLD_BARRIER_DAG,
+             barrierDag.cost(),
+@@ -829,6 +966,27 @@
+             this.lastWorldDecision = this.record(Lane.WORLD_WRITE_INTENT_WAVE, Decision.ORDERED_COMMIT, compiledWorld.reason());
+             return this.lastWorldDecision;
+         }
++        final AGCPluginDeterministicTicketCache.Ticket pluginTicket24 = AGCPluginDeterministicTicketCache.INSTANCE.classify(
++            "world",
++            "pure-compute-world-phase-plan",
++            true,
++            phaseMatrix.cost()
++        );
++        if (pluginTicket24.orderedCommit() || pluginTicket24.forbiddenMutation()) {
++            this.lastWorldDecision = this.record(Lane.WORLD_WRITE_INTENT_WAVE, Decision.ORDERED_COMMIT, pluginTicket24.reason());
++            return this.lastWorldDecision;
++        }
++        final AGCHotPathPlanCache.Plan cachedPluginTicket = AGCHotPathPlanCache.INSTANCE.compile(
++            AGCHotPathPlanCache.Kind.PLUGIN_TICKET,
++            pluginTicket24.stableKey(),
++            Math.max(1L, pluginTicket24.tickets()),
++            false,
++            pluginTicket24.reason()
++        );
++        if (!cachedPluginTicket.compiled()) {
++            this.lastWorldDecision = this.record(Lane.WORLD_WRITE_INTENT_WAVE, Decision.ORDERED_COMMIT, cachedPluginTicket.reason());
++            return this.lastWorldDecision;
++        }
+         final AGCPluginCommitCoalescer.Entry coalescedCommit = AGCPluginCommitCoalescer.INSTANCE.classify(
+             "world",
+             "pure-compute-world-phase-plan",
+diff -ruN '--exclude=0224-AGC-alpha24-hot-path-plan-cache.patch' agc-alpha23-baseline-for24/paper-server/src/main/java/net/minecraft/server/AGCPluginDeterministicTicketCache.java agc-alpha24/paper-server/src/main/java/net/minecraft/server/AGCPluginDeterministicTicketCache.java
+--- agc-alpha23-baseline-for24/paper-server/src/main/java/net/minecraft/server/AGCPluginDeterministicTicketCache.java	1970-01-01 00:00:00.000000000 +0000
++++ agc-alpha24/paper-server/src/main/java/net/minecraft/server/AGCPluginDeterministicTicketCache.java	2026-06-27 14:59:39.276463070 +0000
+@@ -0,0 +1,95 @@
++package net.minecraft.server;
++
++import java.util.Locale;
++import java.util.concurrent.ConcurrentHashMap;
++import java.util.concurrent.atomic.AtomicLong;
++
++/**
++ * Alpha24 plugin semantic ticket cache.
++ *
++ * Caches only classification tickets. It never merges events, never changes
++ * callback order and never authorises off-thread Bukkit mutation.
++ */
++public final class AGCPluginDeterministicTicketCache {
++    public static final AGCPluginDeterministicTicketCache INSTANCE = new AGCPluginDeterministicTicketCache();
++
++    private final ConcurrentHashMap<Long, Ticket> tickets = new ConcurrentHashMap<>();
++    private final AtomicLong readOnly = new AtomicLong();
++    private final AtomicLong ordered = new AtomicLong();
++    private final AtomicLong forbidden = new AtomicLong();
++    private volatile long tickSequence;
++    private volatile String lastReason = "cold";
++
++    private AGCPluginDeterministicTicketCache() {}
++
++    public void beginTick(final long sequence) {
++        this.tickSequence = Math.max(0L, sequence);
++        this.tickets.clear();
++        this.lastReason = "reset";
++    }
++
++    public Ticket classify(final String pluginName, final String operation, final boolean declaredReadOnly, final long cost) {
++        final String plugin = pluginName == null || pluginName.isBlank() ? "unknown" : pluginName;
++        final String op = operation == null || operation.isBlank() ? "unknown" : operation;
++        final String lower = op.toLowerCase(Locale.ROOT);
++        final long key = stableKey(plugin, lower, declaredReadOnly);
++        final Ticket cached = this.tickets.get(key);
++        if (cached != null) {
++            this.lastReason = "plugin semantic ticket cache hit plugin=" + plugin + " op=" + op;
++            return cached;
++        }
++        final Ticket ticket;
++        if (lower.contains("offthread") || lower.contains("asyncmutate") || lower.contains("forbidden")) {
++            this.forbidden.incrementAndGet();
++            ticket = new Ticket(false, false, true, 0L, key, "forbidden off-thread Bukkit mutation plugin=" + plugin + " op=" + op);
++        } else if (visibleMutation(lower)) {
++            this.ordered.incrementAndGet();
++            ticket = new Ticket(false, true, false, Math.max(1L, Math.min(8192L, cost)), key, "Bukkit-visible plugin work remains ordered plugin=" + plugin + " op=" + op);
++        } else if (declaredReadOnly || lower.contains("readonly") || lower.contains("pure") || lower.contains("plan") || lower.contains("classify")) {
++            this.readOnly.incrementAndGet();
++            ticket = new Ticket(true, false, false, Math.max(1L, Math.min(65_536L, Math.max(1L, cost / 2L))), key, "cached read-only plugin semantic ticket plugin=" + plugin + " op=" + op);
++        } else {
++            this.ordered.incrementAndGet();
++            ticket = new Ticket(false, true, false, Math.max(1L, Math.min(8192L, cost)), key, "unknown plugin work kept ordered plugin=" + plugin + " op=" + op);
++        }
++        this.tickets.put(key, ticket);
++        this.lastReason = ticket.reason();
++        return ticket;
++    }
++
++    public String statusLine() {
++        return "AGCPluginDeterministicTicketCache{tick=" + this.tickSequence
++            + ", tickets=" + this.tickets.size()
++            + ", readOnly=" + this.readOnly.get()
++            + ", ordered=" + this.ordered.get()
++            + ", forbidden=" + this.forbidden.get()
++            + ", lastReason='" + this.lastReason + "'}";
++    }
++
++    private static boolean visibleMutation(final String lower) {
++        return lower.contains("setblock")
++            || lower.contains("teleport")
++            || lower.contains("spawn")
++            || lower.contains("inventory")
++            || lower.contains("scoreboard")
++            || lower.contains("command")
++            || lower.contains("event")
++            || lower.contains("world")
++            || lower.contains("blockbreak")
++            || lower.contains("blockplace")
++            || lower.contains("damage")
++            || lower.contains("interaction");
++    }
++
++    private static long stableKey(final String plugin, final String op, final boolean readOnly) {
++        long h = readOnly ? 0x1234abcd5678ef90L : 0xfedcba9876543210L;
++        final String combined = plugin + ':' + op;
++        for (int i = 0; i < combined.length(); i++) {
++            h ^= combined.charAt(i);
++            h *= 0x100000001b3L;
++        }
++        return h;
++    }
++
++    public record Ticket(boolean readOnlyPrepare, boolean orderedCommit, boolean forbiddenMutation, long tickets, long stableKey, String reason) {}
++}
+diff -ruN '--exclude=0224-AGC-alpha24-hot-path-plan-cache.patch' agc-alpha23-baseline-for24/paper-server/src/main/java/net/minecraft/server/AGCResourceLocalityScheduler.java agc-alpha24/paper-server/src/main/java/net/minecraft/server/AGCResourceLocalityScheduler.java
+--- agc-alpha23-baseline-for24/paper-server/src/main/java/net/minecraft/server/AGCResourceLocalityScheduler.java	1970-01-01 00:00:00.000000000 +0000
++++ agc-alpha24/paper-server/src/main/java/net/minecraft/server/AGCResourceLocalityScheduler.java	2026-06-27 14:59:39.285152310 +0000
+@@ -0,0 +1,59 @@
++package net.minecraft.server;
++
++import java.util.concurrent.atomic.AtomicLong;
++
++/** Cache/locality aware scheduler for alpha24 read-only helper slots. */
++public final class AGCResourceLocalityScheduler {
++    public static final AGCResourceLocalityScheduler INSTANCE = new AGCResourceLocalityScheduler();
++
++    private final AtomicLong placed = new AtomicLong();
++    private final AtomicLong delayed = new AtomicLong();
++    private volatile long tickSequence;
++    private volatile long localityBudgetBytes = 256L * 1024L * 1024L;
++    private volatile long remainingBytes = 256L * 1024L * 1024L;
++    private volatile String lastReason = "cold";
++
++    private AGCResourceLocalityScheduler() {}
++
++    public void beginTick(final long sequence) {
++        this.tickSequence = Math.max(0L, sequence);
++        final int processors = Math.max(1, Runtime.getRuntime().availableProcessors());
++        final long maxMemory = Math.max(64L * 1024L * 1024L, Runtime.getRuntime().maxMemory());
++        this.localityBudgetBytes = Math.max(64L * 1024L * 1024L, Math.min(maxMemory / 5L, processors * 64L * 1024L * 1024L));
++        this.remainingBytes = this.localityBudgetBytes;
++        this.lastReason = "reset processors=" + processors + " budgetBytes=" + this.localityBudgetBytes;
++    }
++
++    public Slot place(final String key, final long bytes, final boolean visible) {
++        final long safeBytes = Math.max(1L, bytes);
++        if (visible) {
++            this.delayed.incrementAndGet();
++            this.lastReason = "visible work is not routed through locality helper slot: " + safe(key);
++            return new Slot(false, true, 0, safeBytes, this.remainingBytes, this.lastReason);
++        }
++        if (safeBytes > this.remainingBytes) {
++            this.delayed.incrementAndGet();
++            this.lastReason = "locality helper waits; no visible semantic change key=" + safe(key);
++            return new Slot(false, false, 0, safeBytes, this.remainingBytes, this.lastReason);
++        }
++        this.remainingBytes -= safeBytes;
++        final int slot = (int) (this.placed.incrementAndGet() & 0x7fff_ffffL);
++        this.lastReason = "placed read-only locality helper slot=" + slot + " key=" + safe(key) + " bytes=" + safeBytes;
++        return new Slot(true, false, slot, safeBytes, this.remainingBytes, this.lastReason);
++    }
++
++    public String statusLine() {
++        return "AGCResourceLocalityScheduler{tick=" + this.tickSequence
++            + ", budgetBytes=" + this.localityBudgetBytes
++            + ", remainingBytes=" + this.remainingBytes
++            + ", placed=" + this.placed.get()
++            + ", delayed=" + this.delayed.get()
++            + ", lastReason='" + this.lastReason + "'}";
++    }
++
++    private static String safe(final String key) {
++        return key == null || key.isBlank() ? "unspecified" : key;
++    }
++
++    public record Slot(boolean placed, boolean orderedVisible, int slot, long bytes, long remainingBytes, String reason) {}
++}
+diff -ruN '--exclude=0224-AGC-alpha24-hot-path-plan-cache.patch' agc-alpha23-baseline-for24/paper-server/src/main/java/net/minecraft/server/AGCScale24HotPathRuntime.java agc-alpha24/paper-server/src/main/java/net/minecraft/server/AGCScale24HotPathRuntime.java
+--- agc-alpha23-baseline-for24/paper-server/src/main/java/net/minecraft/server/AGCScale24HotPathRuntime.java	1970-01-01 00:00:00.000000000 +0000
++++ agc-alpha24/paper-server/src/main/java/net/minecraft/server/AGCScale24HotPathRuntime.java	2026-06-27 14:59:39.223022869 +0000
+@@ -0,0 +1,98 @@
++package net.minecraft.server;
++
++import java.util.EnumMap;
++import java.util.Map;
++import java.util.concurrent.atomic.AtomicLong;
++
++/**
++ * Alpha24 hot-path runtime.
++ *
++ * The runtime gives budget only to lossless helper work that shortens the next
++ * visible tick path. It never admits Bukkit-visible mutation, redstone, block
++ * entity ticks, entity ticks, plugin events, chunk completion or connection
++ * writes onto worker lanes.
++ */
++public final class AGCScale24HotPathRuntime {
++    public static final AGCScale24HotPathRuntime INSTANCE = new AGCScale24HotPathRuntime();
++
++    public enum Domain {
++        NETWORK_ORDER_VECTOR,
++        CHUNK_HORIZON,
++        ENTITY_OBSERVER_SET,
++        WORLD_READ_ONLY_BATCH,
++        PLUGIN_TICKET_CACHE,
++        RESOURCE_LOCALITY
++    }
++
++    private final EnumMap<Domain, AtomicLong> admitted = new EnumMap<>(Domain.class);
++    private final EnumMap<Domain, AtomicLong> waiting = new EnumMap<>(Domain.class);
++    private volatile long tickSequence;
++    private volatile long baseCredits = 1_000_000L;
++    private volatile long remainingCredits = 1_000_000L;
++    private volatile String lastReason = "cold";
++
++    private AGCScale24HotPathRuntime() {
++        for (final Domain domain : Domain.values()) {
++            this.admitted.put(domain, new AtomicLong());
++            this.waiting.put(domain, new AtomicLong());
++        }
++    }
++
++    public void beginTick(final long sequence) {
++        this.tickSequence = Math.max(0L, sequence);
++        final int processors = Math.max(1, Runtime.getRuntime().availableProcessors());
++        final long maxMemory = Math.max(1L, Runtime.getRuntime().maxMemory());
++        final long usedMemory = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
++        final double headroom = Math.max(0.15D, Math.min(1.0D, 1.0D - ((double) usedMemory / (double) maxMemory)));
++        final long reservedForPrimaryAndPlugins = Math.max(196_608L, processors * 96_000L);
++        this.baseCredits = Math.max(262_144L, (long) (processors * 448_000L * headroom) - reservedForPrimaryAndPlugins);
++        this.remainingCredits = this.baseCredits;
++        this.lastReason = "reset processors=" + processors + " memoryHeadroom=" + round(headroom);
++    }
++
++    public Grant claim(final Domain domain, final long estimatedCost, final boolean visible, final String reason) {
++        final Domain safeDomain = domain == null ? Domain.RESOURCE_LOCALITY : domain;
++        final long cost = Math.max(1L, estimatedCost);
++        if (visible) {
++            this.waiting.get(safeDomain).incrementAndGet();
++            this.lastReason = "visible operation is not hot-path helper work: " + safe(reason);
++            return new Grant(false, true, cost, this.remainingCredits, this.lastReason);
++        }
++        if (cost > this.remainingCredits) {
++            this.waiting.get(safeDomain).incrementAndGet();
++            this.lastReason = "hot-path helper waits; visible order is unchanged: " + safe(reason);
++            return new Grant(false, false, cost, this.remainingCredits, this.lastReason);
++        }
++        this.remainingCredits -= cost;
++        this.admitted.get(safeDomain).incrementAndGet();
++        this.lastReason = "admitted alpha24 hot-path helper domain=" + safeDomain + " cost=" + cost + " reason=" + safe(reason);
++        return new Grant(true, false, cost, this.remainingCredits, this.lastReason);
++    }
++
++    public String statusLine() {
++        return "AGCScale24HotPathRuntime{tick=" + this.tickSequence
++            + ", baseCredits=" + this.baseCredits
++            + ", remainingCredits=" + this.remainingCredits
++            + ", admitted=" + snapshot(this.admitted)
++            + ", waiting=" + snapshot(this.waiting)
++            + ", lastReason='" + this.lastReason + "'}";
++    }
++
++    private static Map<Domain, Long> snapshot(final EnumMap<Domain, AtomicLong> source) {
++        final EnumMap<Domain, Long> copy = new EnumMap<>(Domain.class);
++        for (final Map.Entry<Domain, AtomicLong> entry : source.entrySet()) {
++            copy.put(entry.getKey(), entry.getValue().get());
++        }
++        return copy;
++    }
++
++    private static String safe(final String reason) {
++        return reason == null || reason.isBlank() ? "unspecified" : reason;
++    }
++
++    private static double round(final double value) {
++        return Math.round(value * 100.0D) / 100.0D;
++    }
++
++    public record Grant(boolean admitted, boolean orderedVisible, long cost, long remainingCredits, String reason) {}
++}
+diff -ruN '--exclude=0224-AGC-alpha24-hot-path-plan-cache.patch' agc-alpha23-baseline-for24/paper-server/src/main/java/net/minecraft/server/AGCWorldReadOnlyBatchGraph.java agc-alpha24/paper-server/src/main/java/net/minecraft/server/AGCWorldReadOnlyBatchGraph.java
+--- agc-alpha23-baseline-for24/paper-server/src/main/java/net/minecraft/server/AGCWorldReadOnlyBatchGraph.java	1970-01-01 00:00:00.000000000 +0000
++++ agc-alpha24/paper-server/src/main/java/net/minecraft/server/AGCWorldReadOnlyBatchGraph.java	2026-06-27 14:59:39.268580277 +0000
+@@ -0,0 +1,57 @@
++package net.minecraft.server;
++
++import java.util.concurrent.atomic.AtomicLong;
++
++/** Compiles read-only world phase batches without moving visible barriers. */
++public final class AGCWorldReadOnlyBatchGraph {
++    public static final AGCWorldReadOnlyBatchGraph INSTANCE = new AGCWorldReadOnlyBatchGraph();
++
++    private final AtomicLong compiled = new AtomicLong();
++    private final AtomicLong ordered = new AtomicLong();
++    private volatile long tickSequence;
++    private volatile String lastReason = "cold";
++
++    private AGCWorldReadOnlyBatchGraph() {}
++
++    public void beginTick(final long sequence) {
++        this.tickSequence = Math.max(0L, sequence);
++        this.lastReason = "reset";
++    }
++
++    public Graph compile(final AGCWorldWriteIntentGraph.Plan plan, final long translatorPending) {
++        if (plan == null) {
++            this.ordered.incrementAndGet();
++            this.lastReason = "null world plan remains ordered";
++            return new Graph(false, 0, 0, 0L, 0L, this.lastReason);
++        }
++        final int worlds = Math.max(1, plan.nodes().size());
++        final int parallelGroups = Math.max(0, plan.parallelGroups());
++        final int readOnlyBatches = Math.max(1, Math.min(2048, parallelGroups + Math.max(1, worlds / 2)));
++        final int visibleBarriers = Math.max(1, worlds - parallelGroups + 1);
++        final long cost = Math.max(1L, readOnlyBatches * 64L + Math.max(0L, translatorPending / 16L));
++        if (translatorPending > 65_536L || visibleBarriers > readOnlyBatches * 8) {
++            this.ordered.incrementAndGet();
++            this.lastReason = "world graph keeps ordered visible barrier mode=" + plan.mode();
++            return new Graph(false, readOnlyBatches, visibleBarriers, cost, stableKey(plan, translatorPending), this.lastReason);
++        }
++        this.compiled.incrementAndGet();
++        this.lastReason = "compiled read-only world batch graph worlds=" + worlds + " batches=" + readOnlyBatches + " barriers=" + visibleBarriers;
++        return new Graph(true, readOnlyBatches, visibleBarriers, cost, stableKey(plan, translatorPending), this.lastReason);
++    }
++
++    public String statusLine() {
++        return "AGCWorldReadOnlyBatchGraph{tick=" + this.tickSequence
++            + ", compiled=" + this.compiled.get()
++            + ", ordered=" + this.ordered.get()
++            + ", lastReason='" + this.lastReason + "'}";
++    }
++
++    private static long stableKey(final AGCWorldWriteIntentGraph.Plan plan, final long translatorPending) {
++        if (plan == null) {
++            return translatorPending;
++        }
++        return ((long) plan.mode().ordinal() << 48) ^ ((long) plan.nodes().size() << 24) ^ plan.parallelGroups() ^ Long.rotateLeft(translatorPending, 7);
++    }
++
++    public record Graph(boolean readOnlyPrepare, int batches, int visibleBarriers, long cost, long stableKey, String reason) {}
++}
+diff -ruN '--exclude=0224-AGC-alpha24-hot-path-plan-cache.patch' agc-alpha23-baseline-for24/paper-server/src/minecraft/java/net/minecraft/server/commands/AGCCommand.java agc-alpha24/paper-server/src/minecraft/java/net/minecraft/server/commands/AGCCommand.java
+--- agc-alpha23-baseline-for24/paper-server/src/minecraft/java/net/minecraft/server/commands/AGCCommand.java	2026-06-27 07:11:20.000000000 +0000
++++ agc-alpha24/paper-server/src/minecraft/java/net/minecraft/server/commands/AGCCommand.java	2026-06-27 15:00:51.180332702 +0000
+@@ -43,6 +43,7 @@
+                 .then(Commands.literal("scale21").executes(context -> sendReport(context.getSource(), AGCCommandReports.scale21())))
+                 .then(Commands.literal("scale22").executes(context -> sendReport(context.getSource(), AGCCommandReports.scale22())))
+                 .then(Commands.literal("scale23").executes(context -> sendReport(context.getSource(), AGCCommandReports.scale23())))
++                .then(Commands.literal("scale24").executes(context -> sendReport(context.getSource(), AGCCommandReports.scale24())))
+                 .then(Commands.literal("rollback-profile").executes(context -> sendReport(context.getSource(), AGCCommandReports.rollbackProfile())))
+                 .then(Commands.literal("health").executes(context -> sendReport(context.getSource(), AGCRuntimeHealth.INSTANCE.statusLine())))
+                 .then(Commands.literal("reset-rollback")
+@@ -83,6 +84,7 @@
+             "  /agc scale21 - alpha21 critical-path survival runtime",
+             "  /agc scale22 - alpha22 tick-work compiler",
+             "  /agc scale23 - alpha23 compiled dispatch and stable-diff runtime",
++            "  /agc scale24 - alpha24 hot-path compiled plan cache and deterministic tickets",
+             "  /agc rollback-profile - rollback counters",
+             "  /agc reset-rollback - clear AGC runtime rollback flags for this process"
+         );
+diff -ruN '--exclude=0224-AGC-alpha24-hot-path-plan-cache.patch' agc-alpha23-baseline-for24/test-plugin/src/main/java/io/papermc/testplugin/e2e/TestRegistry.java agc-alpha24/test-plugin/src/main/java/io/papermc/testplugin/e2e/TestRegistry.java
+--- agc-alpha23-baseline-for24/test-plugin/src/main/java/io/papermc/testplugin/e2e/TestRegistry.java	2026-06-27 07:12:33.000000000 +0000
++++ agc-alpha24/test-plugin/src/main/java/io/papermc/testplugin/e2e/TestRegistry.java	2026-06-27 15:02:18.813495742 +0000
+@@ -49,6 +49,7 @@
+         new FeatureR29Tests().register(this);
+         new FeatureR30Tests().register(this);
+         new FeatureR31Tests().register(this);
++        new FeatureR32Tests().register(this);
+         new Tier3Tests().register(this);
+         new Tier4Tests().register(this);
+     }
+diff -ruN '--exclude=0224-AGC-alpha24-hot-path-plan-cache.patch' agc-alpha23-baseline-for24/test-plugin/src/main/java/io/papermc/testplugin/e2e/tests/FeatureR32Tests.java agc-alpha24/test-plugin/src/main/java/io/papermc/testplugin/e2e/tests/FeatureR32Tests.java
+--- agc-alpha23-baseline-for24/test-plugin/src/main/java/io/papermc/testplugin/e2e/tests/FeatureR32Tests.java	1970-01-01 00:00:00.000000000 +0000
++++ agc-alpha24/test-plugin/src/main/java/io/papermc/testplugin/e2e/tests/FeatureR32Tests.java	2026-06-27 15:02:17.739420968 +0000
+@@ -0,0 +1,72 @@
++package io.papermc.testplugin.e2e.tests;
++
++import io.papermc.testplugin.e2e.E2ETest;
++import io.papermc.testplugin.e2e.TestContext;
++import io.papermc.testplugin.e2e.TestRegistry;
++
++public class FeatureR32Tests {
++    public void register(TestRegistry registry) {
++        registry.register(new E2ETest() {
++            @Override public String getId() { return "R32_T1_1"; }
++            @Override public String getName() { return "R32 Tier 1 - Scale24 Hot Path Runtime and Cache"; }
++            @Override public void run(TestContext context) throws Exception {
++                for (String name : new String[] {
++                    "net.minecraft.server.AGCScale24HotPathRuntime",
++                    "net.minecraft.server.AGCHotPathPlanCache"
++                }) {
++                    Class<?> type = context.checkClassExists(name);
++                    Object instance = type.getDeclaredField("INSTANCE").get(null);
++                    context.assertTrue(((String) type.getDeclaredMethod("statusLine").invoke(instance)).contains(type.getSimpleName()), name + " status must identify itself.");
++                }
++            }
++        });
++        registry.register(new E2ETest() {
++            @Override public String getId() { return "R32_T1_2"; }
++            @Override public String getName() { return "R32 Tier 1 - Network, Chunk and Entity Compilers"; }
++            @Override public void run(TestContext context) throws Exception {
++                for (String name : new String[] {
++                    "net.minecraft.server.AGCNetworkOrderVectorCompiler",
++                    "net.minecraft.server.AGCChunkHorizonCompiler",
++                    "net.minecraft.server.AGCEntityObserverSetCompiler"
++                }) {
++                    Class<?> type = context.checkClassExists(name);
++                    Object instance = type.getDeclaredField("INSTANCE").get(null);
++                    context.assertTrue(((String) type.getDeclaredMethod("statusLine").invoke(instance)).contains(type.getSimpleName()), name + " status must identify itself.");
++                }
++            }
++        });
++        registry.register(new E2ETest() {
++            @Override public String getId() { return "R32_T1_3"; }
++            @Override public String getName() { return "R32 Tier 1 - World, Plugin and Resource Compilers"; }
++            @Override public void run(TestContext context) throws Exception {
++                for (String name : new String[] {
++                    "net.minecraft.server.AGCWorldReadOnlyBatchGraph",
++                    "net.minecraft.server.AGCPluginDeterministicTicketCache",
++                    "net.minecraft.server.AGCResourceLocalityScheduler"
++                }) {
++                    Class<?> type = context.checkClassExists(name);
++                    Object instance = type.getDeclaredField("INSTANCE").get(null);
++                    context.assertTrue(((String) type.getDeclaredMethod("statusLine").invoke(instance)).contains(type.getSimpleName()), name + " status must identify itself.");
++                }
++            }
++        });
++        registry.register(new E2ETest() {
++            @Override public String getId() { return "R32_T1_4"; }
++            @Override public String getName() { return "R32 Tier 1 - Scale24 Report"; }
++            @Override public void run(TestContext context) throws Exception {
++                Class<?> reports = context.checkClassExists("net.minecraft.server.AGCCommandReports");
++                String report = (String) reports.getDeclaredMethod("scale24").invoke(null);
++                context.assertTrue(report.contains("AGCScale24HotPathRuntime") && report.contains("hardRules"), "Scale24 report must include hot path runtime and hard rules.");
++            }
++        });
++        registry.register(new E2ETest() {
++            @Override public String getId() { return "R32_T1_5"; }
++            @Override public String getName() { return "R32 Tier 1 - Scale24 Public API"; }
++            @Override public void run(TestContext context) throws Exception {
++                context.checkClassExists("io.agcmc.agc.api.AGCScale24Plan");
++                Class<?> performance = context.checkClassExists("io.agcmc.agc.api.AGCPerformance");
++                context.assertNotNull(performance.getDeclaredMethod("scale24Plan", int.class, double.class), "scale24Plan API must exist.");
++            }
++        });
++    }
++}

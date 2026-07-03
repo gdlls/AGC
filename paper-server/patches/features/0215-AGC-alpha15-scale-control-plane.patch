@@ -1,0 +1,1772 @@
+diff --git a/AGC.md b/AGC.md
+index a76c0dd..587e69e 100644
+--- a/AGC.md
++++ b/AGC.md
+@@ -287,3 +287,22 @@ Major alpha14 components:
+ - `AGCThreadAffinityTranslator` and `AGCPluginLogicTranslator`: explicit translator layers that convert plugin/game logic into read-only prepare or ordered primary-thread commit phases.
+ 
+ The hard rules remain unchanged: no packet drops, no chunk FIFO skips, no entity tick skips, no off-thread Bukkit mutation, no plugin event reorder, no redstone/farm/block-entity semantic changes. `/agc wild-scale` reports the new kernel.
++
++
++## AGC 26.2 alpha15 - high-scale survival optimisation plane
++
++Alpha15 focuses on the first wave of important thousand-player survival optimisations before small tuning:
++
++- `AGCScaleControlPlane`: one central budget for packet-shape reuse, cohorts, chunk-intent compaction, entity banding, plugin translation and memory-local scratch work.
++- `AGCPacketShapeTable`: tick-local packet shape reuse. It never shares mutable packet instances, never drops packets and never reorders a connection stream.
++- `AGCPlayerCohortTable`: coarse player cohorts for shared read-only fanout planning. Cohorts are planning labels only; they do not hide players or reduce view distance.
++- `AGCChunkIntentCompactor`: region-shaped chunk intent planning while preserving Paper chunk queue FIFO and completion order.
++- `AGCEntityBandingPlanner`: read-only entity tracker candidate bands. Entity tick, AI, damage and interaction logic remain untouched.
++- `AGCMemoryLocalityPlanner`: tick-local scratch budgeting to reduce allocation churn without retaining live world state.
++- `AGCEncodingReusePlanner`: immutable encoding helper planning before ordered connection writes; protocol-sensitive packets keep ordered encoding.
++- `AGCPluginBackpressureBridge`: routes plugin helper work through read-only prepare or ordered primary-thread commit and rejects off-thread Bukkit mutation.
++- `AGCHotspotEvictionPlanner`: evicts only duplicate read-only helper plans under hotspot pressure; it never unloads chunks, hides entities or drops packets.
++
++Operator report: `/agc scale15`.
++
++Hard rules remain: no packet drops, no chunk FIFO head skip, no entity tick/AI/damage/interaction skip, no Bukkit off-thread mutation, no plugin event reorder and no redstone/factory semantics changes.
+diff --git a/AGC_ROADMAP.md b/AGC_ROADMAP.md
+index 6cd717a..e7efe3b 100644
+--- a/AGC_ROADMAP.md
++++ b/AGC_ROADMAP.md
+@@ -282,3 +282,22 @@ This release moves the roadmap from many independent optimisation helpers to a s
+ 5. Keep hard gameplay rules as invariants: no packet drop, no FIFO skip, no entity tick skip, no off-thread Bukkit mutation, no event reorder.
+ 
+ Next roadmap step after alpha14 is fine-grained optimisation inside these kernels: packet shape hashing quality, chunk intent cache compaction, region hotspot eviction, visibility band precomputation and command/API polish.
++
++
++## AGC 26.2 alpha15 - high-scale survival optimisation plane
++
++Alpha15 focuses on the first wave of important thousand-player survival optimisations before small tuning:
++
++- `AGCScaleControlPlane`: one central budget for packet-shape reuse, cohorts, chunk-intent compaction, entity banding, plugin translation and memory-local scratch work.
++- `AGCPacketShapeTable`: tick-local packet shape reuse. It never shares mutable packet instances, never drops packets and never reorders a connection stream.
++- `AGCPlayerCohortTable`: coarse player cohorts for shared read-only fanout planning. Cohorts are planning labels only; they do not hide players or reduce view distance.
++- `AGCChunkIntentCompactor`: region-shaped chunk intent planning while preserving Paper chunk queue FIFO and completion order.
++- `AGCEntityBandingPlanner`: read-only entity tracker candidate bands. Entity tick, AI, damage and interaction logic remain untouched.
++- `AGCMemoryLocalityPlanner`: tick-local scratch budgeting to reduce allocation churn without retaining live world state.
++- `AGCEncodingReusePlanner`: immutable encoding helper planning before ordered connection writes; protocol-sensitive packets keep ordered encoding.
++- `AGCPluginBackpressureBridge`: routes plugin helper work through read-only prepare or ordered primary-thread commit and rejects off-thread Bukkit mutation.
++- `AGCHotspotEvictionPlanner`: evicts only duplicate read-only helper plans under hotspot pressure; it never unloads chunks, hides entities or drops packets.
++
++Operator report: `/agc scale15`.
++
++Hard rules remain: no packet drops, no chunk FIFO head skip, no entity tick/AI/damage/interaction skip, no Bukkit off-thread mutation, no plugin event reorder and no redstone/factory semantics changes.
+diff --git a/PROJECT.md b/PROJECT.md
+index 9b2b6cc..342d726 100644
+--- a/PROJECT.md
++++ b/PROJECT.md
+@@ -101,3 +101,22 @@ Alpha13 adds topology-scale compute efficiency. The implementation focuses on us
+ ## alpha14 project status
+ 
+ Alpha14 adds the wild-scale kernel layer. It treats the ordinary survival thousands-player goal as the top-level performance target and centralizes CPU/resource distribution for invisible work. The implementation adds scale kernel budgeting, hotspot accounting, network fanout planning, chunk pipeline intent tokens, entity tracker read-only candidate preparation, and plugin/thread-affinity translators. E2E surface count is now 163.
++
++
++## AGC 26.2 alpha15 - high-scale survival optimisation plane
++
++Alpha15 focuses on the first wave of important thousand-player survival optimisations before small tuning:
++
++- `AGCScaleControlPlane`: one central budget for packet-shape reuse, cohorts, chunk-intent compaction, entity banding, plugin translation and memory-local scratch work.
++- `AGCPacketShapeTable`: tick-local packet shape reuse. It never shares mutable packet instances, never drops packets and never reorders a connection stream.
++- `AGCPlayerCohortTable`: coarse player cohorts for shared read-only fanout planning. Cohorts are planning labels only; they do not hide players or reduce view distance.
++- `AGCChunkIntentCompactor`: region-shaped chunk intent planning while preserving Paper chunk queue FIFO and completion order.
++- `AGCEntityBandingPlanner`: read-only entity tracker candidate bands. Entity tick, AI, damage and interaction logic remain untouched.
++- `AGCMemoryLocalityPlanner`: tick-local scratch budgeting to reduce allocation churn without retaining live world state.
++- `AGCEncodingReusePlanner`: immutable encoding helper planning before ordered connection writes; protocol-sensitive packets keep ordered encoding.
++- `AGCPluginBackpressureBridge`: routes plugin helper work through read-only prepare or ordered primary-thread commit and rejects off-thread Bukkit mutation.
++- `AGCHotspotEvictionPlanner`: evicts only duplicate read-only helper plans under hotspot pressure; it never unloads chunks, hides entities or drops packets.
++
++Operator report: `/agc scale15`.
++
++Hard rules remain: no packet drops, no chunk FIFO head skip, no entity tick/AI/damage/interaction skip, no Bukkit off-thread mutation, no plugin event reorder and no redstone/factory semantics changes.
+diff --git a/README.md b/README.md
+index adc9b06..3138958 100644
+--- a/README.md
++++ b/README.md
+@@ -204,3 +204,22 @@ AGC 26.2 alpha14 adds `/agc wild-scale` and a public `AGC.performance().wildScal
+ The large optimisations are now centralized in `AGCScaleKernel`, `AGCNetworkFanoutKernel`, `AGCChunkPipelineKernel`, `AGCEntityTrackerKernel`, `AGCRegionHotspotMap`, `AGCThreadAffinityTranslator`, and `AGCPluginLogicTranslator`. These components use extra CPU only for invisible work: read-only fanout planning, chunk-intent budgeting, entity candidate preparation, hotspot accounting, compression hints and ordered-commit preparation.
+ 
+ Hard rules remain: no packet drops, no entity tick skips, no chunk FIFO skips, no off-thread Bukkit mutation, no plugin event reorder, and no redstone/farm/block-entity order changes.
++
++
++## AGC 26.2 alpha15 - high-scale survival optimisation plane
++
++Alpha15 focuses on the first wave of important thousand-player survival optimisations before small tuning:
++
++- `AGCScaleControlPlane`: one central budget for packet-shape reuse, cohorts, chunk-intent compaction, entity banding, plugin translation and memory-local scratch work.
++- `AGCPacketShapeTable`: tick-local packet shape reuse. It never shares mutable packet instances, never drops packets and never reorders a connection stream.
++- `AGCPlayerCohortTable`: coarse player cohorts for shared read-only fanout planning. Cohorts are planning labels only; they do not hide players or reduce view distance.
++- `AGCChunkIntentCompactor`: region-shaped chunk intent planning while preserving Paper chunk queue FIFO and completion order.
++- `AGCEntityBandingPlanner`: read-only entity tracker candidate bands. Entity tick, AI, damage and interaction logic remain untouched.
++- `AGCMemoryLocalityPlanner`: tick-local scratch budgeting to reduce allocation churn without retaining live world state.
++- `AGCEncodingReusePlanner`: immutable encoding helper planning before ordered connection writes; protocol-sensitive packets keep ordered encoding.
++- `AGCPluginBackpressureBridge`: routes plugin helper work through read-only prepare or ordered primary-thread commit and rejects off-thread Bukkit mutation.
++- `AGCHotspotEvictionPlanner`: evicts only duplicate read-only helper plans under hotspot pressure; it never unloads chunks, hides entities or drops packets.
++
++Operator report: `/agc scale15`.
++
++Hard rules remain: no packet drops, no chunk FIFO head skip, no entity tick/AI/damage/interaction skip, no Bukkit off-thread mutation, no plugin event reorder and no redstone/factory semantics changes.
+diff --git a/TEST_INFRA.md b/TEST_INFRA.md
+index 0b8c008..0259488 100644
+--- a/TEST_INFRA.md
++++ b/TEST_INFRA.md
+@@ -51,7 +51,7 @@ The test suite consists of:
+ 
+ ## Coverage Thresholds
+ - **Requirement Coverage**: 100% of defined specifications are addressed by at least one test case.
+-- **Total Test Cases**: 163 registered test cases (100 R1-R10 feature cases, 7 R11 AGC scaling-surface cases, 4 R12 runtime-admission cases, 4 R13 adaptive-profile/semantic-deadline cases, 4 R14 mini-game API/aggressive-default cases, 5 R15 optimisation-envelope cases, 4 R16 semantic-invariant/planner cases, 5 R17 no-invasion lane cases, 5 R18 scale/compatibility-contract cases, 5 R19 hard-performance cases, 6 R20 survival-scale cases, 6 R21 topology-scale cases, 6 R22 wild-scale cases, 1 Tier 3 smoke case, 1 Tier 4 smoke case).
++- **Total Test Cases**: 169 registered test cases (100 R1-R10 feature cases, 7 R11 AGC scaling-surface cases, 4 R12 runtime-admission cases, 4 R13 adaptive-profile/semantic-deadline cases, 4 R14 mini-game API/aggressive-default cases, 5 R15 optimisation-envelope cases, 4 R16 semantic-invariant/planner cases, 5 R17 no-invasion lane cases, 5 R18 scale/compatibility-contract cases, 5 R19 hard-performance cases, 6 R20 survival-scale cases, 6 R21 topology-scale cases, 6 R22 wild-scale cases, 1 Tier 3 smoke case, 1 Tier 4 smoke case).
+ - **Graceful Failure Threshold**: 100% of tests must successfully fail with ClassNotFoundException under empty server instances, and must fully pass once the server classes are injected.
+ 
+ 
+@@ -77,7 +77,7 @@ R13 tests validate `AGCScalingController`, `AGCStabilityJournal`, network deferr
+ ## Alpha 6 test surface
+ 
+ - Added `FeatureR14Tests` for AGC API entry points, mini-game options builder, mini-game event handler-list surfaces and aggressive-compatible config defaults.
+-- Expected E2E registration count is now 163 tests.
++- Expected E2E registration count is now 169 tests.
+ - New API classes were syntax-checked with a stub Bukkit/Adventure/annotations classpath using `javac --release 21`.
+ 
+ 
+@@ -92,20 +92,20 @@ R13 tests validate `AGCScalingController`, `AGCStabilityJournal`, network deferr
+ ## Alpha 9 test additions
+ 
+ - `FeatureR17Tests` verifies `AGCNoInvasionOptimizer`, `AGCChunkFairQueue`, `AGCEntitySnapshotPlanner`, `AGCWorldWriteIntentGraph` and `/agc noinvasion` report discovery.
+-- Expected E2E registration count is now 163 tests.
++- Expected E2E registration count is now 169 tests.
+ 
+ 
+ ## Alpha 10 test additions
+ 
+ - `FeatureR18Tests` verifies the per-player intent scheduler, deterministic shard planner, plugin compatibility contracts, public `AGC.compatibility()` API and `/agc scale` / `/agc contracts` reports.
+-- Expected E2E registration count is now 163 tests.
++- Expected E2E registration count is now 169 tests.
+ 
+ 
+ ## AGC 26.2 alpha11 notes
+ 
+ - Added hard performance standard, central tick budget arbiter, latency SLO accounting, entity spatial snapshot cache and mini-game burst planner.
+ - Added R19 E2E reflection tests for the new aggressive performance surfaces.
+-- E2E surface count: 163.
++- E2E surface count: 169.
+ 
+ 
+ ### FeatureR20Tests / alpha12
+@@ -129,6 +129,25 @@ AGC alpha13 adds six R21 E2E surface tests for compute topology planning, fanout
+ 
+ ## alpha14 wild-scale readiness note
+ 
+-AGC alpha14 adds six R22 E2E surface tests for the scale kernel, hotspot map, network fanout kernel, chunk pipeline kernel, entity tracker kernel, thread/plugin translators, `/agc wild-scale`, and the public `AGCWildScalePlan` API. Expected E2E registration count is now 163 tests.
++AGC alpha14 adds six R22 E2E surface tests for the scale kernel, hotspot map, network fanout kernel, chunk pipeline kernel, entity tracker kernel, thread/plugin translators, `/agc wild-scale`, and the public `AGCWildScalePlan` API. Expected E2E registration count is now 169 tests.
+ 
+ Static checks performed in this sandbox: new alpha14 runtime classes compile with `javac --release 21` under lightweight stubs; new API record and `AGCPerformance.wildScalePlan` compile under Bukkit/JetBrains stubs.
++
++
++## AGC 26.2 alpha15 - high-scale survival optimisation plane
++
++Alpha15 focuses on the first wave of important thousand-player survival optimisations before small tuning:
++
++- `AGCScaleControlPlane`: one central budget for packet-shape reuse, cohorts, chunk-intent compaction, entity banding, plugin translation and memory-local scratch work.
++- `AGCPacketShapeTable`: tick-local packet shape reuse. It never shares mutable packet instances, never drops packets and never reorders a connection stream.
++- `AGCPlayerCohortTable`: coarse player cohorts for shared read-only fanout planning. Cohorts are planning labels only; they do not hide players or reduce view distance.
++- `AGCChunkIntentCompactor`: region-shaped chunk intent planning while preserving Paper chunk queue FIFO and completion order.
++- `AGCEntityBandingPlanner`: read-only entity tracker candidate bands. Entity tick, AI, damage and interaction logic remain untouched.
++- `AGCMemoryLocalityPlanner`: tick-local scratch budgeting to reduce allocation churn without retaining live world state.
++- `AGCEncodingReusePlanner`: immutable encoding helper planning before ordered connection writes; protocol-sensitive packets keep ordered encoding.
++- `AGCPluginBackpressureBridge`: routes plugin helper work through read-only prepare or ordered primary-thread commit and rejects off-thread Bukkit mutation.
++- `AGCHotspotEvictionPlanner`: evicts only duplicate read-only helper plans under hotspot pressure; it never unloads chunks, hides entities or drops packets.
++
++Operator report: `/agc scale15`.
++
++Hard rules remain: no packet drops, no chunk FIFO head skip, no entity tick/AI/damage/interaction skip, no Bukkit off-thread mutation, no plugin event reorder and no redstone/factory semantics changes.
+diff --git a/TEST_READY.md b/TEST_READY.md
+index f28c217..4f81d87 100644
+--- a/TEST_READY.md
++++ b/TEST_READY.md
+@@ -2,7 +2,7 @@
+ 
+ ## Test Suite Readiness Status
+ - **Build Status**: **PASS** (Compiles cleanly with target server dependencies)
+-- **Suite Readiness**: **READY** (All 163 test definitions implemented, registered, and integrated into the server plugin bootstrap process)
++- **Suite Readiness**: **READY** (All 169 test definitions implemented, registered, and integrated into the server plugin bootstrap process)
+ - **Runtime Strategy**: Fully decoupled via reflection. Tests compile under default environments, fail gracefully at runtime if target implementation classes (`net.minecraft.server.MeteusSpatialGrid`, `net.minecraft.server.MeteusHitRewind`) are missing, and perform real assertions when implementation is present.
+ 
+ ## Test Execution Command
+@@ -18,7 +18,7 @@ java -Dmeteus.e2e.auto-run=true -jar paper-clip.jar
+ 
+ To execute or list tests manually via the Brigadier commands:
+ - **Execute**: `/agctest run` (triggers asynchronous runner)
+-- **List**: `/agctest list` (prints all 163 test cases)
++- **List**: `/agctest list` (prints all 169 test cases)
+ 
+ ## Coverage Counts
+ | Test Category | Target Component | Count | Tier |
+@@ -39,14 +39,14 @@ To execute or list tests manually via the Brigadier commands:
+ | **Feature R15** | Optimisation envelope, entity admission, mini-game profiles, safety report | 5 | Tier 1 |
+ | **Feature R17** | No-invasion optimiser lanes, FIFO chunk queue, entity snapshots, world write-intent graph | 5 | Tier 1 |
+ | **Feature R19** | Hard performance standard, tick budget arbiter, latency SLO, entity cache, mini-game burst planner | 5 | Tier 1 |
+-| **Total** | **AGC Core E2E Tests** | **163** | |
++| **Total** | **AGC Core E2E Tests** | **169** | |
+ 
+ ## Validation Checklist
+ - [x] Package directory created at `test-plugin/src/main/java/io/papermc/testplugin/e2e`
+ - [x] Interface `E2ETest.java` defines `getId()`, `getName()`, and `run(TestContext)`
+ - [x] `TestContext.java` supports `assertTrue`, `assertEquals`, `assertNotNull`, `fail`, `checkClassExists`
+ - [x] `TestContext.java` implements precise Bukkit async-to-sync scheduler lock via `CountDownLatch` for `delayTicks`
+-- [x] `TestRegistry.java` implements singleton registration loading all 163 tests
++- [x] `TestRegistry.java` implements singleton registration loading all 169 tests
+ - [x] `TestRunner.java` executes tests asynchronously, logs to console, writes log files to `logs/agc-e2e.log`
+ - [x] `TestRunner.java` performs clean shutdown (`System.exit(0)` on success, `System.exit(1)` on failure)
+ - [x] `TestPlugin.java` registers `/agctest run` and `/agctest list` commands
+@@ -78,7 +78,7 @@ Ready for local Gradle/JDK 25 validation. New AGC Java runtime classes and comma
+ 
+ - Mini-game API is intentionally primary-thread first. Mutating arena operations throw when called asynchronously unless routed through `AGC.scheduler()`.
+ - Aggressive defaults must be tested with real plugin stacks. Runtime semantic guards and rollback protect compatibility, but production claims still require the release gates in `AGC_ROADMAP.md`.
+-- E2E surface count: 163.
++- E2E surface count: 169.
+ 
+ 
+ ## Alpha 7 readiness notes
+@@ -101,7 +101,7 @@ Ready for local Gradle/JDK 25 validation. New AGC Java runtime classes and comma
+ 
+ - Added hard performance standard, central tick budget arbiter, latency SLO accounting, entity spatial snapshot cache and mini-game burst planner.
+ - Added R19 E2E reflection tests for the new aggressive performance surfaces.
+-- E2E surface count: 163.
++- E2E surface count: 169.
+ 
+ 
+ ## alpha12 readiness note
+@@ -116,4 +116,23 @@ AGC alpha13 adds six R21 E2E surface tests for compute topology planning, fanout
+ 
+ ## alpha14 wild-scale readiness note
+ 
+-AGC alpha14 adds six R22 E2E surface tests for the new wild-scale kernel and public API. Expected E2E registration count is now 163 tests. The new tests check `AGCScaleKernel`, `AGCRegionHotspotMap`, `AGCNetworkFanoutKernel`, `AGCChunkPipelineKernel`, `AGCEntityTrackerKernel`, `AGCThreadAffinityTranslator`, `AGCPluginLogicTranslator`, `/agc wild-scale`, and `AGCWildScalePlan`.
++AGC alpha14 adds six R22 E2E surface tests for the new wild-scale kernel and public API. Expected E2E registration count is now 169 tests. The new tests check `AGCScaleKernel`, `AGCRegionHotspotMap`, `AGCNetworkFanoutKernel`, `AGCChunkPipelineKernel`, `AGCEntityTrackerKernel`, `AGCThreadAffinityTranslator`, `AGCPluginLogicTranslator`, `/agc wild-scale`, and `AGCWildScalePlan`.
++
++
++## AGC 26.2 alpha15 - high-scale survival optimisation plane
++
++Alpha15 focuses on the first wave of important thousand-player survival optimisations before small tuning:
++
++- `AGCScaleControlPlane`: one central budget for packet-shape reuse, cohorts, chunk-intent compaction, entity banding, plugin translation and memory-local scratch work.
++- `AGCPacketShapeTable`: tick-local packet shape reuse. It never shares mutable packet instances, never drops packets and never reorders a connection stream.
++- `AGCPlayerCohortTable`: coarse player cohorts for shared read-only fanout planning. Cohorts are planning labels only; they do not hide players or reduce view distance.
++- `AGCChunkIntentCompactor`: region-shaped chunk intent planning while preserving Paper chunk queue FIFO and completion order.
++- `AGCEntityBandingPlanner`: read-only entity tracker candidate bands. Entity tick, AI, damage and interaction logic remain untouched.
++- `AGCMemoryLocalityPlanner`: tick-local scratch budgeting to reduce allocation churn without retaining live world state.
++- `AGCEncodingReusePlanner`: immutable encoding helper planning before ordered connection writes; protocol-sensitive packets keep ordered encoding.
++- `AGCPluginBackpressureBridge`: routes plugin helper work through read-only prepare or ordered primary-thread commit and rejects off-thread Bukkit mutation.
++- `AGCHotspotEvictionPlanner`: evicts only duplicate read-only helper plans under hotspot pressure; it never unloads chunks, hides entities or drops packets.
++
++Operator report: `/agc scale15`.
++
++Hard rules remain: no packet drops, no chunk FIFO head skip, no entity tick/AI/damage/interaction skip, no Bukkit off-thread mutation, no plugin event reorder and no redstone/factory semantics changes.
+diff --git a/paper-api/src/main/java/io/agcmc/agc/api/AGCFeature.java b/paper-api/src/main/java/io/agcmc/agc/api/AGCFeature.java
+index a1f0410..cf89f26 100644
+--- a/paper-api/src/main/java/io/agcmc/agc/api/AGCFeature.java
++++ b/paper-api/src/main/java/io/agcmc/agc/api/AGCFeature.java
+@@ -30,5 +30,14 @@ public enum AGCFeature {
+     CHUNK_PIPELINE_KERNEL,
+     ENTITY_TRACKER_KERNEL,
+     THREAD_AFFINITY_TRANSLATOR,
+-    PLUGIN_LOGIC_TRANSLATOR
++    PLUGIN_LOGIC_TRANSLATOR,
++    SCALE_CONTROL_PLANE,
++    PACKET_SHAPE_TABLE,
++    PLAYER_COHORT_TABLE,
++    CHUNK_INTENT_COMPACTOR,
++    ENTITY_BANDING_PLANNER,
++    MEMORY_LOCALITY_PLANNER,
++    ENCODING_REUSE_PLANNER,
++    PLUGIN_BACKPRESSURE_BRIDGE,
++    HOTSPOT_EVICTION_PLANNER
+ }
+diff --git a/paper-api/src/main/java/io/agcmc/agc/api/AGCPerformance.java b/paper-api/src/main/java/io/agcmc/agc/api/AGCPerformance.java
+index d13218a..f9d274e 100644
+--- a/paper-api/src/main/java/io/agcmc/agc/api/AGCPerformance.java
++++ b/paper-api/src/main/java/io/agcmc/agc/api/AGCPerformance.java
+@@ -42,6 +42,15 @@ public final class AGCPerformance {
+         states.put(AGCFeature.ENTITY_TRACKER_KERNEL, AGCFeatureStatus.ENABLED);
+         states.put(AGCFeature.THREAD_AFFINITY_TRANSLATOR, AGCFeatureStatus.ENABLED);
+         states.put(AGCFeature.PLUGIN_LOGIC_TRANSLATOR, AGCFeatureStatus.ENABLED);
++        states.put(AGCFeature.SCALE_CONTROL_PLANE, AGCFeatureStatus.ENABLED);
++        states.put(AGCFeature.PACKET_SHAPE_TABLE, AGCFeatureStatus.ENABLED);
++        states.put(AGCFeature.PLAYER_COHORT_TABLE, AGCFeatureStatus.ENABLED);
++        states.put(AGCFeature.CHUNK_INTENT_COMPACTOR, AGCFeatureStatus.ENABLED);
++        states.put(AGCFeature.ENTITY_BANDING_PLANNER, AGCFeatureStatus.ENABLED);
++        states.put(AGCFeature.MEMORY_LOCALITY_PLANNER, AGCFeatureStatus.ENABLED);
++        states.put(AGCFeature.ENCODING_REUSE_PLANNER, AGCFeatureStatus.ENABLED);
++        states.put(AGCFeature.PLUGIN_BACKPRESSURE_BRIDGE, AGCFeatureStatus.ENABLED);
++        states.put(AGCFeature.HOTSPOT_EVICTION_PLANNER, AGCFeatureStatus.ENABLED);
+         return new AGCPerformanceSnapshot(
+             "API_COMPATIBILITY_VIEW",
+             0.0D,
+@@ -174,6 +183,36 @@ public final class AGCPerformance {
+         );
+     }
+ 
++    public @NotNull AGCScale15Plan scale15Plan(final int expectedPlayers, final double targetTps) {
++        final int players = Math.max(1, expectedPlayers);
++        final double tps = Math.max(1.0D, targetTps);
++        final int processors = Math.max(1, Runtime.getRuntime().availableProcessors());
++        final int reservedCpu = players >= 2000 ? 24 : 20;
++        final int workers = Math.max(1, processors - Math.max(2, (processors * reservedCpu + 99) / 100));
++        final int packetShapeBudget = Math.max(1024, Math.min(262144, players * 8));
++        final int cohortCell = players >= 1500 ? 64 : 96;
++        final int chunkRegion = players >= 1500 ? 32 : 16;
++        final int entityCandidates = Math.max(1024, Math.min(8192, players * 4));
++        final int pluginBudget = Math.max(512, Math.min(65536, players * 2));
++        final long scratchBytes = Math.max(8L * 1024L * 1024L, Math.min(256L * 1024L * 1024L, players * 65536L));
++        return new AGCScale15Plan(
++            players,
++            tps,
++            reservedCpu,
++            workers,
++            packetShapeBudget,
++            cohortCell,
++            chunkRegion,
++            entityCandidates,
++            pluginBudget,
++            scratchBytes,
++            false,
++            false,
++            false,
++            "AGC alpha15: reuse packet shapes, cohort players for read-only planning, compact chunk intents, band entity candidates, keep Bukkit-visible commits ordered"
++        );
++    }
++
+     public boolean isPrimaryThread() {
+         try {
+             return Bukkit.isPrimaryThread();
+diff --git a/paper-api/src/main/java/io/agcmc/agc/api/AGCScale15Plan.java b/paper-api/src/main/java/io/agcmc/agc/api/AGCScale15Plan.java
+new file mode 100644
+index 0000000..ec17252
+--- /dev/null
++++ b/paper-api/src/main/java/io/agcmc/agc/api/AGCScale15Plan.java
+@@ -0,0 +1,24 @@
++package io.agcmc.agc.api;
++
++/**
++ * Public high-scale guidance for AGC alpha15. This is intentionally advisory:
++ * plugins should use it to structure heavy work as read-only prepare, packet
++ * shape reuse, FIFO chunk intents and ordered commits without depending on NMS.
++ */
++public record AGCScale15Plan(
++    int expectedPlayers,
++    double targetTps,
++    int reservedCpuPercent,
++    int readOnlyWorkers,
++    int packetShapeBudget,
++    int playerCohortSizeBlocks,
++    int chunkIntentRegionSizeChunks,
++    int entityBandCandidateLimit,
++    int pluginTranslationBudget,
++    long scratchBytesPerTick,
++    boolean packetDropsAllowed,
++    boolean entityTickSkippingAllowed,
++    boolean offThreadBukkitMutationAllowed,
++    String recommendation
++) {
++}
+diff --git a/paper-server/src/main/java/io/papermc/paper/configuration/GlobalConfiguration.java b/paper-server/src/main/java/io/papermc/paper/configuration/GlobalConfiguration.java
+index 142a0bb..b2b7569 100644
+--- a/paper-server/src/main/java/io/papermc/paper/configuration/GlobalConfiguration.java
++++ b/paper-server/src/main/java/io/papermc/paper/configuration/GlobalConfiguration.java
+@@ -635,6 +635,58 @@ public class GlobalConfiguration extends ConfigurationPart {
+             public boolean threadAffinityTranslator = true;
+             @Comment("Enables alpha14 plugin logic translator for compatibility-safe hardcoded logic categories.")
+             public boolean pluginLogicTranslator = true;
++            @Comment("Enables AGC alpha15 scale control plane that coordinates high-impact thousand-player optimisations without semantic invasion.")
++            public boolean scaleControlPlane = true;
++            @Comment("CPU percentage reserved before alpha15 heavy read-only optimisation lanes receive capacity.")
++            public int scaleControlReserveCpuPercent = 24;
++            @Comment("Abstract units per usable worker for alpha15 packet/chunk/entity/plugin optimisation lanes.")
++            public long scaleControlUnitsPerCore = 260000L;
++            @Comment("Enables alpha15 packet shape table for tick-local packet classification/fanout reuse without packet instance sharing.")
++            public boolean packetShapeTable = true;
++            @Comment("Maximum packet shapes retained per tick by the alpha15 packet shape table.")
++            public int packetShapeTableMaxShapes = 524288;
++            @Comment("Maximum receiver fanout considered when budgeting one packet shape in alpha15.")
++            public int packetShapeTableMaxFanout = 4096;
++            @Comment("Enables alpha15 player cohort table for shared read-only survival hotspot planning.")
++            public boolean playerCohortTable = true;
++            @Comment("Block size of alpha15 player cohorts. Cohorts are planning labels only, not visibility changes.")
++            public int playerCohortCellSizeBlocks = 64;
++            @Comment("Target players per alpha15 cohort before shared read-only planning becomes worthwhile.")
++            public int playerCohortTargetPlayers = 32;
++            @Comment("Maximum alpha15 player cohorts retained for a tick.")
++            public int playerCohortMaxCohorts = 524288;
++            @Comment("Enables alpha15 chunk intent compactor. It shares intent planning shapes while preserving FIFO and completion order.")
++            public boolean chunkIntentCompactor = true;
++            @Comment("Chunk region size used by alpha15 chunk intent compactor for read-only grouping.")
++            public int chunkIntentCompactorRegionSizeChunks = 32;
++            @Comment("Maximum alpha15 chunk intent shapes retained for one tick.")
++            public int chunkIntentCompactorMaxShapes = 262144;
++            @Comment("Enables alpha15 entity banding planner. It prepares read-only tracker candidates and never skips entity ticks.")
++            public boolean entityBandingPlanner = true;
++            @Comment("Maximum read-only entity candidates per player for alpha15 banding planner.")
++            public int entityBandingMaxCandidatesPerPlayer = 8192;
++            @Comment("Enables alpha15 memory locality planner for tick-local scratch budgeting without retaining live world state.")
++            public boolean memoryLocalityPlanner = true;
++            @Comment("Maximum tick-local scratch bytes budgeted by alpha15 memory locality planner.")
++            public long memoryLocalityMaxScratchBytesPerTick = 134217728L;
++            @Comment("Maximum scratch owners tracked per tick by alpha15 memory locality planner.")
++            public int memoryLocalityMaxOwners = 65536;
++            @Comment("Enables alpha15 encoding reuse planner for immutable helper planning before ordered connection writes.")
++            public boolean encodingReusePlanner = true;
++            @Comment("Maximum encoding shapes retained by alpha15 encoding reuse planner per tick.")
++            public int encodingReuseMaxShapes = 262144;
++            @Comment("Estimated byte threshold before alpha15 encoding helper planning is considered.")
++            public int encodingReuseCompressionThresholdBytes = 512;
++            @Comment("Enables alpha15 plugin backpressure bridge so helper work is routed without off-thread Bukkit mutation.")
++            public boolean pluginBackpressureBridge = true;
++            @Comment("Maximum pending translated plugin tasks before alpha15 bridge routes helper work back to ordered primary-thread commits.")
++            public long pluginBackpressureMaxPendingTasks = 65536L;
++            @Comment("Enables alpha15 hotspot eviction planner for tick-local read-only helper cache pressure.")
++            public boolean hotspotEvictionPlanner = true;
++            @Comment("Maximum alpha15 hotspot helper plans retained per tick.")
++            public int hotspotEvictionMaxHotspots = 262144;
++            @Comment("Players per hotspot before alpha15 read-only helper plan eviction pressure increases.")
++            public int hotspotEvictionPlayers = 96;
+         }
+     }
+     static void set(final GlobalConfiguration instance) {
+diff --git a/paper-server/src/main/java/net/minecraft/server/AGCChunkIntentCompactor.java b/paper-server/src/main/java/net/minecraft/server/AGCChunkIntentCompactor.java
+new file mode 100644
+index 0000000..c74dff6
+--- /dev/null
++++ b/paper-server/src/main/java/net/minecraft/server/AGCChunkIntentCompactor.java
+@@ -0,0 +1,95 @@
++package net.minecraft.server;
++
++import java.util.UUID;
++import java.util.concurrent.ConcurrentHashMap;
++import java.util.concurrent.atomic.AtomicLong;
++
++/**
++ * Chunk intent compactor for large survival servers. It coalesces only the
++ * read-only planning shape of nearby chunk intents. Paper's actual chunk queue,
++ * per-player FIFO head, completion order and chunk status ownership are not
++ * changed.
++ */
++public final class AGCChunkIntentCompactor {
++    public static final AGCChunkIntentCompactor INSTANCE = new AGCChunkIntentCompactor();
++
++    private final ConcurrentHashMap<Long, AtomicLong> intentShapes = new ConcurrentHashMap<>();
++    private final AtomicLong requests = new AtomicLong();
++    private final AtomicLong compacted = new AtomicLong();
++    private final AtomicLong fifoWaits = new AtomicLong();
++    private volatile boolean enabled = true;
++    private volatile int regionShift = 5;
++    private volatile int maxShapes = 262_144;
++    private volatile long tickSequence;
++
++    private AGCChunkIntentCompactor() {
++    }
++
++    public void configure(final boolean enabled, final int regionSizeChunks, final int maxShapes) {
++        this.enabled = enabled;
++        this.regionShift = shiftFor(Math.max(1, regionSizeChunks));
++        this.maxShapes = Math.max(1, maxShapes);
++    }
++
++    public void beginTick(final long sequence) {
++        if (sequence != this.tickSequence) {
++            this.tickSequence = sequence;
++            this.intentShapes.clear();
++        }
++    }
++
++    public Admission plan(final UUID playerId, final AGCChunkBudget.Operation operation, final String worldKey, final int chunkX, final int chunkZ) {
++        this.requests.incrementAndGet();
++        if (!this.enabled) {
++            this.fifoWaits.incrementAndGet();
++            return new Admission(false, false, 0L, "chunk intent compactor disabled");
++        }
++        if (this.intentShapes.size() >= this.maxShapes) {
++            this.fifoWaits.incrementAndGet();
++            return new Admission(false, false, 0L, "chunk intent shape table full; preserve FIFO planning");
++        }
++        final long key = key(operation, worldKey, chunkX >> this.regionShift, chunkZ >> this.regionShift);
++        final AtomicLong hits = this.intentShapes.computeIfAbsent(key, ignored -> new AtomicLong());
++        final long count = hits.incrementAndGet();
++        final long cost = Math.max(1L, (operation == AGCChunkBudget.Operation.GENERATE ? 4L : 2L) + count / 64L);
++        final AGCScaleControlPlane.Admission control = AGCScaleControlPlane.INSTANCE.claim(AGCScaleControlPlane.Lane.CHUNK_INTENT_COMPACTION, cost, operation == null ? "chunk" : operation.name());
++        if (!control.admitted()) {
++            this.fifoWaits.incrementAndGet();
++            return new Admission(false, count > 1L, count, control.reason());
++        }
++        this.compacted.incrementAndGet();
++        return new Admission(true, count > 1L, count, "chunk intent shape compacted; per-player FIFO and completion order unchanged");
++    }
++
++    public String statusLine() {
++        return "AGCChunkIntentCompactor{enabled=" + this.enabled
++            + ", tick=" + this.tickSequence
++            + ", shapes=" + this.intentShapes.size()
++            + ", requests=" + this.requests.get()
++            + ", compacted=" + this.compacted.get()
++            + ", fifoWaits=" + this.fifoWaits.get()
++            + '}';
++    }
++
++    private static int shiftFor(final int regionSizeChunks) {
++        int shift = 0;
++        int size = 1;
++        while (size < regionSizeChunks && shift < 12) {
++            size <<= 1;
++            ++shift;
++        }
++        return shift;
++    }
++
++    private static long key(final AGCChunkBudget.Operation operation, final String worldKey, final int regionX, final int regionZ) {
++        long result = 1469598103934665603L;
++        result = 1099511628211L * (result ^ (operation == null ? 0 : operation.ordinal()));
++        result = 1099511628211L * (result ^ (worldKey == null ? 0 : worldKey.hashCode()));
++        result = 1099511628211L * (result ^ regionX);
++        result = 1099511628211L * (result ^ regionZ);
++        return result;
++    }
++
++    public record Admission(boolean admitted, boolean sharedShape, long shapeHits, String reason) {
++    }
++}
+diff --git a/paper-server/src/main/java/net/minecraft/server/AGCCommandReports.java b/paper-server/src/main/java/net/minecraft/server/AGCCommandReports.java
+index 32df4a8..4e36f34 100644
+--- a/paper-server/src/main/java/net/minecraft/server/AGCCommandReports.java
++++ b/paper-server/src/main/java/net/minecraft/server/AGCCommandReports.java
+@@ -231,6 +231,15 @@ public final class AGCCommandReports {
+             AGCEntityTrackerKernel.INSTANCE.statusLine(),
+             AGCThreadAffinityTranslator.INSTANCE.statusLine(),
+             AGCPluginLogicTranslator.INSTANCE.statusLine(),
++            AGCScaleControlPlane.INSTANCE.statusLine(),
++            AGCPacketShapeTable.INSTANCE.statusLine(),
++            AGCPlayerCohortTable.INSTANCE.statusLine(),
++            AGCChunkIntentCompactor.INSTANCE.statusLine(),
++            AGCEntityBandingPlanner.INSTANCE.statusLine(),
++            AGCMemoryLocalityPlanner.INSTANCE.statusLine(),
++            AGCEncodingReusePlanner.INSTANCE.statusLine(),
++            AGCPluginBackpressureBridge.INSTANCE.statusLine(),
++            AGCHotspotEvictionPlanner.INSTANCE.statusLine(),
+             AGCSurvivalScaleCoordinator.INSTANCE.statusLine(),
+             AGCResourceEfficiencyEngine.INSTANCE.statusLine(),
+             "rule=use more cores only for read-only prepare/fanout/compression/chunk-intent helpers; ordered gameplay commits stay semantic-preserving"
+@@ -247,12 +256,42 @@ public final class AGCCommandReports {
+             AGCEntityTrackerKernel.INSTANCE.statusLine(),
+             AGCThreadAffinityTranslator.INSTANCE.statusLine(),
+             AGCPluginLogicTranslator.INSTANCE.statusLine(),
++            AGCScaleControlPlane.INSTANCE.statusLine(),
++            AGCPacketShapeTable.INSTANCE.statusLine(),
++            AGCPlayerCohortTable.INSTANCE.statusLine(),
++            AGCChunkIntentCompactor.INSTANCE.statusLine(),
++            AGCEntityBandingPlanner.INSTANCE.statusLine(),
++            AGCMemoryLocalityPlanner.INSTANCE.statusLine(),
++            AGCEncodingReusePlanner.INSTANCE.statusLine(),
++            AGCPluginBackpressureBridge.INSTANCE.statusLine(),
++            AGCHotspotEvictionPlanner.INSTANCE.statusLine(),
+             AGCNoInvasionOptimizer.INSTANCE.statusLine(),
+             "hardRules=no packet drops, no entity tick skip, no chunk FIFO skip, no off-thread Bukkit mutation, no plugin event reorder",
+             "bigOptimisations=fanout shape dedupe, chunk pipeline intent tokens, entity candidate snapshots, region hotspot sharing, CPU reserve scale kernel"
+         );
+     }
+ 
++    public static String scale15() {
++        return String.join("\n",
++            "AGC alpha15 thousand-player survival optimisation plane:",
++            AGCScaleControlPlane.INSTANCE.statusLine(),
++            AGCPacketShapeTable.INSTANCE.statusLine(),
++            AGCPlayerCohortTable.INSTANCE.statusLine(),
++            AGCChunkIntentCompactor.INSTANCE.statusLine(),
++            AGCEntityBandingPlanner.INSTANCE.statusLine(),
++            AGCMemoryLocalityPlanner.INSTANCE.statusLine(),
++            AGCEncodingReusePlanner.INSTANCE.statusLine(),
++            AGCPluginBackpressureBridge.INSTANCE.statusLine(),
++            AGCHotspotEvictionPlanner.INSTANCE.statusLine(),
++            AGCScaleKernel.INSTANCE.statusLine(),
++            AGCNetworkFanoutKernel.INSTANCE.statusLine(),
++            AGCChunkPipelineKernel.INSTANCE.statusLine(),
++            AGCEntityTrackerKernel.INSTANCE.statusLine(),
++            "hardRules=no packet drops, no per-connection reorder, no chunk FIFO skip, no entity tick/AI/damage skip, no off-thread Bukkit mutation",
++            "strategy=packet-shape reuse, player cohorts, chunk-intent compaction, entity banding, plugin backpressure and memory-local scratch planning"
++        );
++    }
++
+     public static String minigameApi() {
+         try {
+             final Object service = io.agcmc.agc.api.AGC.minigames();
+diff --git a/paper-server/src/main/java/net/minecraft/server/AGCEncodingReusePlanner.java b/paper-server/src/main/java/net/minecraft/server/AGCEncodingReusePlanner.java
+new file mode 100644
+index 0000000..b999842
+--- /dev/null
++++ b/paper-server/src/main/java/net/minecraft/server/AGCEncodingReusePlanner.java
+@@ -0,0 +1,78 @@
++package net.minecraft.server;
++
++import java.util.concurrent.ConcurrentHashMap;
++import java.util.concurrent.atomic.AtomicLong;
++
++/**
++ * Plans packet/chunk encoding helper reuse for large fanout bursts. It does not
++ * reuse mutable Packet instances and does not bypass protocol libraries; it only
++ * budgets immutable shape/compression helper work before ordered connection
++ * writes occur.
++ */
++public final class AGCEncodingReusePlanner {
++    public static final AGCEncodingReusePlanner INSTANCE = new AGCEncodingReusePlanner();
++
++    private final ConcurrentHashMap<Integer, AtomicLong> encodings = new ConcurrentHashMap<>();
++    private final AtomicLong requests = new AtomicLong();
++    private final AtomicLong planned = new AtomicLong();
++    private final AtomicLong ordered = new AtomicLong();
++    private volatile boolean enabled = true;
++    private volatile int maxShapes = 262_144;
++    private volatile int compressionThresholdBytes = 512;
++    private volatile long tickSequence;
++
++    private AGCEncodingReusePlanner() {
++    }
++
++    public void configure(final boolean enabled, final int maxShapes, final int compressionThresholdBytes) {
++        this.enabled = enabled;
++        this.maxShapes = Math.max(1, maxShapes);
++        this.compressionThresholdBytes = Math.max(0, compressionThresholdBytes);
++    }
++
++    public void beginTick(final long sequence) {
++        if (sequence != this.tickSequence) {
++            this.tickSequence = sequence;
++            this.encodings.clear();
++        }
++    }
++
++    public Decision plan(final String shape, final int estimatedBytes, final boolean protocolSensitive) {
++        this.requests.incrementAndGet();
++        if (!this.enabled || protocolSensitive || estimatedBytes < this.compressionThresholdBytes) {
++            this.ordered.incrementAndGet();
++            return new Decision(false, 0L, "encoding helper not shared for protocol-sensitive/small packet: " + safe(shape));
++        }
++        if (this.encodings.size() >= this.maxShapes) {
++            this.ordered.incrementAndGet();
++            return new Decision(false, 0L, "encoding shape table full; ordered encoding preserved");
++        }
++        final int key = 31 * safe(shape).hashCode() + estimatedBytes / 256;
++        final long hits = this.encodings.computeIfAbsent(key, ignored -> new AtomicLong()).incrementAndGet();
++        final long cost = Math.max(1L, estimatedBytes / 512L);
++        final AGCScaleControlPlane.Admission control = AGCScaleControlPlane.INSTANCE.claim(AGCScaleControlPlane.Lane.ENCODING_HELPER, cost, shape);
++        if (!control.admitted()) {
++            this.ordered.incrementAndGet();
++            return new Decision(false, hits, control.reason());
++        }
++        this.planned.incrementAndGet();
++        return new Decision(hits > 1L, hits, "immutable encoding helper planned; connection writes remain ordered");
++    }
++
++    public String statusLine() {
++        return "AGCEncodingReusePlanner{enabled=" + this.enabled
++            + ", tick=" + this.tickSequence
++            + ", shapes=" + this.encodings.size()
++            + ", requests=" + this.requests.get()
++            + ", planned=" + this.planned.get()
++            + ", ordered=" + this.ordered.get()
++            + '}';
++    }
++
++    private static String safe(final String value) {
++        return value == null ? "unknown" : value;
++    }
++
++    public record Decision(boolean sharedEncoding, long shapeHits, String reason) {
++    }
++}
+diff --git a/paper-server/src/main/java/net/minecraft/server/AGCEntityBandingPlanner.java b/paper-server/src/main/java/net/minecraft/server/AGCEntityBandingPlanner.java
+new file mode 100644
+index 0000000..547bb53
+--- /dev/null
++++ b/paper-server/src/main/java/net/minecraft/server/AGCEntityBandingPlanner.java
+@@ -0,0 +1,101 @@
++package net.minecraft.server;
++
++import java.util.EnumMap;
++import java.util.UUID;
++import java.util.concurrent.atomic.AtomicLong;
++
++/**
++ * Read-only entity visibility banding. This plans candidate buckets for tracker
++ * calculations but never skips entity ticks, AI, damage, interactions or Bukkit
++ * events.
++ */
++public final class AGCEntityBandingPlanner {
++    public static final AGCEntityBandingPlanner INSTANCE = new AGCEntityBandingPlanner();
++
++    public enum Band {
++        SELF_AND_INTERACTION,
++        NEAR,
++        MID,
++        FAR,
++        OUTER
++    }
++
++    private final EnumMap<Band, AtomicLong> preparedByBand = new EnumMap<>(Band.class);
++    private final AtomicLong requests = new AtomicLong();
++    private final AtomicLong prepared = new AtomicLong();
++    private final AtomicLong ordered = new AtomicLong();
++    private volatile boolean enabled = true;
++    private volatile int maxCandidatesPerPlayer = 8192;
++    private volatile long tickSequence;
++
++    private AGCEntityBandingPlanner() {
++        for (final Band band : Band.values()) {
++            this.preparedByBand.put(band, new AtomicLong());
++        }
++    }
++
++    public void configure(final boolean enabled, final int maxCandidatesPerPlayer) {
++        this.enabled = enabled;
++        this.maxCandidatesPerPlayer = Math.max(1, maxCandidatesPerPlayer);
++    }
++
++    public void beginTick(final long sequence) {
++        this.tickSequence = Math.max(0L, sequence);
++    }
++
++    public Decision prepare(final UUID playerId, final int estimatedEntities, final String reason) {
++        this.requests.incrementAndGet();
++        if (!this.enabled || playerId == null || estimatedEntities <= 0) {
++            this.ordered.incrementAndGet();
++            return new Decision(false, Band.SELF_AND_INTERACTION, 0, "entity banding disabled or empty; tracker order unchanged");
++        }
++        final int candidates = Math.min(this.maxCandidatesPerPlayer, Math.max(1, estimatedEntities));
++        final Band band = chooseBand(candidates);
++        final long cost = Math.max(1L, candidates / 32L);
++        final AGCScaleControlPlane.Admission control = AGCScaleControlPlane.INSTANCE.claim(AGCScaleControlPlane.Lane.ENTITY_VISIBILITY_BANDING, cost, reason);
++        if (!control.admitted()) {
++            this.ordered.incrementAndGet();
++            return new Decision(false, band, candidates, control.reason());
++        }
++        this.prepared.incrementAndGet();
++        this.preparedByBand.get(band).incrementAndGet();
++        return new Decision(true, band, candidates, "read-only entity candidate band prepared; no entity tick or event skipped");
++    }
++
++    public String statusLine() {
++        return "AGCEntityBandingPlanner{enabled=" + this.enabled
++            + ", tick=" + this.tickSequence
++            + ", requests=" + this.requests.get()
++            + ", prepared=" + this.prepared.get()
++            + ", ordered=" + this.ordered.get()
++            + ", bands=" + snapshotBands()
++            + '}';
++    }
++
++    private EnumMap<Band, Long> snapshotBands() {
++        final EnumMap<Band, Long> copy = new EnumMap<>(Band.class);
++        for (final Band band : Band.values()) {
++            copy.put(band, this.preparedByBand.get(band).get());
++        }
++        return copy;
++    }
++
++    private static Band chooseBand(final int candidates) {
++        if (candidates <= 64) {
++            return Band.SELF_AND_INTERACTION;
++        }
++        if (candidates <= 512) {
++            return Band.NEAR;
++        }
++        if (candidates <= 2048) {
++            return Band.MID;
++        }
++        if (candidates <= 8192) {
++            return Band.FAR;
++        }
++        return Band.OUTER;
++    }
++
++    public record Decision(boolean prepared, Band band, int candidates, String reason) {
++    }
++}
+diff --git a/paper-server/src/main/java/net/minecraft/server/AGCHotspotEvictionPlanner.java b/paper-server/src/main/java/net/minecraft/server/AGCHotspotEvictionPlanner.java
+new file mode 100644
+index 0000000..4be4974
+--- /dev/null
++++ b/paper-server/src/main/java/net/minecraft/server/AGCHotspotEvictionPlanner.java
+@@ -0,0 +1,72 @@
++package net.minecraft.server;
++
++import java.util.concurrent.ConcurrentHashMap;
++import java.util.concurrent.atomic.AtomicLong;
++
++/**
++ * Tick-local hotspot eviction for AGC helper caches. Eviction only affects
++ * duplicate read-only planning data; it never unloads chunks, hides entities or
++ * drops packets.
++ */
++public final class AGCHotspotEvictionPlanner {
++    public static final AGCHotspotEvictionPlanner INSTANCE = new AGCHotspotEvictionPlanner();
++
++    private final ConcurrentHashMap<Long, AtomicLong> hotspots = new ConcurrentHashMap<>();
++    private final AtomicLong records = new AtomicLong();
++    private final AtomicLong evictedPlans = new AtomicLong();
++    private final AtomicLong protectedPlans = new AtomicLong();
++    private volatile boolean enabled = true;
++    private volatile int maxHotspots = 262_144;
++    private volatile int hotspotPlayers = 96;
++    private volatile long tickSequence;
++
++    private AGCHotspotEvictionPlanner() {
++    }
++
++    public void configure(final boolean enabled, final int maxHotspots, final int hotspotPlayers) {
++        this.enabled = enabled;
++        this.maxHotspots = Math.max(1, maxHotspots);
++        this.hotspotPlayers = Math.max(1, hotspotPlayers);
++    }
++
++    public void beginTick(final long sequence) {
++        if (sequence != this.tickSequence) {
++            this.tickSequence = sequence;
++            this.hotspots.clear();
++        }
++    }
++
++    public Decision record(final long hotspotKey, final int players) {
++        this.records.incrementAndGet();
++        if (!this.enabled) {
++            this.protectedPlans.incrementAndGet();
++            return new Decision(false, "hotspot eviction disabled");
++        }
++        if (this.hotspots.size() >= this.maxHotspots && !this.hotspots.containsKey(hotspotKey)) {
++            this.evictedPlans.incrementAndGet();
++            return new Decision(true, "read-only hotspot plan evicted; gameplay state unchanged");
++        }
++        this.hotspots.computeIfAbsent(hotspotKey, ignored -> new AtomicLong()).addAndGet(Math.max(0, players));
++        final long cost = Math.max(1L, Math.max(0, players) / Math.max(1, this.hotspotPlayers));
++        final AGCScaleControlPlane.Admission control = AGCScaleControlPlane.INSTANCE.claim(AGCScaleControlPlane.Lane.HOTSPOT_EVICTION, cost, "hotspot " + hotspotKey);
++        if (!control.admitted()) {
++            this.evictedPlans.incrementAndGet();
++            return new Decision(true, control.reason());
++        }
++        this.protectedPlans.incrementAndGet();
++        return new Decision(false, "read-only hotspot plan retained for this tick");
++    }
++
++    public String statusLine() {
++        return "AGCHotspotEvictionPlanner{enabled=" + this.enabled
++            + ", tick=" + this.tickSequence
++            + ", hotspots=" + this.hotspots.size()
++            + ", records=" + this.records.get()
++            + ", evictedPlans=" + this.evictedPlans.get()
++            + ", protectedPlans=" + this.protectedPlans.get()
++            + '}';
++    }
++
++    public record Decision(boolean evictedReadOnlyPlan, String reason) {
++    }
++}
+diff --git a/paper-server/src/main/java/net/minecraft/server/AGCMemoryLocalityPlanner.java b/paper-server/src/main/java/net/minecraft/server/AGCMemoryLocalityPlanner.java
+new file mode 100644
+index 0000000..2da1fd6
+--- /dev/null
++++ b/paper-server/src/main/java/net/minecraft/server/AGCMemoryLocalityPlanner.java
+@@ -0,0 +1,86 @@
++package net.minecraft.server;
++
++import java.util.concurrent.ConcurrentHashMap;
++import java.util.concurrent.atomic.AtomicLong;
++
++/**
++ * Tick-local memory locality planner. It budgets scratch/cache planning so AGC
++ * reduces repeated allocation churn in hotspots without retaining live world
++ * state across ticks.
++ */
++public final class AGCMemoryLocalityPlanner {
++    public static final AGCMemoryLocalityPlanner INSTANCE = new AGCMemoryLocalityPlanner();
++
++    private final ConcurrentHashMap<String, AtomicLong> scratchOwners = new ConcurrentHashMap<>();
++    private final AtomicLong requests = new AtomicLong();
++    private final AtomicLong admitted = new AtomicLong();
++    private final AtomicLong delayed = new AtomicLong();
++    private volatile boolean enabled = true;
++    private volatile long maxScratchBytesPerTick = 128L * 1024L * 1024L;
++    private volatile long remainingScratchBytes = maxScratchBytesPerTick;
++    private volatile int maxOwners = 65_536;
++    private volatile long tickSequence;
++
++    private AGCMemoryLocalityPlanner() {
++    }
++
++    public void configure(final boolean enabled, final long maxScratchBytesPerTick, final int maxOwners) {
++        this.enabled = enabled;
++        this.maxScratchBytesPerTick = Math.max(1024L, maxScratchBytesPerTick);
++        this.maxOwners = Math.max(1, maxOwners);
++    }
++
++    public void beginTick(final long sequence) {
++        if (sequence != this.tickSequence) {
++            this.tickSequence = sequence;
++            this.scratchOwners.clear();
++            this.remainingScratchBytes = this.maxScratchBytesPerTick;
++        }
++    }
++
++    public Admission claimScratch(final String owner, final long bytes, final String reason) {
++        this.requests.incrementAndGet();
++        if (!this.enabled) {
++            this.delayed.incrementAndGet();
++            return new Admission(false, this.remainingScratchBytes, "memory locality disabled: " + safe(reason));
++        }
++        final long cost = Math.max(1L, bytes);
++        if (this.scratchOwners.size() >= this.maxOwners && !this.scratchOwners.containsKey(safe(owner))) {
++            this.delayed.incrementAndGet();
++            return new Admission(false, this.remainingScratchBytes, "scratch owner table full; avoid long-lived allocation pressure");
++        }
++        final AGCScaleControlPlane.Admission control = AGCScaleControlPlane.INSTANCE.claim(AGCScaleControlPlane.Lane.MEMORY_LOCALITY, Math.max(1L, cost / 4096L), owner);
++        if (!control.admitted()) {
++            this.delayed.incrementAndGet();
++            return new Admission(false, this.remainingScratchBytes, control.reason());
++        }
++        synchronized (this) {
++            if (this.remainingScratchBytes < cost) {
++                this.delayed.incrementAndGet();
++                return new Admission(false, this.remainingScratchBytes, "scratch budget waits; no live-state cache retained");
++            }
++            this.remainingScratchBytes -= cost;
++        }
++        this.scratchOwners.computeIfAbsent(safe(owner), ignored -> new AtomicLong()).addAndGet(cost);
++        this.admitted.incrementAndGet();
++        return new Admission(true, this.remainingScratchBytes, safe(reason));
++    }
++
++    public String statusLine() {
++        return "AGCMemoryLocalityPlanner{enabled=" + this.enabled
++            + ", tick=" + this.tickSequence
++            + ", owners=" + this.scratchOwners.size()
++            + ", remainingScratchBytes=" + this.remainingScratchBytes
++            + ", requests=" + this.requests.get()
++            + ", admitted=" + this.admitted.get()
++            + ", delayed=" + this.delayed.get()
++            + '}';
++    }
++
++    private static String safe(final String value) {
++        return value == null ? "unknown" : value;
++    }
++
++    public record Admission(boolean admitted, long remainingScratchBytes, String reason) {
++    }
++}
+diff --git a/paper-server/src/main/java/net/minecraft/server/AGCNoInvasionOptimizer.java b/paper-server/src/main/java/net/minecraft/server/AGCNoInvasionOptimizer.java
+index c1ac420..a6e38e1 100644
+--- a/paper-server/src/main/java/net/minecraft/server/AGCNoInvasionOptimizer.java
++++ b/paper-server/src/main/java/net/minecraft/server/AGCNoInvasionOptimizer.java
+@@ -94,6 +94,13 @@ public final class AGCNoInvasionOptimizer {
+         AGCChunkPipelineKernel.INSTANCE.beginTick(sequence);
+         AGCEntityTrackerKernel.INSTANCE.beginTick(sequence);
+         AGCThreadAffinityTranslator.INSTANCE.beginTick(sequence);
++        AGCPacketShapeTable.INSTANCE.beginTick(sequence);
++        AGCPlayerCohortTable.INSTANCE.beginTick(sequence);
++        AGCChunkIntentCompactor.INSTANCE.beginTick(sequence);
++        AGCEntityBandingPlanner.INSTANCE.beginTick(sequence);
++        AGCMemoryLocalityPlanner.INSTANCE.beginTick(sequence);
++        AGCEncodingReusePlanner.INSTANCE.beginTick(sequence);
++        AGCHotspotEvictionPlanner.INSTANCE.beginTick(sequence);
+     }
+ 
+     public Decision admitNetworkDeadlineBatch(final String packetName, final boolean interactive, final long pendingDeferredFlushes) {
+@@ -103,6 +110,26 @@ public final class AGCNoInvasionOptimizer {
+             return this.lastNetworkDecision;
+         }
+         final long networkCost = 1L + Math.max(0L, pendingDeferredFlushes / 256L);
++        final AGCPacketShapeTable.Decision packetShape = AGCPacketShapeTable.INSTANCE.plan(
++            packetName,
++            AGCPacketBudget.Priority.COSMETIC,
++            (int) Math.min(Integer.MAX_VALUE, 256L + pendingDeferredFlushes),
++            (int) Math.min(Integer.MAX_VALUE, Math.max(1L, pendingDeferredFlushes))
++        );
++        if (packetShape.orderedNow()) {
++            this.lastNetworkDecision = this.record(Lane.NETWORK_DEADLINE_BATCH, Decision.IMMEDIATE_ORDERED, packetShape.reason());
++            return this.lastNetworkDecision;
++        }
++        final AGCEncodingReusePlanner.Decision encodingDecision = AGCEncodingReusePlanner.INSTANCE.plan(packetName, (int) Math.min(Integer.MAX_VALUE, 512L + pendingDeferredFlushes), false);
++        if (!encodingDecision.sharedEncoding() && pendingDeferredFlushes > 1024L) {
++            this.lastNetworkDecision = this.record(Lane.NETWORK_DEADLINE_BATCH, Decision.IMMEDIATE_ORDERED, encodingDecision.reason());
++            return this.lastNetworkDecision;
++        }
++        final AGCMemoryLocalityPlanner.Admission networkScratch = AGCMemoryLocalityPlanner.INSTANCE.claimScratch("network:" + packetName, Math.max(1024L, pendingDeferredFlushes * 8L), "network fanout scratch");
++        if (!networkScratch.admitted() && pendingDeferredFlushes > 4096L) {
++            this.lastNetworkDecision = this.record(Lane.NETWORK_DEADLINE_BATCH, Decision.IMMEDIATE_ORDERED, networkScratch.reason());
++            return this.lastNetworkDecision;
++        }
+         final AGCNetworkFanoutKernel.Admission fanoutKernel = AGCNetworkFanoutKernel.INSTANCE.admit(
+             packetName,
+             interactive,
+@@ -162,6 +189,16 @@ public final class AGCNoInvasionOptimizer {
+         } else {
+             category = AGCTickBudgetArbiter.Category.CHUNK_LOAD;
+         }
++        final AGCChunkIntentCompactor.Admission compactedIntent = AGCChunkIntentCompactor.INSTANCE.plan(playerId, operation, "unknown", 0, 0);
++        if (!compactedIntent.admitted()) {
++            this.lastChunkDecision = this.record(Lane.CHUNK_FIFO_FAIR_QUEUE, Decision.FIFO_FAIR_WAIT, compactedIntent.reason());
++            return this.lastChunkDecision;
++        }
++        final AGCMemoryLocalityPlanner.Admission chunkScratch = AGCMemoryLocalityPlanner.INSTANCE.claimScratch("chunk:" + (operation == null ? "unknown" : operation.name()), 4096L, "chunk intent compaction scratch");
++        if (!chunkScratch.admitted()) {
++            this.lastChunkDecision = this.record(Lane.CHUNK_FIFO_FAIR_QUEUE, Decision.FIFO_FAIR_WAIT, chunkScratch.reason());
++            return this.lastChunkDecision;
++        }
+         final AGCChunkPipelineKernel.Admission pipelineAdmission = AGCChunkPipelineKernel.INSTANCE.admit(playerId, operation, "unknown", 0, 0);
+         if (!pipelineAdmission.admitted()) {
+             this.lastChunkDecision = this.record(Lane.CHUNK_FIFO_FAIR_QUEUE, Decision.FIFO_FAIR_WAIT, pipelineAdmission.reason());
+@@ -203,6 +240,16 @@ public final class AGCNoInvasionOptimizer {
+             return this.lastEntityDecision;
+         }
+         final long entityCost = Math.max(1L, estimatedEntities);
++        final AGCEntityBandingPlanner.Decision bandingDecision = AGCEntityBandingPlanner.INSTANCE.prepare(playerId, estimatedEntities, reason);
++        if (!bandingDecision.prepared()) {
++            this.lastEntityDecision = this.record(Lane.ENTITY_READ_ONLY_SNAPSHOT, Decision.IMMEDIATE_ORDERED, bandingDecision.reason());
++            return this.lastEntityDecision;
++        }
++        final AGCMemoryLocalityPlanner.Admission entityScratch = AGCMemoryLocalityPlanner.INSTANCE.claimScratch("entity:" + (playerId == null ? "unknown" : playerId), Math.max(2048L, (long) Math.max(1, estimatedEntities) * 16L), reason);
++        if (!entityScratch.admitted()) {
++            this.lastEntityDecision = this.record(Lane.ENTITY_READ_ONLY_SNAPSHOT, Decision.IMMEDIATE_ORDERED, entityScratch.reason());
++            return this.lastEntityDecision;
++        }
+         final AGCEntityTrackerKernel.Admission trackerKernel = AGCEntityTrackerKernel.INSTANCE.prepare(playerId, estimatedEntities, reason);
+         if (!trackerKernel.prepared()) {
+             this.lastEntityDecision = this.record(Lane.ENTITY_READ_ONLY_SNAPSHOT, Decision.IMMEDIATE_ORDERED, trackerKernel.reason());
+@@ -250,6 +297,11 @@ public final class AGCNoInvasionOptimizer {
+             return this.lastWorldDecision;
+         }
+         final long worldCost = Math.max(1L, plan.parallelGroups());
++        final AGCPluginBackpressureBridge.Decision pluginRoute = AGCPluginBackpressureBridge.INSTANCE.route(AGCPluginBackpressureBridge.Operation.PURE_COMPUTE, worldCost, "world-planner");
++        if (!pluginRoute.admitted()) {
++            this.lastWorldDecision = this.record(Lane.WORLD_WRITE_INTENT_WAVE, Decision.ORDERED_COMMIT, pluginRoute.reason());
++            return this.lastWorldDecision;
++        }
+         final AGCThreadAffinityTranslator.Translation translation = AGCThreadAffinityTranslator.INSTANCE.translate(
+             AGCThreadAffinityTranslator.Phase.PURE_COMPUTE_PLAN,
+             "world-planner",
+diff --git a/paper-server/src/main/java/net/minecraft/server/AGCPacketShapeTable.java b/paper-server/src/main/java/net/minecraft/server/AGCPacketShapeTable.java
+new file mode 100644
+index 0000000..9c56ac1
+--- /dev/null
++++ b/paper-server/src/main/java/net/minecraft/server/AGCPacketShapeTable.java
+@@ -0,0 +1,124 @@
++package net.minecraft.server;
++
++import java.util.concurrent.ConcurrentHashMap;
++import java.util.concurrent.atomic.AtomicLong;
++
++/**
++ * Tick-local packet-shape table. It shares the expensive classification and
++ * fanout planning for packets that have the same semantic shape, but it never
++ * shares mutable packet instances and never changes per-connection ordering.
++ */
++public final class AGCPacketShapeTable {
++    public static final AGCPacketShapeTable INSTANCE = new AGCPacketShapeTable();
++
++    public enum Lane {
++        INTERACTIVE,
++        CHUNK_LIGHT,
++        COSMETIC,
++        METADATA
++    }
++
++    private final ConcurrentHashMap<Integer, ShapeStats> shapes = new ConcurrentHashMap<>();
++    private final AtomicLong requests = new AtomicLong();
++    private final AtomicLong shared = new AtomicLong();
++    private final AtomicLong ordered = new AtomicLong();
++    private final AtomicLong evictions = new AtomicLong();
++    private volatile boolean enabled = true;
++    private volatile int maxShapes = 524_288;
++    private volatile int maxShapeFanout = 4096;
++    private volatile long tickSequence;
++
++    private AGCPacketShapeTable() {
++    }
++
++    public void configure(final boolean enabled, final int maxShapes, final int maxShapeFanout) {
++        this.enabled = enabled;
++        this.maxShapes = Math.max(1, maxShapes);
++        this.maxShapeFanout = Math.max(1, maxShapeFanout);
++    }
++
++    public void beginTick(final long sequence) {
++        if (sequence != this.tickSequence) {
++            this.tickSequence = sequence;
++            this.shapes.clear();
++        }
++    }
++
++    public Decision plan(final String packetName, final AGCPacketBudget.Priority priority, final int estimatedBytes, final int receivers) {
++        this.requests.incrementAndGet();
++        final Lane lane = lane(priority);
++        if (!this.enabled || lane == Lane.INTERACTIVE || lane == Lane.CHUNK_LIGHT) {
++            this.ordered.incrementAndGet();
++            return new Decision(false, true, lane, 0L, "interactive/chunk packet keeps immediate ordered send: " + safe(packetName));
++        }
++        if (this.shapes.size() >= this.maxShapes && !this.shapes.containsKey(hash(packetName, lane, estimatedBytes))) {
++            this.evictions.incrementAndGet();
++            this.ordered.incrementAndGet();
++            return new Decision(false, true, lane, 0L, "shape table full; preserve ordered send: " + safe(packetName));
++        }
++        final int key = hash(packetName, lane, estimatedBytes);
++        final ShapeStats stats = this.shapes.computeIfAbsent(key, ignored -> new ShapeStats(safe(packetName), lane, Math.max(1, estimatedBytes)));
++        final long count = stats.hits.incrementAndGet();
++        final int fanout = Math.max(1, Math.min(this.maxShapeFanout, receivers));
++        final long cost = Math.max(1L, Math.max(1, estimatedBytes) / 256L + fanout / 32L);
++        final AGCScaleControlPlane.Admission budget = AGCScaleControlPlane.INSTANCE.claim(AGCScaleControlPlane.Lane.PACKET_SHAPE, cost, packetName);
++        if (!budget.admitted()) {
++            this.ordered.incrementAndGet();
++            return new Decision(false, true, lane, count, budget.reason());
++        }
++        this.shared.incrementAndGet();
++        return new Decision(count > 1L, false, lane, count, "shape planned tick-locally without sharing mutable packet objects: " + safe(packetName));
++    }
++
++    public String statusLine() {
++        return "AGCPacketShapeTable{enabled=" + this.enabled
++            + ", tick=" + this.tickSequence
++            + ", shapes=" + this.shapes.size()
++            + ", requests=" + this.requests.get()
++            + ", shared=" + this.shared.get()
++            + ", ordered=" + this.ordered.get()
++            + ", evictions=" + this.evictions.get()
++            + '}';
++    }
++
++    private static Lane lane(final AGCPacketBudget.Priority priority) {
++        if (priority == AGCPacketBudget.Priority.MOVEMENT_COMBAT) {
++            return Lane.INTERACTIVE;
++        }
++        if (priority == AGCPacketBudget.Priority.CHUNK_LIGHT) {
++            return Lane.CHUNK_LIGHT;
++        }
++        if (priority == AGCPacketBudget.Priority.LOW_VALUE_METADATA) {
++            return Lane.METADATA;
++        }
++        return Lane.COSMETIC;
++    }
++
++    private static int hash(final String packetName, final Lane lane, final int estimatedBytes) {
++        int result = 17;
++        result = 31 * result + safe(packetName).hashCode();
++        result = 31 * result + lane.ordinal();
++        result = 31 * result + Math.max(1, estimatedBytes) / 128;
++        return result;
++    }
++
++    private static String safe(final String value) {
++        return value == null ? "unknown" : value;
++    }
++
++    private static final class ShapeStats {
++        private final String packetName;
++        private final Lane lane;
++        private final int bytes;
++        private final AtomicLong hits = new AtomicLong();
++
++        private ShapeStats(final String packetName, final Lane lane, final int bytes) {
++            this.packetName = packetName;
++            this.lane = lane;
++            this.bytes = bytes;
++        }
++    }
++
++    public record Decision(boolean sharedShape, boolean orderedNow, Lane lane, long shapeHits, String reason) {
++    }
++}
+diff --git a/paper-server/src/main/java/net/minecraft/server/AGCPlayerCohortTable.java b/paper-server/src/main/java/net/minecraft/server/AGCPlayerCohortTable.java
+new file mode 100644
+index 0000000..517cdaf
+--- /dev/null
++++ b/paper-server/src/main/java/net/minecraft/server/AGCPlayerCohortTable.java
+@@ -0,0 +1,95 @@
++package net.minecraft.server;
++
++import java.util.UUID;
++import java.util.concurrent.ConcurrentHashMap;
++import java.util.concurrent.atomic.AtomicLong;
++
++/**
++ * Tick-local player cohort table for hotspot survival servers. Cohorts are only
++ * planning labels used to share read-only fanout and visibility calculations;
++ * they do not hide players, shrink view distance or alter tracking semantics.
++ */
++public final class AGCPlayerCohortTable {
++    public static final AGCPlayerCohortTable INSTANCE = new AGCPlayerCohortTable();
++
++    private final ConcurrentHashMap<Long, Cohort> cohorts = new ConcurrentHashMap<>();
++    private final AtomicLong playersRecorded = new AtomicLong();
++    private final AtomicLong sharedPlans = new AtomicLong();
++    private final AtomicLong orderedPlans = new AtomicLong();
++    private volatile boolean enabled = true;
++    private volatile int cellSizeBlocks = 64;
++    private volatile int targetPlayersPerCohort = 32;
++    private volatile int maxCohorts = 524_288;
++    private volatile long tickSequence;
++
++    private AGCPlayerCohortTable() {
++    }
++
++    public void configure(final boolean enabled, final int cellSizeBlocks, final int targetPlayersPerCohort, final int maxCohorts) {
++        this.enabled = enabled;
++        this.cellSizeBlocks = Math.max(8, cellSizeBlocks);
++        this.targetPlayersPerCohort = Math.max(1, targetPlayersPerCohort);
++        this.maxCohorts = Math.max(1, maxCohorts);
++    }
++
++    public void beginTick(final long sequence) {
++        if (sequence != this.tickSequence) {
++            this.tickSequence = sequence;
++            this.cohorts.clear();
++        }
++    }
++
++    public CohortDecision record(final UUID playerId, final String worldKey, final int blockX, final int blockZ) {
++        if (!this.enabled || playerId == null) {
++            this.orderedPlans.incrementAndGet();
++            return new CohortDecision(false, 0L, 0, "cohort disabled or anonymous player");
++        }
++        this.playersRecorded.incrementAndGet();
++        if (this.cohorts.size() >= this.maxCohorts) {
++            this.orderedPlans.incrementAndGet();
++            return new CohortDecision(false, 0L, 0, "cohort table full; keep per-player ordered planning");
++        }
++        final long key = key(worldKey, Math.floorDiv(blockX, this.cellSizeBlocks), Math.floorDiv(blockZ, this.cellSizeBlocks));
++        final Cohort cohort = this.cohorts.computeIfAbsent(key, ignored -> new Cohort(key));
++        final int size = cohort.players.incrementAndGet();
++        final long cost = Math.max(1L, size / Math.max(1, this.targetPlayersPerCohort));
++        final AGCScaleControlPlane.Admission admission = AGCScaleControlPlane.INSTANCE.claim(AGCScaleControlPlane.Lane.PLAYER_COHORT, cost, "cohort " + key);
++        if (!admission.admitted()) {
++            this.orderedPlans.incrementAndGet();
++            return new CohortDecision(false, key, size, admission.reason());
++        }
++        this.sharedPlans.incrementAndGet();
++        return new CohortDecision(size >= 2, key, size, "cohort read-only plan shared; gameplay visibility unchanged");
++    }
++
++    public String statusLine() {
++        return "AGCPlayerCohortTable{enabled=" + this.enabled
++            + ", tick=" + this.tickSequence
++            + ", cohorts=" + this.cohorts.size()
++            + ", playersRecorded=" + this.playersRecorded.get()
++            + ", sharedPlans=" + this.sharedPlans.get()
++            + ", orderedPlans=" + this.orderedPlans.get()
++            + '}';
++    }
++
++    private static long key(final String worldKey, final int cellX, final int cellZ) {
++        long hash = 1125899906842597L;
++        hash = 31L * hash + (worldKey == null ? 0 : worldKey.hashCode());
++        hash = 31L * hash + cellX;
++        hash = 31L * hash + cellZ;
++        return hash;
++    }
++
++    private static final class Cohort {
++        private final long key;
++        private final AtomicLong age = new AtomicLong();
++        private final java.util.concurrent.atomic.AtomicInteger players = new java.util.concurrent.atomic.AtomicInteger();
++
++        private Cohort(final long key) {
++            this.key = key;
++        }
++    }
++
++    public record CohortDecision(boolean shared, long cohortKey, int cohortSize, String reason) {
++    }
++}
+diff --git a/paper-server/src/main/java/net/minecraft/server/AGCPluginBackpressureBridge.java b/paper-server/src/main/java/net/minecraft/server/AGCPluginBackpressureBridge.java
+new file mode 100644
+index 0000000..d29f6f7
+--- /dev/null
++++ b/paper-server/src/main/java/net/minecraft/server/AGCPluginBackpressureBridge.java
+@@ -0,0 +1,103 @@
++package net.minecraft.server;
++
++import java.util.EnumMap;
++import java.util.concurrent.atomic.AtomicLong;
++
++/**
++ * Backpressure bridge for the plugin logic translators. It makes plugin-facing
++ * helper work obey the same no-invasion control plane: read-only and pure
++ * compute plans may use spare capacity; Bukkit-visible work is translated to an
++ * ordered primary-thread commit lane instead of running off-thread.
++ */
++public final class AGCPluginBackpressureBridge {
++    public static final AGCPluginBackpressureBridge INSTANCE = new AGCPluginBackpressureBridge();
++
++    public enum Operation {
++        READ_ONLY_QUERY,
++        PURE_COMPUTE,
++        PACKET_PLAN,
++        CHUNK_INTENT,
++        ORDERED_COMMIT,
++        FORBIDDEN_MUTATION
++    }
++
++    public enum Route {
++        READ_ONLY_PREPARE,
++        DEADLINE_PLAN,
++        FIFO_INTENT,
++        PRIMARY_THREAD_COMMIT,
++        REJECT_OFF_THREAD_MUTATION
++    }
++
++    private final EnumMap<Route, AtomicLong> routed = new EnumMap<>(Route.class);
++    private final AtomicLong requests = new AtomicLong();
++    private final AtomicLong delayed = new AtomicLong();
++    private volatile boolean enabled = true;
++    private volatile long maxPendingTranslatedTasks = 65_536L;
++    private volatile long pendingTranslatedTasks;
++    private volatile long tickSequence;
++
++    private AGCPluginBackpressureBridge() {
++        for (final Route route : Route.values()) {
++            this.routed.put(route, new AtomicLong());
++        }
++    }
++
++    public void configure(final boolean enabled, final long maxPendingTranslatedTasks) {
++        this.enabled = enabled;
++        this.maxPendingTranslatedTasks = Math.max(1L, maxPendingTranslatedTasks);
++    }
++
++    public void beginTick(final long sequence, final long pendingTranslatedTasks) {
++        this.tickSequence = Math.max(0L, sequence);
++        this.pendingTranslatedTasks = Math.max(0L, pendingTranslatedTasks);
++    }
++
++    public Decision route(final Operation operation, final long units, final String owner) {
++        this.requests.incrementAndGet();
++        final Route route = switch (operation == null ? Operation.ORDERED_COMMIT : operation) {
++            case READ_ONLY_QUERY, PURE_COMPUTE -> Route.READ_ONLY_PREPARE;
++            case PACKET_PLAN -> Route.DEADLINE_PLAN;
++            case CHUNK_INTENT -> Route.FIFO_INTENT;
++            case ORDERED_COMMIT -> Route.PRIMARY_THREAD_COMMIT;
++            case FORBIDDEN_MUTATION -> Route.REJECT_OFF_THREAD_MUTATION;
++        };
++        if (route == Route.REJECT_OFF_THREAD_MUTATION) {
++            this.routed.get(route).incrementAndGet();
++            return new Decision(false, route, "off-thread Bukkit mutation is not translated into async work: " + safe(owner));
++        }
++        if (route == Route.PRIMARY_THREAD_COMMIT) {
++            this.routed.get(route).incrementAndGet();
++            return new Decision(true, route, "Bukkit-visible plugin work remains primary-thread ordered: " + safe(owner));
++        }
++        if (!this.enabled || this.pendingTranslatedTasks >= this.maxPendingTranslatedTasks) {
++            this.delayed.incrementAndGet();
++            return new Decision(false, Route.PRIMARY_THREAD_COMMIT, "translator backpressure keeps plugin semantics ordered: " + safe(owner));
++        }
++        final AGCScaleControlPlane.Admission control = AGCScaleControlPlane.INSTANCE.claim(AGCScaleControlPlane.Lane.PLUGIN_TRANSLATION, Math.max(1L, units), owner);
++        if (!control.admitted()) {
++            this.delayed.incrementAndGet();
++            return new Decision(false, Route.PRIMARY_THREAD_COMMIT, control.reason());
++        }
++        this.routed.get(route).incrementAndGet();
++        return new Decision(true, route, "plugin helper work routed without changing Bukkit event order: " + safe(owner));
++    }
++
++    public String statusLine() {
++        return "AGCPluginBackpressureBridge{enabled=" + this.enabled
++            + ", tick=" + this.tickSequence
++            + ", pendingTranslatedTasks=" + this.pendingTranslatedTasks
++            + ", maxPending=" + this.maxPendingTranslatedTasks
++            + ", requests=" + this.requests.get()
++            + ", delayed=" + this.delayed.get()
++            + ", routed=" + this.routed
++            + '}';
++    }
++
++    private static String safe(final String value) {
++        return value == null ? "unknown" : value;
++    }
++
++    public record Decision(boolean admitted, Route route, String reason) {
++    }
++}
+diff --git a/paper-server/src/main/java/net/minecraft/server/AGCRuntimeConfigurator.java b/paper-server/src/main/java/net/minecraft/server/AGCRuntimeConfigurator.java
+index 08e655e..ae73cea 100644
+--- a/paper-server/src/main/java/net/minecraft/server/AGCRuntimeConfigurator.java
++++ b/paper-server/src/main/java/net/minecraft/server/AGCRuntimeConfigurator.java
+@@ -177,5 +177,51 @@ public final class AGCRuntimeConfigurator {
+         );
+         AGCThreadAffinityTranslator.INSTANCE.configure(config.agc.performance.threadAffinityTranslator);
+         AGCPluginLogicTranslator.INSTANCE.configure(config.agc.performance.pluginLogicTranslator);
++        AGCScaleControlPlane.INSTANCE.configure(
++            config.agc.performance.scaleControlPlane,
++            config.agc.performance.survivalScaleTargetPlayers,
++            config.agc.performance.survivalScaleTargetTps,
++            config.agc.performance.scaleControlReserveCpuPercent,
++            config.agc.performance.scaleControlUnitsPerCore
++        );
++        AGCPacketShapeTable.INSTANCE.configure(
++            config.agc.performance.packetShapeTable,
++            config.agc.performance.packetShapeTableMaxShapes,
++            config.agc.performance.packetShapeTableMaxFanout
++        );
++        AGCPlayerCohortTable.INSTANCE.configure(
++            config.agc.performance.playerCohortTable,
++            config.agc.performance.playerCohortCellSizeBlocks,
++            config.agc.performance.playerCohortTargetPlayers,
++            config.agc.performance.playerCohortMaxCohorts
++        );
++        AGCChunkIntentCompactor.INSTANCE.configure(
++            config.agc.performance.chunkIntentCompactor,
++            config.agc.performance.chunkIntentCompactorRegionSizeChunks,
++            config.agc.performance.chunkIntentCompactorMaxShapes
++        );
++        AGCEntityBandingPlanner.INSTANCE.configure(
++            config.agc.performance.entityBandingPlanner,
++            config.agc.performance.entityBandingMaxCandidatesPerPlayer
++        );
++        AGCMemoryLocalityPlanner.INSTANCE.configure(
++            config.agc.performance.memoryLocalityPlanner,
++            config.agc.performance.memoryLocalityMaxScratchBytesPerTick,
++            config.agc.performance.memoryLocalityMaxOwners
++        );
++        AGCEncodingReusePlanner.INSTANCE.configure(
++            config.agc.performance.encodingReusePlanner,
++            config.agc.performance.encodingReuseMaxShapes,
++            config.agc.performance.encodingReuseCompressionThresholdBytes
++        );
++        AGCPluginBackpressureBridge.INSTANCE.configure(
++            config.agc.performance.pluginBackpressureBridge,
++            config.agc.performance.pluginBackpressureMaxPendingTasks
++        );
++        AGCHotspotEvictionPlanner.INSTANCE.configure(
++            config.agc.performance.hotspotEvictionPlanner,
++            config.agc.performance.hotspotEvictionMaxHotspots,
++            config.agc.performance.hotspotEvictionPlayers
++        );
+     }
+ }
+diff --git a/paper-server/src/main/java/net/minecraft/server/AGCRuntimeHealth.java b/paper-server/src/main/java/net/minecraft/server/AGCRuntimeHealth.java
+index 6b2e0c8..c580118 100644
+--- a/paper-server/src/main/java/net/minecraft/server/AGCRuntimeHealth.java
++++ b/paper-server/src/main/java/net/minecraft/server/AGCRuntimeHealth.java
+@@ -57,6 +57,17 @@ public final class AGCRuntimeHealth {
+             survivalMetrics.entities(),
+             this.lastMspt
+         );
++        AGCScaleControlPlane.INSTANCE.beginTick(
++            agcTickSequence,
++            survivalMetrics.players(),
++            survivalMetrics.worlds(),
++            survivalMetrics.loadedChunks(),
++            survivalMetrics.entities(),
++            this.lastMspt
++        );
++        AGCPluginBackpressureBridge.INSTANCE.beginTick(agcTickSequence, translatorBeforeDrain.pendingTasks());
++        AGCHotspotEvictionPlanner.INSTANCE.beginTick(agcTickSequence);
++        AGCHotspotEvictionPlanner.INSTANCE.record(agcTickSequence, survivalMetrics.players());
+         AGCRegionHotspotMap.INSTANCE.beginTick(agcTickSequence);
+         AGCComputeTopologyPlanner.INSTANCE.beginTick(agcTickSequence, survivalMetrics.players(), this.lastMspt);
+         AGCNoInvasionOptimizer.INSTANCE.beginTick(agcTickSequence);
+diff --git a/paper-server/src/main/java/net/minecraft/server/AGCScaleControlPlane.java b/paper-server/src/main/java/net/minecraft/server/AGCScaleControlPlane.java
+new file mode 100644
+index 0000000..a667470
+--- /dev/null
++++ b/paper-server/src/main/java/net/minecraft/server/AGCScaleControlPlane.java
+@@ -0,0 +1,199 @@
++package net.minecraft.server;
++
++import java.util.Collections;
++import java.util.EnumMap;
++import java.util.Map;
++import java.util.concurrent.atomic.AtomicLong;
++
++/**
++ * Alpha15 control plane for the heavy survival-scale optimisations.
++ * <p>
++ * The control plane is deliberately limited to invisible work: packet shape
++ * planning, player cohort routing, chunk intent compaction, entity visibility
++ * banding, plugin translation bookkeeping and memory-local scratch planning. It
++ * does not own world state and it never grants permission to skip gameplay
++ * ticks, mutate Bukkit objects off-thread, drop packets or reorder chunk FIFO.
++ */
++public final class AGCScaleControlPlane {
++    public static final AGCScaleControlPlane INSTANCE = new AGCScaleControlPlane();
++
++    public enum Mode {
++        STEADY,
++        DENSE_SURVIVAL,
++        THOUSAND_PLAYER,
++        SATURATED_HOTSPOT
++    }
++
++    public enum Lane {
++        PACKET_SHAPE,
++        PLAYER_COHORT,
++        CHUNK_INTENT_COMPACTION,
++        ENTITY_VISIBILITY_BANDING,
++        PLUGIN_TRANSLATION,
++        MEMORY_LOCALITY,
++        ENCODING_HELPER,
++        HOTSPOT_EVICTION
++    }
++
++    private final EnumMap<Lane, AtomicLong> remaining = new EnumMap<>(Lane.class);
++    private final EnumMap<Lane, AtomicLong> admitted = new EnumMap<>(Lane.class);
++    private final EnumMap<Lane, AtomicLong> delayed = new EnumMap<>(Lane.class);
++    private volatile boolean enabled = true;
++    private volatile int targetPlayers = 3000;
++    private volatile double targetTps = 20.0D;
++    private volatile int reserveCpuPercent = 24;
++    private volatile long unitsPerCore = 260_000L;
++    private volatile long tickSequence;
++    private volatile Mode mode = Mode.STEADY;
++    private volatile int players;
++    private volatile int worlds;
++    private volatile int loadedChunks;
++    private volatile int entities;
++    private volatile double mspt;
++    private volatile int usableWorkers = 1;
++    private volatile long totalUnits;
++
++    private AGCScaleControlPlane() {
++        for (final Lane lane : Lane.values()) {
++            this.remaining.put(lane, new AtomicLong());
++            this.admitted.put(lane, new AtomicLong());
++            this.delayed.put(lane, new AtomicLong());
++        }
++    }
++
++    public void configure(final boolean enabled, final int targetPlayers, final double targetTps, final int reserveCpuPercent, final long unitsPerCore) {
++        this.enabled = enabled;
++        this.targetPlayers = Math.max(1, targetPlayers);
++        this.targetTps = Math.max(1.0D, targetTps);
++        this.reserveCpuPercent = Math.max(0, Math.min(85, reserveCpuPercent));
++        this.unitsPerCore = Math.max(4096L, unitsPerCore);
++    }
++
++    public void beginTick(final long sequence, final int players, final int worlds, final int loadedChunks, final int entities, final double mspt) {
++        this.tickSequence = Math.max(0L, sequence);
++        this.players = Math.max(0, players);
++        this.worlds = Math.max(0, worlds);
++        this.loadedChunks = Math.max(0, loadedChunks);
++        this.entities = Math.max(0, entities);
++        this.mspt = Math.max(0.0D, mspt);
++        this.mode = classify(this.players, this.loadedChunks, this.entities, this.mspt);
++
++        final int processors = Math.max(1, Runtime.getRuntime().availableProcessors());
++        final int reserved = Math.max(2, (processors * this.reserveCpuPercent + 99) / 100);
++        this.usableWorkers = Math.max(1, processors - reserved);
++        final double targetMspt = 1000.0D / this.targetTps;
++        final double pressureMultiplier = targetMspt <= 0.0D ? 1.0D : Math.max(0.20D, Math.min(2.25D, targetMspt / Math.max(1.0D, this.mspt)));
++        final long playerMultiplier = Math.max(1L, Math.min(5L, (this.players + 799L) / 800L));
++        this.totalUnits = this.enabled ? Math.max(8192L, Math.round(this.usableWorkers * this.unitsPerCore * pressureMultiplier) * playerMultiplier) : 0L;
++
++        for (final Lane lane : Lane.values()) {
++            final long share = switch (lane) {
++                case PACKET_SHAPE -> this.totalUnits * 22L / 100L;
++                case PLAYER_COHORT -> this.totalUnits * 10L / 100L;
++                case CHUNK_INTENT_COMPACTION -> this.totalUnits * 20L / 100L;
++                case ENTITY_VISIBILITY_BANDING -> this.totalUnits * 18L / 100L;
++                case PLUGIN_TRANSLATION -> this.totalUnits * 8L / 100L;
++                case MEMORY_LOCALITY -> this.totalUnits * 7L / 100L;
++                case ENCODING_HELPER -> this.totalUnits * 10L / 100L;
++                case HOTSPOT_EVICTION -> this.totalUnits * 5L / 100L;
++            };
++            this.remaining.get(lane).set(Math.max(512L, share));
++        }
++    }
++
++    public Admission claim(final Lane lane, final long units, final String reason) {
++        if (!this.enabled) {
++            this.delayed.get(lane).incrementAndGet();
++            return new Admission(false, lane, 0L, "scale control disabled: " + sanitize(reason));
++        }
++        final long cost = Math.max(1L, units);
++        final AtomicLong bucket = this.remaining.get(lane);
++        while (true) {
++            final long current = bucket.get();
++            if (current < cost) {
++                this.delayed.get(lane).incrementAndGet();
++                return new Admission(false, lane, current, "lane budget waits without semantic change: " + sanitize(reason));
++            }
++            if (bucket.compareAndSet(current, current - cost)) {
++                this.admitted.get(lane).incrementAndGet();
++                return new Admission(true, lane, current - cost, sanitize(reason));
++            }
++        }
++    }
++
++    public boolean hasHeadroom(final Lane lane, final long units) {
++        return this.enabled && this.remaining.get(lane).get() >= Math.max(1L, units);
++    }
++
++    public Mode mode() {
++        return this.mode;
++    }
++
++    public Snapshot snapshot() {
++        return new Snapshot(this.enabled, this.tickSequence, this.mode, this.targetPlayers, this.targetTps, this.players, this.worlds, this.loadedChunks, this.entities, this.mspt, this.usableWorkers, this.totalUnits, copy(this.remaining), copy(this.admitted), copy(this.delayed));
++    }
++
++    public String statusLine() {
++        final Snapshot snapshot = this.snapshot();
++        return "AGCScaleControlPlane{enabled=" + snapshot.enabled()
++            + ", mode=" + snapshot.mode()
++            + ", target=" + snapshot.targetPlayers() + "@" + snapshot.targetTps() + "tps"
++            + ", players=" + snapshot.players()
++            + ", worlds=" + snapshot.worlds()
++            + ", chunks=" + snapshot.loadedChunks()
++            + ", entities=" + snapshot.entities()
++            + ", mspt=" + snapshot.mspt()
++            + ", workers=" + snapshot.usableWorkers()
++            + ", totalUnits=" + snapshot.totalUnits()
++            + ", remaining=" + snapshot.remaining()
++            + ", delayed=" + snapshot.delayed()
++            + '}';
++    }
++
++    private Mode classify(final int players, final int loadedChunks, final int entities, final double mspt) {
++        if (players >= Math.max(2400, this.targetPlayers * 4 / 5) || loadedChunks >= 220_000 || entities >= 360_000 || mspt >= 47.5D) {
++            return Mode.SATURATED_HOTSPOT;
++        }
++        if (players >= Math.max(1400, this.targetPlayers / 2) || loadedChunks >= 120_000 || entities >= 200_000) {
++            return Mode.THOUSAND_PLAYER;
++        }
++        if (players >= 512 || loadedChunks >= 45_000 || entities >= 75_000) {
++            return Mode.DENSE_SURVIVAL;
++        }
++        return Mode.STEADY;
++    }
++
++    private static Map<Lane, Long> copy(final EnumMap<Lane, AtomicLong> source) {
++        final EnumMap<Lane, Long> copy = new EnumMap<>(Lane.class);
++        for (final Map.Entry<Lane, AtomicLong> entry : source.entrySet()) {
++            copy.put(entry.getKey(), entry.getValue().get());
++        }
++        return Collections.unmodifiableMap(copy);
++    }
++
++    private static String sanitize(final String value) {
++        return value == null ? "" : value;
++    }
++
++    public record Admission(boolean admitted, Lane lane, long remainingUnits, String reason) {
++    }
++
++    public record Snapshot(
++        boolean enabled,
++        long tickSequence,
++        Mode mode,
++        int targetPlayers,
++        double targetTps,
++        int players,
++        int worlds,
++        int loadedChunks,
++        int entities,
++        double mspt,
++        int usableWorkers,
++        long totalUnits,
++        Map<Lane, Long> remaining,
++        Map<Lane, Long> admitted,
++        Map<Lane, Long> delayed
++    ) {
++    }
++}
+diff --git a/test-plugin/src/main/java/io/papermc/testplugin/e2e/TestRegistry.java b/test-plugin/src/main/java/io/papermc/testplugin/e2e/TestRegistry.java
+index 802522f..a40a8df 100644
+--- a/test-plugin/src/main/java/io/papermc/testplugin/e2e/TestRegistry.java
++++ b/test-plugin/src/main/java/io/papermc/testplugin/e2e/TestRegistry.java
+@@ -40,6 +40,7 @@ public class TestRegistry {
+         new FeatureR20Tests().register(this);
+         new FeatureR21Tests().register(this);
+         new FeatureR22Tests().register(this);
++        new FeatureR23Tests().register(this);
+         new Tier3Tests().register(this);
+         new Tier4Tests().register(this);
+     }
+diff --git a/test-plugin/src/main/java/io/papermc/testplugin/e2e/tests/FeatureR23Tests.java b/test-plugin/src/main/java/io/papermc/testplugin/e2e/tests/FeatureR23Tests.java
+new file mode 100644
+index 0000000..5061cd8
+--- /dev/null
++++ b/test-plugin/src/main/java/io/papermc/testplugin/e2e/tests/FeatureR23Tests.java
+@@ -0,0 +1,82 @@
++package io.papermc.testplugin.e2e.tests;
++
++import io.papermc.testplugin.e2e.E2ETest;
++import io.papermc.testplugin.e2e.TestContext;
++import io.papermc.testplugin.e2e.TestRegistry;
++
++public class FeatureR23Tests {
++    public void register(TestRegistry registry) {
++        registry.register(new E2ETest() {
++            @Override public String getId() { return "R23_T1_1"; }
++            @Override public String getName() { return "R23 Tier 1 - Alpha15 Scale Control Plane"; }
++            @Override public void run(TestContext context) throws Exception {
++                Class<?> plane = context.checkClassExists("net.minecraft.server.AGCScaleControlPlane");
++                Object instance = plane.getDeclaredField("INSTANCE").get(null);
++                context.assertNotNull(plane.getDeclaredMethod("snapshot").invoke(instance), "Scale control snapshot must be callable.");
++                context.assertTrue(((String) plane.getDeclaredMethod("statusLine").invoke(instance)).contains("AGCScaleControlPlane"), "Scale control status must identify itself.");
++            }
++        });
++        registry.register(new E2ETest() {
++            @Override public String getId() { return "R23_T1_2"; }
++            @Override public String getName() { return "R23 Tier 1 - Packet Shape and Encoding Planners"; }
++            @Override public void run(TestContext context) throws Exception {
++                Class<?> shape = context.checkClassExists("net.minecraft.server.AGCPacketShapeTable");
++                Object shapeInstance = shape.getDeclaredField("INSTANCE").get(null);
++                context.assertTrue(((String) shape.getDeclaredMethod("statusLine").invoke(shapeInstance)).contains("AGCPacketShapeTable"), "Packet shape status must identify itself.");
++                Class<?> encoding = context.checkClassExists("net.minecraft.server.AGCEncodingReusePlanner");
++                Object encodingInstance = encoding.getDeclaredField("INSTANCE").get(null);
++                context.assertTrue(((String) encoding.getDeclaredMethod("statusLine").invoke(encodingInstance)).contains("AGCEncodingReusePlanner"), "Encoding planner status must identify itself.");
++            }
++        });
++        registry.register(new E2ETest() {
++            @Override public String getId() { return "R23_T1_3"; }
++            @Override public String getName() { return "R23 Tier 1 - Cohort, Chunk Compactor and Entity Banding"; }
++            @Override public void run(TestContext context) throws Exception {
++                Class<?> cohort = context.checkClassExists("net.minecraft.server.AGCPlayerCohortTable");
++                Object cohortInstance = cohort.getDeclaredField("INSTANCE").get(null);
++                context.assertTrue(((String) cohort.getDeclaredMethod("statusLine").invoke(cohortInstance)).contains("AGCPlayerCohortTable"), "Cohort status must identify itself.");
++                Class<?> chunk = context.checkClassExists("net.minecraft.server.AGCChunkIntentCompactor");
++                Object chunkInstance = chunk.getDeclaredField("INSTANCE").get(null);
++                context.assertTrue(((String) chunk.getDeclaredMethod("statusLine").invoke(chunkInstance)).contains("AGCChunkIntentCompactor"), "Chunk compactor status must identify itself.");
++                Class<?> entity = context.checkClassExists("net.minecraft.server.AGCEntityBandingPlanner");
++                Object entityInstance = entity.getDeclaredField("INSTANCE").get(null);
++                context.assertTrue(((String) entity.getDeclaredMethod("statusLine").invoke(entityInstance)).contains("AGCEntityBandingPlanner"), "Entity banding status must identify itself.");
++            }
++        });
++        registry.register(new E2ETest() {
++            @Override public String getId() { return "R23_T1_4"; }
++            @Override public String getName() { return "R23 Tier 1 - Memory, Plugin Backpressure and Hotspot Eviction"; }
++            @Override public void run(TestContext context) throws Exception {
++                Class<?> memory = context.checkClassExists("net.minecraft.server.AGCMemoryLocalityPlanner");
++                Object memoryInstance = memory.getDeclaredField("INSTANCE").get(null);
++                context.assertTrue(((String) memory.getDeclaredMethod("statusLine").invoke(memoryInstance)).contains("AGCMemoryLocalityPlanner"), "Memory planner status must identify itself.");
++                Class<?> plugin = context.checkClassExists("net.minecraft.server.AGCPluginBackpressureBridge");
++                Object pluginInstance = plugin.getDeclaredField("INSTANCE").get(null);
++                context.assertTrue(((String) plugin.getDeclaredMethod("statusLine").invoke(pluginInstance)).contains("AGCPluginBackpressureBridge"), "Plugin backpressure status must identify itself.");
++                Class<?> hotspot = context.checkClassExists("net.minecraft.server.AGCHotspotEvictionPlanner");
++                Object hotspotInstance = hotspot.getDeclaredField("INSTANCE").get(null);
++                context.assertTrue(((String) hotspot.getDeclaredMethod("statusLine").invoke(hotspotInstance)).contains("AGCHotspotEvictionPlanner"), "Hotspot eviction status must identify itself.");
++            }
++        });
++        registry.register(new E2ETest() {
++            @Override public String getId() { return "R23_T1_5"; }
++            @Override public String getName() { return "R23 Tier 1 - Scale15 Command Report"; }
++            @Override public void run(TestContext context) throws Exception {
++                Class<?> reports = context.checkClassExists("net.minecraft.server.AGCCommandReports");
++                String report = (String) reports.getDeclaredMethod("scale15").invoke(null);
++                context.assertTrue(report.contains("AGCScaleControlPlane") && report.contains("hardRules"), "Scale15 report must include alpha15 plane and hard rules.");
++            }
++        });
++        registry.register(new E2ETest() {
++            @Override public String getId() { return "R23_T1_6"; }
++            @Override public String getName() { return "R23 Tier 1 - Scale15 Public API"; }
++            @Override public void run(TestContext context) throws Exception {
++                context.checkClassExists("io.agcmc.agc.api.AGCScale15Plan");
++                Class<?> performance = context.checkClassExists("io.agcmc.agc.api.AGCPerformance");
++                context.assertNotNull(performance.getDeclaredMethod("scale15Plan", int.class, double.class), "scale15Plan API must exist.");
++                Class<?> feature = context.checkClassExists("io.agcmc.agc.api.AGCFeature");
++                context.assertNotNull(Enum.valueOf((Class<Enum>) feature.asSubclass(Enum.class), "SCALE_CONTROL_PLANE"), "AGCFeature must include alpha15 scale control plane.");
++            }
++        });
++    }
++}

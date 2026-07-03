@@ -1,0 +1,76 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: AGC Developer <developer@agc.com>
+Date: Fri, 26 Jun 2026 18:22:00 +0900
+Subject: [PATCH] AGC network and chunk admission hooks
+
+This wires the AGC packet/chunk budgeting scaffolds into conservative hot-path
+admission points. Packets and chunks are never dropped: under pressure AGC only
+turns low-priority writes into non-immediate flushes, allowing Paper/Netty batch
+flushes to coalesce work while preserving ordering and contents.
+
+diff --git a/net/minecraft/network/Connection.java b/net/minecraft/network/Connection.java
+index 93c55c2..6e29411 100644
+--- a/net/minecraft/network/Connection.java
++++ b/net/minecraft/network/Connection.java
+@@ -402,17 +402,21 @@ public class Connection extends SimpleChannelInboundHandler<Packet<?>> {
+             return;
+         }
+ 
+-        packet.onPacketDispatch(this.getPlayer());
++        // AGC start - packet-priority admission hook
++        final net.minecraft.server.level.ServerPlayer agc$player = this.getPlayer();
++        packet.onPacketDispatch(agc$player);
++        final boolean agc$flush = net.minecraft.server.AGCNetworkAdmission.INSTANCE.shouldFlushImmediately(agc$player, packet, flush);
++        // AGC end - packet-priority admission hook
+         if (connected && (InnerUtil.canSendImmediate(this, packet)
+             || (io.papermc.paper.util.MCUtil.isMainThread() && packet.isReady() && this.pendingActions.isEmpty()
+             && (packet.getExtraPackets() == null || packet.getExtraPackets().isEmpty())))) {
+-            this.sendPacket(packet, listener, flush);
++            this.sendPacket(packet, listener, agc$flush);
+         } else {
+             // Write the packets to the queue, then flush - antixray hooks there already
+             final java.util.List<Packet<?>> extraPackets = InnerUtil.buildExtraPackets(packet);
+             final boolean hasExtraPackets = extraPackets != null && !extraPackets.isEmpty();
+             if (!hasExtraPackets) {
+-                this.pendingActions.add(new PacketSendAction(packet, listener, flush));
++                this.pendingActions.add(new PacketSendAction(packet, listener, agc$flush));
+             } else {
+                 final java.util.List<PacketSendAction> actions = new java.util.ArrayList<>(1 + extraPackets.size());
+                 actions.add(new PacketSendAction(packet, null, false)); // Delay the future listener until the end of the extra packets
+@@ -420,7 +424,7 @@ public class Connection extends SimpleChannelInboundHandler<Packet<?>> {
+                 for (int i = 0, len = extraPackets.size(); i < len;) {
+                     final Packet<?> extraPacket = extraPackets.get(i);
+                     final boolean end = ++i == len;
+-                    actions.add(new PacketSendAction(extraPacket, end ? listener : null, end)); // Append listener to the end
++                    actions.add(new PacketSendAction(extraPacket, end ? listener : null, end && agc$flush)); // Append listener to the end; AGC may coalesce the final flush
+                 }
+ 
+                 this.pendingActions.addAll(actions);
+@@ -900,6 +904,7 @@ public class Connection extends SimpleChannelInboundHandler<Packet<?>> {
+     // Paper start - Optimize network
+     public void clearPacketQueue() {
+         final net.minecraft.server.level.ServerPlayer player = getPlayer();
++        net.minecraft.server.AGCNetworkAdmission.INSTANCE.forget(player); // AGC - release per-player budget state on disconnect
+         for (final Consumer<Connection> queuedAction : this.pendingActions) {
+             if (queuedAction instanceof PacketSendAction packetSendAction) {
+                 final Packet<?> packet = packetSendAction.packet;
+diff --git a/net/minecraft/server/network/PlayerChunkSender.java b/net/minecraft/server/network/PlayerChunkSender.java
+index 51a73cc..eb2c7d3 100644
+--- a/net/minecraft/server/network/PlayerChunkSender.java
++++ b/net/minecraft/server/network/PlayerChunkSender.java
+@@ -96,7 +96,14 @@ public class PlayerChunkSender {
+     public static void sendChunk(final ServerGamePacketListenerImpl connection, final ServerLevel level, final LevelChunk chunk) { // Paper - rewrite chunk system - public
+         // Paper start - Anti-Xray
+         final boolean shouldModify = level.chunkPacketBlockController.shouldModify(connection.player, chunk);
+-        connection.send(new ClientboundLevelChunkWithLightPacket(chunk, level.getLightEngine(), null, null, shouldModify));
++        final ClientboundLevelChunkWithLightPacket agc$chunkPacket = new ClientboundLevelChunkWithLightPacket(chunk, level.getLightEngine(), null, null, shouldModify);
++        // AGC start - chunk send admission hook. Never skip chunk data; only coalesce socket flushes when the per-player send budget is saturated.
++        if (net.minecraft.server.AGCChunkAdmission.INSTANCE.shouldDeferChunkFlush(connection.player)) {
++            connection.meteus$sendWithoutFlush(agc$chunkPacket);
++        } else {
++            connection.send(agc$chunkPacket);
++        }
++        // AGC end - chunk send admission hook
+         // Paper end - Anti-Xray
+         // Paper start - PlayerChunkLoadEvent
+         if (io.papermc.paper.event.packet.PlayerChunkLoadEvent.getHandlerList().getRegisteredListeners().length > 0) {

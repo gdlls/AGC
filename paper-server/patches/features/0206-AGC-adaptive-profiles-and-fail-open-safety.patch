@@ -1,0 +1,33 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: AGC Developer <developer@agc.com>
+Date: Fri, 26 Jun 2026 20:45:00 +0900
+Subject: [PATCH] AGC adaptive profiles and fail-open safety
+
+Expose the alpha5 adaptive profile and stability journal diagnostics through
+the in-game /agc command. Runtime support classes live in the Paper server
+source set so this Minecraft patch only touches the command registration
+surface.
+
+diff --git a/net/minecraft/server/commands/AGCCommand.java b/net/minecraft/server/commands/AGCCommand.java
+--- a/net/minecraft/server/commands/AGCCommand.java
++++ b/net/minecraft/server/commands/AGCCommand.java
+@@ -21,6 +21,9 @@
+                 .executes(context -> sendReport(context.getSource(), overview()))
+                 .then(Commands.literal("perf").executes(context -> sendReport(context.getSource(), AGCCommandReports.perf())))
+                 .then(Commands.literal("compat").executes(context -> sendReport(context.getSource(), AGCCommandReports.compat())))
++                .then(Commands.literal("profile").executes(context -> sendReport(context.getSource(), AGCCommandReports.profile())))
++                .then(Commands.literal("journal").executes(context -> sendReport(context.getSource(), AGCCommandReports.journal())))
++                .then(Commands.literal("api").executes(context -> sendReport(context.getSource(), AGCCommandReports.minigameApi())))
+                 .then(Commands.literal("rollback-profile").executes(context -> sendReport(context.getSource(), AGCCommandReports.rollbackProfile())))
+                 .then(Commands.literal("health").executes(context -> sendReport(context.getSource(), AGCRuntimeHealth.INSTANCE.statusLine())))
+                 .then(Commands.literal("reset-rollback")
+@@ -39,6 +42,9 @@
+             "  /agc perf - runtime budgets, admissions and rollback governor",
+             "  /agc compat - plugin compatibility scan and parallel tick gate",
+             "  /agc health - last server tick health sample",
++            "  /agc profile - adaptive scaling profile state",
++            "  /agc journal - recent AGC safety/profile events",
++            "  /agc api - mini-game API status",
+             "  /agc rollback-profile - rollback counters",
+             "  /agc reset-rollback - clear AGC runtime rollback flags for this process"
+         );

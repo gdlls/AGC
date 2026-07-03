@@ -1,0 +1,559 @@
+diff --git a/AGC.md b/AGC.md
+index acc80d7..08237da 100644
+--- a/AGC.md
++++ b/AGC.md
+@@ -201,3 +201,31 @@ Aggressive defaults remain enabled, but the alpha9 implementation treats compati
+ ## AGC 26.2 alpha10 - No-invasion scale remodel
+ 
+ Alpha10 extends the no-invasion model from packet/chunk/world planning into large-server operation. `AGCPlayerIntentScheduler` gives each player deterministic FIFO tickets for cosmetic network work, chunk starts, entity tracker snapshots and arena bookkeeping. `AGCShardPlanner` assigns stable planning shards for multi-world and mini-game networks without changing Bukkit world ownership. `AGCPluginCompatibilityContracts` and the public `AGC.compatibility()` API let plugins declare conservative safety contracts instead of AGC guessing from plugin names. These contracts never permit off-thread Bukkit mutation or event-order changes; they only select read-only prepare, deadline batching, FIFO wait or ordered commit lanes.
++
++## AGC 26.2 alpha11 - aggressive performance standard
++
++Alpha11 remodels the optimisation stack around a hard shared performance standard instead of isolated per-feature heuristics.
++
++New runtime pieces:
++
++- `AGCPerformanceStandard` defines measurable SLOs: target MSPT, hard MSPT, one-tick packet deadline, ordered commit deadline, and semantic queue depth guard.
++- `AGCTickBudgetArbiter` centrally assigns per-tick budget units to network, chunk send/load/generate, entity snapshots, world prepare, player flow, mini-game prewarm and plugin commit lanes.
++- `AGCLatencySLO` records whether deadline batching and ordered commit drains stay inside their configured tick deadlines.
++- `AGCEntitySpatialSnapshotCache` caches read-only entity visibility summaries for the current tick only. It never owns live entity state and never skips entity ticks.
++- `AGCMinigameBurstPlanner` admits arena start/reset/prewarm bursts as read-only prepare or ordered commit work so many arenas can start without one arena stampeding the tick.
++
++The key rule remains strict: aggressive mode can spend more budget on read-only prepare and deadline batching, but it cannot drop packets, skip chunk queue heads, reorder per-player FIFO, mutate Bukkit state off-thread, or skip entity/gameplay ticks.
++
++New diagnostics:
++
++```text
++/agc hardperf
++```
++
++New plugin API helpers:
++
++- `AGC.performance().advise(AGCPerformanceIntent)`
++- `AGC.performance().denseArenaAdvice(players, entities, chunkRadius)`
++- `AGC.scheduler().readOnlySupplyAsync(...)`
++- `AGC.scheduler().prepareSupplyAsyncThenCommit(...)`
++- `AGC.minigames().performancePlan(...)`
+diff --git a/AGC_ROADMAP.md b/AGC_ROADMAP.md
+index 31ea3e1..95b019d 100644
+--- a/AGC_ROADMAP.md
++++ b/AGC_ROADMAP.md
+@@ -215,3 +215,21 @@ Next implementation steps:
+ - Added plugin compatibility contract API so minigame and infrastructure plugins can explicitly declare no-invasion-safe behaviours.
+ - Added `/agc scale` and `/agc contracts` diagnostics.
+ - Next: wire shard IDs into arena prewarm, player fanout snapshots and chunk IO admission metrics while keeping commit order unchanged.
++
++## Alpha11 gate - hard performance standard
++
++Alpha11 raises the implementation standard for every future optimisation:
++
++1. Every aggressive feature must request budget from `AGCTickBudgetArbiter` instead of privately delaying work.
++2. Every visible mutation must remain an ordered commit. Parallel work is limited to read-only prepare, snapshot planning, packet deadline batching and fair FIFO admission.
++3. Network batching must remain bounded by the configured one-tick SLO and must never drop packets.
++4. Chunk load/generate/send queues must preserve FIFO head order; no starvation fixes may skip a player's queue head.
++5. Entity optimisation must stay read-only unless it can prove vanilla/Paper tick order is unchanged.
++6. Mini-game APIs should expose performance plans so plugin authors can structure large arena work as read-only prewarm + ordered reset/commit.
++
++Next implementation gates:
++
++- Wire `AGCEntitySpatialSnapshotCache` into entity tracker read-only visibility hot paths.
++- Wire `AGCMinigameBurstPlanner` into arena reset/prewarm helpers.
++- Add per-plugin contract weighting to `AGCTickBudgetArbiter` without allowing off-thread Bukkit mutation.
++- Add reproducible simulation tests for 250, 1000 and 3000 synthetic players using packet/chunk/entity/minigame pressure traces.
+diff --git a/README.md b/README.md
+index 01072e5..e3b0339 100644
+--- a/README.md
++++ b/README.md
+@@ -169,3 +169,15 @@ Alpha9 pushes the rule further: AGC should not depend on trying unsafe work firs
+ - `MinecraftServer.meteus$tickLevelsParallel(...)` now consumes planner waves instead of blindly running every world together.
+ 
+ Use `/agc noinvasion` to inspect the no-invasion lanes, FIFO chunk queue, entity snapshot planner and write-intent graph.
++
++### AGC alpha11 aggressive performance mode
++
++AGC alpha11 keeps the aggressive defaults but routes them through a central performance standard:
++
++- central tick budget arbiter across network/chunk/entity/world/player/minigame lanes
++- one-tick latency SLO accounting for low-priority packet batching
++- read-only entity spatial snapshot cache
++- mini-game burst planner for arena start/reset/prewarm waves
++- `/agc hardperf` diagnostics
++
++Aggressive mode is not allowed to get performance by changing visible semantics. It may prepare, snapshot, batch inside a deadline, or wait fairly; it may not drop packets, reorder plugin-visible commits, skip chunk queue heads, or run mutating Bukkit calls off-thread.
+diff --git a/TEST_INFRA.md b/TEST_INFRA.md
+index fa6c832..01d0ed6 100644
+--- a/TEST_INFRA.md
++++ b/TEST_INFRA.md
+@@ -99,3 +99,10 @@ R13 tests validate `AGCScalingController`, `AGCStabilityJournal`, network deferr
+ 
+ - `FeatureR18Tests` verifies the per-player intent scheduler, deterministic shard planner, plugin compatibility contracts, public `AGC.compatibility()` API and `/agc scale` / `/agc contracts` reports.
+ - Expected E2E registration count is now 140 tests.
++
++
++## AGC 26.2 alpha11 notes
++
++- Added hard performance standard, central tick budget arbiter, latency SLO accounting, entity spatial snapshot cache and mini-game burst planner.
++- Added R19 E2E reflection tests for the new aggressive performance surfaces.
++- E2E surface count: 145.
+diff --git a/TEST_READY.md b/TEST_READY.md
+index 337ca12..b096da3 100644
+--- a/TEST_READY.md
++++ b/TEST_READY.md
+@@ -2,7 +2,7 @@
+ 
+ ## Test Suite Readiness Status
+ - **Build Status**: **PASS** (Compiles cleanly with target server dependencies)
+-- **Suite Readiness**: **READY** (All 135 test definitions implemented, registered, and integrated into the server plugin bootstrap process)
++- **Suite Readiness**: **READY** (All 145 test definitions implemented, registered, and integrated into the server plugin bootstrap process)
+ - **Runtime Strategy**: Fully decoupled via reflection. Tests compile under default environments, fail gracefully at runtime if target implementation classes (`net.minecraft.server.MeteusSpatialGrid`, `net.minecraft.server.MeteusHitRewind`) are missing, and perform real assertions when implementation is present.
+ 
+ ## Test Execution Command
+@@ -38,14 +38,15 @@ To execute or list tests manually via the Brigadier commands:
+ | **Feature R12** | Runtime health, deferred flush, chunk admission, AGC command | 4 | Tier 1 |
+ | **Feature R15** | Optimisation envelope, entity admission, mini-game profiles, safety report | 5 | Tier 1 |
+ | **Feature R17** | No-invasion optimiser lanes, FIFO chunk queue, entity snapshots, world write-intent graph | 5 | Tier 1 |
+-| **Total** | **AGC Core E2E Tests** | **140** | |
++| **Feature R19** | Hard performance standard, tick budget arbiter, latency SLO, entity cache, mini-game burst planner | 5 | Tier 1 |
++| **Total** | **AGC Core E2E Tests** | **145** | |
+ 
+ ## Validation Checklist
+ - [x] Package directory created at `test-plugin/src/main/java/io/papermc/testplugin/e2e`
+ - [x] Interface `E2ETest.java` defines `getId()`, `getName()`, and `run(TestContext)`
+ - [x] `TestContext.java` supports `assertTrue`, `assertEquals`, `assertNotNull`, `fail`, `checkClassExists`
+ - [x] `TestContext.java` implements precise Bukkit async-to-sync scheduler lock via `CountDownLatch` for `delayTicks`
+-- [x] `TestRegistry.java` implements singleton registration loading all 140 tests
++- [x] `TestRegistry.java` implements singleton registration loading all 145 tests
+ - [x] `TestRunner.java` executes tests asynchronously, logs to console, writes log files to `logs/agc-e2e.log`
+ - [x] `TestRunner.java` performs clean shutdown (`System.exit(0)` on success, `System.exit(1)` on failure)
+ - [x] `TestPlugin.java` registers `/agctest run` and `/agctest list` commands
+@@ -77,7 +78,7 @@ Ready for local Gradle/JDK 25 validation. New AGC Java runtime classes and comma
+ 
+ - Mini-game API is intentionally primary-thread first. Mutating arena operations throw when called asynchronously unless routed through `AGC.scheduler()`.
+ - Aggressive defaults must be tested with real plugin stacks. Runtime semantic guards and rollback protect compatibility, but production claims still require the release gates in `AGC_ROADMAP.md`.
+-- E2E surface count: 140.
++- E2E surface count: 145.
+ 
+ 
+ ## Alpha 7 readiness notes
+@@ -94,3 +95,10 @@ Ready for local Gradle/JDK 25 validation. New AGC Java runtime classes and comma
+ - Added R17 reflection tests for no-invasion optimisation lanes.
+ - New/modified AGC runtime classes passed isolated `javac --release 21` syntax checks with stubbed Bukkit/Paper/Minecraft APIs in this environment.
+ - Full Gradle validation still requires the real JDK 25 + dependency download environment.
++
++
++## AGC 26.2 alpha11 notes
++
++- Added hard performance standard, central tick budget arbiter, latency SLO accounting, entity spatial snapshot cache and mini-game burst planner.
++- Added R19 E2E reflection tests for the new aggressive performance surfaces.
++- E2E surface count: 145.
+diff --git a/paper-api/src/main/java/io/agcmc/agc/api/AGCPerformance.java b/paper-api/src/main/java/io/agcmc/agc/api/AGCPerformance.java
+index 95f4383..ae3e942 100644
+--- a/paper-api/src/main/java/io/agcmc/agc/api/AGCPerformance.java
++++ b/paper-api/src/main/java/io/agcmc/agc/api/AGCPerformance.java
+@@ -35,6 +35,35 @@ public final class AGCPerformance {
+         );
+     }
+ 
++    /**
++     * Provides conservative no-invasion advice for plugin-owned work. The API
++     * view does not expose live server internals; it gives stable lane guidance
++     * so plugins can structure heavy work as read-only prepare + ordered commit.
++     */
++    public @NotNull AGCPerformanceAdvice advise(final @NotNull AGCPerformanceIntent intent) {
++        final AGCPerformanceAdvice.Lane lane;
++        if (intent.visibleCommit()) {
++            lane = AGCPerformanceAdvice.Lane.ORDERED_COMMIT;
++        } else if (intent.goal() == AGCPerformanceGoal.COSMETIC_FANOUT) {
++            lane = AGCPerformanceAdvice.Lane.DEADLINE_BATCH;
++        } else if (intent.readOnlyPrepare()) {
++            lane = AGCPerformanceAdvice.Lane.READ_ONLY_PREPARE;
++        } else {
++            lane = AGCPerformanceAdvice.Lane.RUN_NOW_ORDERED;
++        }
++        final int batch = Math.max(1, Math.min(4096, intent.estimatedCost()));
++        return new AGCPerformanceAdvice(true, lane, batch, "API compatibility view: preserve Bukkit-visible order for " + intent.reason());
++    }
++
++    public @NotNull AGCPerformanceAdvice denseArenaAdvice(final int players, final int entities, final int chunkRadius) {
++        final int cost = Math.max(1, players) + Math.max(0, entities / 4) + Math.max(0, chunkRadius * chunkRadius);
++        return this.advise(AGCPerformanceIntent.builder(AGCPerformanceGoal.DENSE_ARENA)
++            .estimatedCost(cost)
++            .readOnlyPrepare(true)
++            .reason("dense arena players=" + players + " entities=" + entities + " chunkRadius=" + chunkRadius)
++            .build());
++    }
++
+     public boolean isPrimaryThread() {
+         try {
+             return Bukkit.isPrimaryThread();
+diff --git a/paper-api/src/main/java/io/agcmc/agc/api/AGCScheduler.java b/paper-api/src/main/java/io/agcmc/agc/api/AGCScheduler.java
+index ca5a31c..a95fc05 100644
+--- a/paper-api/src/main/java/io/agcmc/agc/api/AGCScheduler.java
++++ b/paper-api/src/main/java/io/agcmc/agc/api/AGCScheduler.java
+@@ -4,6 +4,8 @@ import org.bukkit.Bukkit;
+ import org.bukkit.Location;
+ import org.bukkit.plugin.Plugin;
+ import java.util.concurrent.CompletableFuture;
++import java.util.function.Supplier;
++import java.util.function.Consumer;
+ import org.bukkit.scheduler.BukkitTask;
+ import org.jetbrains.annotations.NotNull;
+ 
+@@ -68,6 +70,36 @@ public final class AGCScheduler {
+         return future;
+     }
+ 
++    /**
++     * Runs read-only work asynchronously and commits the prepared value on the
++     * primary thread. This is the recommended AGC pattern for expensive
++     * mini-game planning: compute off-thread, mutate Bukkit-visible state only
++     * in the ordered commit callback.
++     */
++    public <T> @NotNull BukkitTask prepareSupplyAsyncThenCommit(
++        final @NotNull Plugin plugin,
++        final @NotNull Supplier<T> readOnlyPrepare,
++        final @NotNull Consumer<T> orderedCommit
++    ) {
++        return Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
++            final T prepared = readOnlyPrepare.get();
++            Bukkit.getScheduler().runTask(plugin, () -> orderedCommit.accept(prepared));
++        });
++    }
++
++    /** Returns a future for read-only supplied data; callers must still commit via runPrimary. */
++    public <T> @NotNull CompletableFuture<T> readOnlySupplyAsync(final @NotNull Plugin plugin, final @NotNull Supplier<T> readOnlyPrepare) {
++        final CompletableFuture<T> future = new CompletableFuture<>();
++        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
++            try {
++                future.complete(readOnlyPrepare.get());
++            } catch (final Throwable throwable) {
++                future.completeExceptionally(throwable);
++            }
++        });
++        return future;
++    }
++
+     /**
+      * Region-hinted scheduling surface. On classic Paper this intentionally
+      * falls back to the primary thread; future region-threaded runtimes may
+diff --git a/paper-api/src/main/java/io/agcmc/agc/api/minigame/AGCMinigames.java b/paper-api/src/main/java/io/agcmc/agc/api/minigame/AGCMinigames.java
+index 6a5f2d0..a15fd49 100644
+--- a/paper-api/src/main/java/io/agcmc/agc/api/minigame/AGCMinigames.java
++++ b/paper-api/src/main/java/io/agcmc/agc/api/minigame/AGCMinigames.java
+@@ -62,6 +62,22 @@ public final class AGCMinigames {
+         return Collections.unmodifiableCollection(matched);
+     }
+ 
++    public @NotNull AGCMinigamePerformancePlan performancePlan(final @NotNull AGCArenaOptions options, final int expectedPlayers, final int expectedEntities) {
++        final int players = Math.max(1, expectedPlayers);
++        final int entities = Math.max(0, expectedEntities);
++        final int radius = Math.max(0, options.preloadChunkRadius());
++        final int shardSize = Math.max(1, options.playersPerShard());
++        return new AGCMinigamePerformancePlan(
++            players,
++            entities,
++            radius,
++            shardSize,
++            options.readOnlyPrewarm(),
++            options.deterministicReset(),
++            AGC.performance().denseArenaAdvice(players, entities, radius)
++        );
++    }
++
+     public synchronized int arenaCount() {
+         return this.arenas.size();
+     }
+diff --git a/paper-server/src/main/java/io/papermc/paper/configuration/GlobalConfiguration.java b/paper-server/src/main/java/io/papermc/paper/configuration/GlobalConfiguration.java
+index 26fac33..f277e9e 100644
+--- a/paper-server/src/main/java/io/papermc/paper/configuration/GlobalConfiguration.java
++++ b/paper-server/src/main/java/io/papermc/paper/configuration/GlobalConfiguration.java
+@@ -533,6 +533,34 @@ public class GlobalConfiguration extends ConfigurationPart {
+             public int shardMaxShards = 4096;
+             @Comment("Enables plugin-declared compatibility contracts. Contracts guide no-invasion lanes but never permit off-thread Bukkit mutations.")
+             public boolean pluginCompatibilityContracts = true;
++            @Comment("Enables AGC alpha11 central tick budget arbiter. The arbiter assigns aggressive prepare/batch budgets across network, chunks, entities, worlds, players and arenas without changing visible commit order.")
++            public boolean tickBudgetArbiter = true;
++            @Comment("Target MSPT for AGC aggressive budget shaping. Below this value AGC spends more read-only/batching budget; above it AGC tightens non-visible prepare work without skipping gameplay state.")
++            public double performanceTargetMspt = 42.0D;
++            @Comment("Hard MSPT guard for AGC performance standard. Reaching this pressure tightens read-only/batch budgets but keeps plugin-visible ordering intact.")
++            public double performanceHardMspt = 95.0D;
++            @Comment("Total abstract AGC budget units refilled each tick for non-visible prepare/batch lanes. Higher values are aggressive for large servers but still cannot reorder visible state.")
++            public long tickBudgetUnitsPerTick = 500000L;
++            @Comment("Minimum budget units each AGC category receives per tick so chunk/entity/network/minigame work cannot starve completely.")
++            public long tickBudgetMinUnitsPerCategory = 512L;
++            @Comment("Divisor applied to the central tick budget under hard pressure. Larger values tighten aggressive prepare work more strongly while ordered commits still run.")
++            public int tickBudgetHardPressureDivisor = 3;
++            @Comment("Maximum semantic queue depth tolerated by the AGC performance standard before it tightens prepare/batch lanes.")
++            public long performanceMaxSemanticQueueDepth = 131072L;
++            @Comment("Enables latency SLO accounting for one-tick network batching and ordered commit drains.")
++            public boolean latencySloAccounting = true;
++            @Comment("Maximum ordered commit age in ticks for AGC helper pipelines. Bukkit-visible mutations stay ordered regardless of this value.")
++            public int latencySloMaxOrderedCommitTicks = 1;
++            @Comment("Enables per-tick read-only entity spatial snapshot cache for dense arenas. This never owns live entity state and expires on tick boundaries.")
++            public boolean entitySpatialSnapshotCache = true;
++            @Comment("Maximum read-only entity spatial snapshot cache entries retained for the current tick.")
++            public int entitySpatialSnapshotMaxEntries = 262144;
++            @Comment("Enables mini-game burst planner for arena start/reset/prewarm waves. It admits read-only prewarm and ordered commits without reordering Bukkit-visible operations.")
++            public boolean minigameBurstPlanner = true;
++            @Comment("Per-arena read-only prewarm budget per tick for AGC mini-game burst planner.")
++            public int minigameArenaPrewarmBudgetPerTick = 4096;
++            @Comment("Per-arena ordered commit ticket budget per tick for AGC mini-game burst planner.")
++            public int minigameArenaCommitBudgetPerTick = 2048;
+         }
+     }
+     static void set(final GlobalConfiguration instance) {
+diff --git a/paper-server/src/main/java/net/minecraft/server/AGCChunkAdmission.java b/paper-server/src/main/java/net/minecraft/server/AGCChunkAdmission.java
+index 651e296..b69089f 100644
+--- a/paper-server/src/main/java/net/minecraft/server/AGCChunkAdmission.java
++++ b/paper-server/src/main/java/net/minecraft/server/AGCChunkAdmission.java
+@@ -47,7 +47,13 @@ public final class AGCChunkAdmission {
+             AGCSemanticInvariant.INSTANCE.record(AGCSemanticInvariant.Domain.CHUNK, AGCSemanticInvariant.Decision.IMMEDIATE_ORDER_PRESERVED, "chunk send order preserved");
+             return false;
+         }
+-        final boolean admitted = AGCChunkFairQueue.INSTANCE.admit(player.getUUID(), AGCChunkBudget.Operation.SEND).admitted()
++        final AGCTickBudgetArbiter.Admission tickBudget = AGCTickBudgetArbiter.INSTANCE.claim(
++            AGCTickBudgetArbiter.Category.CHUNK_SEND,
++            1L,
++            false
++        );
++        final boolean admitted = tickBudget.admitted()
++            && AGCChunkFairQueue.INSTANCE.admit(player.getUUID(), AGCChunkBudget.Operation.SEND).admitted()
+             && AGCChunkBudget.INSTANCE.admit(player.getUUID(), AGCChunkBudget.Operation.SEND);
+         if (admitted) {
+             this.immediateFlushChunkSends.incrementAndGet();
+diff --git a/paper-server/src/main/java/net/minecraft/server/AGCCommandReports.java b/paper-server/src/main/java/net/minecraft/server/AGCCommandReports.java
+index bd090de..774dd5d 100644
+--- a/paper-server/src/main/java/net/minecraft/server/AGCCommandReports.java
++++ b/paper-server/src/main/java/net/minecraft/server/AGCCommandReports.java
+@@ -22,6 +22,9 @@ public final class AGCCommandReports {
+             AGCChunkAdmission.INSTANCE.statusLine(),
+             AGCThreadTranslator.INSTANCE.statusLine(),
+             AGCOptimizationEnvelope.INSTANCE.statusLine(),
++            AGCPerformanceStandard.INSTANCE.statusLine(),
++            AGCTickBudgetArbiter.INSTANCE.statusLine(),
++            AGCLatencySLO.INSTANCE.statusLine(),
+             AGCNoInvasionOptimizer.INSTANCE.statusLine(),
+             AGCSemanticInvariant.INSTANCE.statusLine(),
+             AGCWorldConcurrencyPlanner.INSTANCE.statusLine(),
+@@ -33,6 +36,8 @@ public final class AGCCommandReports {
+             AGCShardPlanner.INSTANCE.statusLine(),
+             AGCPluginCompatibilityContracts.INSTANCE.statusLine(),
+             AGCEntitySnapshotPlanner.INSTANCE.statusLine(),
++            AGCEntitySpatialSnapshotCache.INSTANCE.statusLine(),
++            AGCMinigameBurstPlanner.INSTANCE.statusLine(),
+             AGCPlayerIntentScheduler.INSTANCE.statusLine(),
+             AGCShardPlanner.INSTANCE.statusLine(),
+             AGCPluginCompatibilityContracts.INSTANCE.statusLine(),
+@@ -61,6 +66,9 @@ public final class AGCCommandReports {
+         return String.join("\n",
+             "AGC safety envelope:",
+             AGCOptimizationEnvelope.INSTANCE.statusLine(),
++            AGCPerformanceStandard.INSTANCE.statusLine(),
++            AGCTickBudgetArbiter.INSTANCE.statusLine(),
++            AGCLatencySLO.INSTANCE.statusLine(),
+             AGCNoInvasionOptimizer.INSTANCE.statusLine(),
+             AGCSemanticInvariant.INSTANCE.statusLine(),
+             AGCWorldConcurrencyPlanner.INSTANCE.statusLine(),
+@@ -69,6 +77,9 @@ public final class AGCCommandReports {
+             AGCCompatibilityBridge.compatibilityReport(),
+             AGCRuntimeHealth.INSTANCE.statusLine(),
+             AGCPerformanceGovernor.INSTANCE.statusLine(),
++            AGCPerformanceStandard.INSTANCE.statusLine(),
++            AGCTickBudgetArbiter.INSTANCE.statusLine(),
++            AGCLatencySLO.INSTANCE.statusLine(),
+             AGCEntityAdmission.INSTANCE.statusLine(),
+             AGCPlayerIntentScheduler.INSTANCE.statusLine(),
+             AGCShardPlanner.INSTANCE.statusLine(),
+@@ -83,6 +94,7 @@ public final class AGCCommandReports {
+             AGCWorldWriteIntentGraph.INSTANCE.statusLine(),
+             AGCChunkFairQueue.INSTANCE.statusLine(),
+             AGCEntitySnapshotPlanner.INSTANCE.statusLine(),
++            AGCEntitySpatialSnapshotCache.INSTANCE.statusLine(),
+             AGCPlayerIntentScheduler.INSTANCE.statusLine(),
+             AGCShardPlanner.INSTANCE.statusLine(),
+             AGCNetworkAdmission.INSTANCE.statusLine(),
+@@ -115,6 +127,22 @@ public final class AGCCommandReports {
+         );
+     }
+ 
++    public static String hardPerformance() {
++        return String.join("\n",
++            "AGC aggressive performance standard:",
++            AGCPerformanceStandard.INSTANCE.statusLine(),
++            AGCTickBudgetArbiter.INSTANCE.statusLine(),
++            AGCLatencySLO.INSTANCE.statusLine(),
++            AGCNoInvasionOptimizer.INSTANCE.statusLine(),
++            AGCNetworkAdmission.INSTANCE.statusLine(),
++            AGCChunkAdmission.INSTANCE.statusLine(),
++            AGCEntitySnapshotPlanner.INSTANCE.statusLine(),
++            AGCEntitySpatialSnapshotCache.INSTANCE.statusLine(),
++            AGCMinigameBurstPlanner.INSTANCE.statusLine(),
++            "rule=no packet drops, no FIFO skips, no off-thread Bukkit mutation, no entity tick skipping"
++        );
++    }
++
+     public static String minigameApi() {
+         try {
+             final Object service = io.agcmc.agc.api.AGC.minigames();
+diff --git a/paper-server/src/main/java/net/minecraft/server/AGCNoInvasionOptimizer.java b/paper-server/src/main/java/net/minecraft/server/AGCNoInvasionOptimizer.java
+index 61d5e0e..a0eb6a3 100644
+--- a/paper-server/src/main/java/net/minecraft/server/AGCNoInvasionOptimizer.java
++++ b/paper-server/src/main/java/net/minecraft/server/AGCNoInvasionOptimizer.java
+@@ -94,13 +94,32 @@ public final class AGCNoInvasionOptimizer {
+             this.lastNetworkDecision = this.record(Lane.NETWORK_DEADLINE_BATCH, Decision.IMMEDIATE_ORDERED, packetName);
+             return this.lastNetworkDecision;
+         }
++        final AGCTickBudgetArbiter.Admission budget = AGCTickBudgetArbiter.INSTANCE.claim(
++            AGCTickBudgetArbiter.Category.NETWORK_DEADLINE,
++            1L + Math.max(0L, pendingDeferredFlushes / 256L),
++            false
++        );
++        if (!budget.admitted() || !AGCPerformanceStandard.INSTANCE.allowsDeadlineTicks(this.maxNetworkDeadlineTicks)) {
++            this.lastNetworkDecision = this.record(Lane.NETWORK_DEADLINE_BATCH, Decision.IMMEDIATE_ORDERED, "network deadline budget preserved " + packetName);
++            return this.lastNetworkDecision;
++        }
++        AGCLatencySLO.INSTANCE.recordNetworkBatch(this.maxNetworkDeadlineTicks);
+         this.lastNetworkDecision = this.record(Lane.NETWORK_DEADLINE_BATCH, Decision.DEADLINE_ORDERED_BATCH, packetName);
+         return this.lastNetworkDecision;
+     }
+ 
+     public Decision admitChunkQueue(final java.util.UUID playerId, final AGCChunkBudget.Operation operation) {
+         this.requests.get(Lane.CHUNK_FIFO_FAIR_QUEUE).incrementAndGet();
+-        final AGCChunkFairQueue.Admission admission = AGCChunkFairQueue.INSTANCE.admit(playerId, operation);
++        final AGCTickBudgetArbiter.Category category;
++        if (operation == AGCChunkBudget.Operation.GENERATE) {
++            category = AGCTickBudgetArbiter.Category.CHUNK_GENERATE;
++        } else if (operation == AGCChunkBudget.Operation.SEND) {
++            category = AGCTickBudgetArbiter.Category.CHUNK_SEND;
++        } else {
++            category = AGCTickBudgetArbiter.Category.CHUNK_LOAD;
++        }
++        final AGCTickBudgetArbiter.Admission budget = AGCTickBudgetArbiter.INSTANCE.claim(category, 1L, false);
++        final AGCChunkFairQueue.Admission admission = budget.admitted() ? AGCChunkFairQueue.INSTANCE.admit(playerId, operation) : new AGCChunkFairQueue.Admission(false, 0, budget.reason());
+         final Decision decision = admission.admitted() ? Decision.ORDERED_COMMIT : Decision.FIFO_FAIR_WAIT;
+         this.lastChunkDecision = this.record(Lane.CHUNK_FIFO_FAIR_QUEUE, decision, operation == null ? "chunk" : operation.name());
+         return this.lastChunkDecision;
+@@ -112,7 +131,12 @@ public final class AGCNoInvasionOptimizer {
+             this.lastEntityDecision = this.record(Lane.ENTITY_READ_ONLY_SNAPSHOT, Decision.IMMEDIATE_ORDERED, reason);
+             return this.lastEntityDecision;
+         }
+-        final boolean admitted = AGCEntitySnapshotPlanner.INSTANCE.admit(playerId, estimatedEntities, reason).admitted();
++        final AGCTickBudgetArbiter.Admission budget = AGCTickBudgetArbiter.INSTANCE.claim(
++            AGCTickBudgetArbiter.Category.ENTITY_SNAPSHOT,
++            Math.max(1L, estimatedEntities),
++            false
++        );
++        final boolean admitted = budget.admitted() && AGCEntitySnapshotPlanner.INSTANCE.admit(playerId, estimatedEntities, reason).admitted();
+         this.lastEntityDecision = this.record(
+             Lane.ENTITY_READ_ONLY_SNAPSHOT,
+             admitted ? Decision.READ_ONLY_PREPARE : Decision.IMMEDIATE_ORDERED,
+@@ -127,9 +151,14 @@ public final class AGCNoInvasionOptimizer {
+             this.lastWorldDecision = this.record(Lane.WORLD_WRITE_INTENT_WAVE, Decision.ORDERED_COMMIT, "translator pressure");
+             return this.lastWorldDecision;
+         }
++        final AGCTickBudgetArbiter.Admission budget = AGCTickBudgetArbiter.INSTANCE.claim(
++            AGCTickBudgetArbiter.Category.WORLD_PREPARE,
++            Math.max(1L, plan.parallelGroups()),
++            false
++        );
+         this.lastWorldDecision = this.record(
+             Lane.WORLD_WRITE_INTENT_WAVE,
+-            plan.parallelGroups() > 0 ? Decision.CONFLICT_FREE_WAVE : Decision.ORDERED_COMMIT,
++            budget.admitted() && plan.parallelGroups() > 0 ? Decision.CONFLICT_FREE_WAVE : Decision.ORDERED_COMMIT,
+             plan.mode().name()
+         );
+         return this.lastWorldDecision;
+diff --git a/paper-server/src/main/java/net/minecraft/server/AGCRuntimeConfigurator.java b/paper-server/src/main/java/net/minecraft/server/AGCRuntimeConfigurator.java
+index 30a8a2a..690d88b 100644
+--- a/paper-server/src/main/java/net/minecraft/server/AGCRuntimeConfigurator.java
++++ b/paper-server/src/main/java/net/minecraft/server/AGCRuntimeConfigurator.java
+@@ -82,5 +82,33 @@ public final class AGCRuntimeConfigurator {
+             config.agc.performance.shardMaxShards
+         );
+         AGCPluginCompatibilityContracts.INSTANCE.configure(config.agc.performance.pluginCompatibilityContracts);
++        AGCPerformanceStandard.INSTANCE.configure(
++            true,
++            config.agc.performance.performanceTargetMspt,
++            config.agc.performance.performanceHardMspt,
++            config.agc.performance.optimizationMaxInteractiveDelayTicks,
++            config.agc.performance.latencySloMaxOrderedCommitTicks,
++            config.agc.performance.performanceMaxSemanticQueueDepth
++        );
++        AGCTickBudgetArbiter.INSTANCE.configure(
++            config.agc.performance.tickBudgetArbiter,
++            config.agc.performance.tickBudgetUnitsPerTick,
++            config.agc.performance.tickBudgetMinUnitsPerCategory,
++            config.agc.performance.tickBudgetHardPressureDivisor
++        );
++        AGCLatencySLO.INSTANCE.configure(
++            config.agc.performance.latencySloAccounting,
++            config.agc.performance.optimizationMaxInteractiveDelayTicks,
++            config.agc.performance.latencySloMaxOrderedCommitTicks
++        );
++        AGCEntitySpatialSnapshotCache.INSTANCE.configure(
++            config.agc.performance.entitySpatialSnapshotCache,
++            config.agc.performance.entitySpatialSnapshotMaxEntries
++        );
++        AGCMinigameBurstPlanner.INSTANCE.configure(
++            config.agc.performance.minigameBurstPlanner,
++            config.agc.performance.minigameArenaPrewarmBudgetPerTick,
++            config.agc.performance.minigameArenaCommitBudgetPerTick
++        );
+     }
+ }
+diff --git a/paper-server/src/main/java/net/minecraft/server/AGCRuntimeHealth.java b/paper-server/src/main/java/net/minecraft/server/AGCRuntimeHealth.java
+index 410d0e7..4376164 100644
+--- a/paper-server/src/main/java/net/minecraft/server/AGCRuntimeHealth.java
++++ b/paper-server/src/main/java/net/minecraft/server/AGCRuntimeHealth.java
+@@ -27,13 +27,23 @@ public final class AGCRuntimeHealth {
+ 
+     public void recordServerTick(final long tickTimeNanos) {
+         final long agcTickSequence = AGCSemanticInvariant.INSTANCE.nextTickSequence();
+-        AGCSemanticInvariant.INSTANCE.beginTick(agcTickSequence);
+-        AGCNoInvasionOptimizer.INSTANCE.beginTick(agcTickSequence);
+         this.lastTickTimeNanos = Math.max(0L, tickTimeNanos);
+         this.lastMspt = this.lastTickTimeNanos / (double) TimeUnit.MILLISECONDS.toNanos(1L);
+         AGCRuntimeConfigurator.applyGlobalConfigurationSnapshot();
++        AGCSemanticInvariant.INSTANCE.beginTick(agcTickSequence);
+ 
+         final AGCThreadTranslator.Snapshot translatorBeforeDrain = AGCThreadTranslator.INSTANCE.snapshot();
++        final AGCPerformanceStandard.Pressure pressure = AGCPerformanceStandard.INSTANCE.sample(
++            this.lastTickTimeNanos,
++            translatorBeforeDrain.pendingTasks() + AGCDeterministicTaskPipeline.INSTANCE.pendingCommits(),
++            AGCNetworkAdmission.INSTANCE.pendingDeferredFlushConnections(),
++            AGCDeterministicTaskPipeline.INSTANCE.pendingCommits()
++        );
++        AGCTickBudgetArbiter.INSTANCE.beginTick(agcTickSequence, pressure);
++        AGCNoInvasionOptimizer.INSTANCE.beginTick(agcTickSequence);
++        AGCEntitySpatialSnapshotCache.INSTANCE.beginTick(agcTickSequence);
++        AGCMinigameBurstPlanner.INSTANCE.beginTick(agcTickSequence);
++
+         final AGCScalingController.Profile profile = AGCScalingController.INSTANCE.sampleAndApply(
+             this.lastMspt,
+             AGCNetworkAdmission.INSTANCE.pendingDeferredFlushConnections(),
+@@ -48,7 +58,13 @@ public final class AGCRuntimeHealth {
+         AGCEntityAdmission.INSTANCE.refillTickBudgets();
+ 
+         this.lastDeferredFlushDrains = AGCNetworkAdmission.INSTANCE.drainDeferredFlushes();
++        for (int i = 0; i < this.lastDeferredFlushDrains; ++i) {
++            AGCLatencySLO.INSTANCE.recordNetworkDrain();
++        }
+         this.lastDeterministicCommits = AGCDeterministicTaskPipeline.INSTANCE.drainOrderedCommits();
++        for (int i = 0; i < this.lastDeterministicCommits; ++i) {
++            AGCLatencySLO.INSTANCE.recordOrderedCommitDrain(0);
++        }
+         this.lastTranslatorDrains = AGCThreadTranslator.INSTANCE.drainOnPrimaryThread();
+ 
+         final AGCThreadTranslator.Snapshot translatorAfterDrain = AGCThreadTranslator.INSTANCE.snapshot();
+diff --git a/test-plugin/src/main/java/io/papermc/testplugin/e2e/TestRegistry.java b/test-plugin/src/main/java/io/papermc/testplugin/e2e/TestRegistry.java
+index db7e5d9..661e46d 100644
+--- a/test-plugin/src/main/java/io/papermc/testplugin/e2e/TestRegistry.java
++++ b/test-plugin/src/main/java/io/papermc/testplugin/e2e/TestRegistry.java
+@@ -36,6 +36,7 @@ public class TestRegistry {
+         new FeatureR16Tests().register(this);
+         new FeatureR17Tests().register(this);
+         new FeatureR18Tests().register(this);
++        new FeatureR19Tests().register(this);
+         new Tier3Tests().register(this);
+         new Tier4Tests().register(this);
+     }

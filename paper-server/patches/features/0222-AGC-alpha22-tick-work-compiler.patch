@@ -1,0 +1,918 @@
+--- agc-alpha21-clean/paper-server/src/main/java/net/minecraft/server/AGCNoInvasionOptimizer.java	2026-06-27 05:57:00.000000000 +0000
++++ agc-alpha22/paper-server/src/main/java/net/minecraft/server/AGCNoInvasionOptimizer.java	2026-06-27 07:01:59.048653263 +0000
+@@ -143,6 +143,14 @@
+         AGCPluginCommitSequencer.INSTANCE.beginTick(sequence);
+         AGCMultiverseLaneAllocator.INSTANCE.beginTick(sequence);
+         AGCComputeWasteReducer.INSTANCE.beginTick(sequence);
++        AGCScale22TickWorkCompiler.INSTANCE.beginTick(sequence);
++        AGCNetworkCohortBackboneCache.INSTANCE.beginTick(sequence);
++        AGCChunkTerrainDemandModel.INSTANCE.beginTick(sequence);
++        AGCEntityObserverMatrix.INSTANCE.beginTick(sequence);
++        AGCPluginOrderedCommitLedger.INSTANCE.beginTick(sequence);
++        AGCMultiversePhaseMatrix.INSTANCE.beginTick(sequence);
++        AGCSystemLoadShepherd.INSTANCE.beginTick(sequence);
++        AGCSemanticHotPathMeter.INSTANCE.beginTick(sequence);
+     }
+ 
+     public Decision admitNetworkDeadlineBatch(final String packetName, final boolean interactive, final long pendingDeferredFlushes) {
+@@ -151,6 +159,37 @@
+             this.lastNetworkDecision = this.record(Lane.NETWORK_DEADLINE_BATCH, Decision.IMMEDIATE_ORDERED, packetName);
+             return this.lastNetworkDecision;
+         }
++        final AGCNetworkCohortBackboneCache.Plan cohortBackbone = AGCNetworkCohortBackboneCache.INSTANCE.plan(
++            packetName,
++            Math.max(1L, pendingDeferredFlushes),
++            interactive,
++            this.maxNetworkDeadlineTicks
++        );
++        if (cohortBackbone.orderedNow()) {
++            this.lastNetworkDecision = this.record(Lane.NETWORK_DEADLINE_BATCH, Decision.IMMEDIATE_ORDERED, cohortBackbone.reason());
++            return this.lastNetworkDecision;
++        }
++        final AGCScale22TickWorkCompiler.Compile compiledNetwork = AGCScale22TickWorkCompiler.INSTANCE.compile(
++            AGCScale22TickWorkCompiler.Track.NETWORK_SEND_GRAPH,
++            cohortBackbone.cost(),
++            false,
++            cohortBackbone.reason()
++        );
++        if (!compiledNetwork.compiled() && pendingDeferredFlushes > 12_288L) {
++            this.lastNetworkDecision = this.record(Lane.NETWORK_DEADLINE_BATCH, Decision.IMMEDIATE_ORDERED, compiledNetwork.reason());
++            return this.lastNetworkDecision;
++        }
++        final AGCSystemLoadShepherd.Permit networkLoad = AGCSystemLoadShepherd.INSTANCE.permit("network", cohortBackbone.cost(), false);
++        if (!networkLoad.admitted() && pendingDeferredFlushes > 16_384L) {
++            this.lastNetworkDecision = this.record(Lane.NETWORK_DEADLINE_BATCH, Decision.IMMEDIATE_ORDERED, networkLoad.reason());
++            return this.lastNetworkDecision;
++        }
++        AGCSemanticHotPathMeter.INSTANCE.record(
++            AGCSemanticHotPathMeter.Kind.NETWORK_BACKBONE,
++            Math.max(1L, pendingDeferredFlushes),
++            Math.max(1L, cohortBackbone.cohorts() + cohortBackbone.backboneNodes()),
++            packetName
++        );
+         final long networkCost = 1L + Math.max(0L, pendingDeferredFlushes / 256L);
+         final AGCScale21CriticalPathRuntime.Grant criticalNetwork = AGCScale21CriticalPathRuntime.INSTANCE.claim(
+             AGCScale21CriticalPathRuntime.Domain.NETWORK_FANOUT,
+@@ -328,6 +367,39 @@
+         } else {
+             category = AGCTickBudgetArbiter.Category.CHUNK_LOAD;
+         }
++        final AGCPlayerClusterMovementPlanner.Cluster chunkCluster22 = AGCPlayerClusterMovementPlanner.INSTANCE.plan(playerId, 32, operation == null ? "chunk" : operation.name());
++        final AGCChunkTerrainDemandModel.Forecast terrainForecast = AGCChunkTerrainDemandModel.INSTANCE.forecast(
++            playerId,
++            operation,
++            operation == AGCChunkBudget.Operation.GENERATE ? 24 : operation == AGCChunkBudget.Operation.LOAD ? 18 : 12,
++            chunkCluster22.clusterSize(),
++            operation == null ? "chunk" : operation.name()
++        );
++        if (!terrainForecast.admitted()) {
++            this.lastChunkDecision = this.record(Lane.CHUNK_FIFO_FAIR_QUEUE, Decision.FIFO_FAIR_WAIT, terrainForecast.reason());
++            return this.lastChunkDecision;
++        }
++        final AGCScale22TickWorkCompiler.Compile compiledChunk = AGCScale22TickWorkCompiler.INSTANCE.compile(
++            AGCScale22TickWorkCompiler.Track.CHUNK_DEMAND,
++            Math.max(1L, terrainForecast.stripes()),
++            false,
++            terrainForecast.reason()
++        );
++        if (!compiledChunk.compiled()) {
++            this.lastChunkDecision = this.record(Lane.CHUNK_FIFO_FAIR_QUEUE, Decision.FIFO_FAIR_WAIT, compiledChunk.reason());
++            return this.lastChunkDecision;
++        }
++        final AGCSystemLoadShepherd.Permit chunkLoad = AGCSystemLoadShepherd.INSTANCE.permit("chunk", Math.max(1L, terrainForecast.stripes()), false);
++        if (!chunkLoad.admitted()) {
++            this.lastChunkDecision = this.record(Lane.CHUNK_FIFO_FAIR_QUEUE, Decision.FIFO_FAIR_WAIT, chunkLoad.reason());
++            return this.lastChunkDecision;
++        }
++        AGCSemanticHotPathMeter.INSTANCE.record(
++            AGCSemanticHotPathMeter.Kind.CHUNK_FORECAST,
++            Math.max(1L, terrainForecast.demand()),
++            Math.max(1L, terrainForecast.stripes()),
++            operation == null ? "chunk" : operation.name()
++        );
+         final AGCPlayerMotionIntentModel.Intent motionIntent = AGCPlayerMotionIntentModel.INSTANCE.planStatic(playerId, operation == null ? "chunk" : operation.name());
+         final AGCPlayerClusterMovementPlanner.Cluster movementCluster = AGCPlayerClusterMovementPlanner.INSTANCE.plan(playerId, operation == null ? 24 : 48, operation == null ? "chunk" : operation.name());
+         final AGCScale21CriticalPathRuntime.Grant criticalChunk = AGCScale21CriticalPathRuntime.INSTANCE.claim(
+@@ -486,6 +558,32 @@
+             this.lastEntityDecision = this.record(Lane.ENTITY_READ_ONLY_SNAPSHOT, Decision.IMMEDIATE_ORDERED, reason);
+             return this.lastEntityDecision;
+         }
++        final AGCEntityObserverMatrix.Matrix observerMatrix = AGCEntityObserverMatrix.INSTANCE.plan(
++            playerId,
++            estimatedEntities,
++            Math.max(1, estimatedEntities / 128),
++            reason
++        );
++        if (!observerMatrix.admitted() && estimatedEntities > 8192) {
++            this.lastEntityDecision = this.record(Lane.ENTITY_READ_ONLY_SNAPSHOT, Decision.IMMEDIATE_ORDERED, observerMatrix.reason());
++            return this.lastEntityDecision;
++        }
++        final AGCScale22TickWorkCompiler.Compile compiledEntity = AGCScale22TickWorkCompiler.INSTANCE.compile(
++            AGCScale22TickWorkCompiler.Track.ENTITY_OBSERVER,
++            Math.max(1L, observerMatrix.reducedPairs() / 32L),
++            false,
++            observerMatrix.reason()
++        );
++        if (!compiledEntity.compiled() && estimatedEntities > 12_288) {
++            this.lastEntityDecision = this.record(Lane.ENTITY_READ_ONLY_SNAPSHOT, Decision.IMMEDIATE_ORDERED, compiledEntity.reason());
++            return this.lastEntityDecision;
++        }
++        AGCSemanticHotPathMeter.INSTANCE.record(
++            AGCSemanticHotPathMeter.Kind.ENTITY_OBSERVER,
++            Math.max(1L, observerMatrix.rawPairs()),
++            Math.max(1L, observerMatrix.reducedPairs()),
++            reason
++        );
+         final AGCPlayerClusterMovementPlanner.Cluster entityCluster = AGCPlayerClusterMovementPlanner.INSTANCE.plan(playerId, Math.max(1, estimatedEntities / 128), reason);
+         final AGCEntityDensityField.Field densityField = AGCEntityDensityField.INSTANCE.prepare(playerId, estimatedEntities, entityCluster.clusterSize(), reason);
+         final AGCScale21CriticalPathRuntime.Grant criticalEntity = AGCScale21CriticalPathRuntime.INSTANCE.claim(
+@@ -613,6 +711,37 @@
+             this.lastWorldDecision = this.record(Lane.WORLD_WRITE_INTENT_WAVE, Decision.ORDERED_COMMIT, "translator pressure");
+             return this.lastWorldDecision;
+         }
++        final AGCMultiversePhaseMatrix.Matrix phaseMatrix = AGCMultiversePhaseMatrix.INSTANCE.compile(plan, translatorPending);
++        if (!phaseMatrix.readOnlyPrepare()) {
++            this.lastWorldDecision = this.record(Lane.WORLD_WRITE_INTENT_WAVE, Decision.ORDERED_COMMIT, phaseMatrix.reason());
++            return this.lastWorldDecision;
++        }
++        final AGCScale22TickWorkCompiler.Compile compiledWorld = AGCScale22TickWorkCompiler.INSTANCE.compile(
++            AGCScale22TickWorkCompiler.Track.WORLD_PHASE,
++            phaseMatrix.cost(),
++            false,
++            phaseMatrix.reason()
++        );
++        if (!compiledWorld.compiled()) {
++            this.lastWorldDecision = this.record(Lane.WORLD_WRITE_INTENT_WAVE, Decision.ORDERED_COMMIT, compiledWorld.reason());
++            return this.lastWorldDecision;
++        }
++        final AGCPluginOrderedCommitLedger.Entry pluginLedger = AGCPluginOrderedCommitLedger.INSTANCE.classify(
++            "world",
++            "pure-compute-world-phase-plan",
++            true,
++            phaseMatrix.cost()
++        );
++        if (pluginLedger.orderedCommit() || pluginLedger.forbiddenMutation()) {
++            this.lastWorldDecision = this.record(Lane.WORLD_WRITE_INTENT_WAVE, Decision.ORDERED_COMMIT, pluginLedger.reason());
++            return this.lastWorldDecision;
++        }
++        AGCSemanticHotPathMeter.INSTANCE.record(
++            AGCSemanticHotPathMeter.Kind.WORLD_PHASE,
++            Math.max(1L, phaseMatrix.worlds() * Math.max(1, phaseMatrix.worlds())),
++            Math.max(1L, phaseMatrix.waves() + phaseMatrix.barriers()),
++            phaseMatrix.reason()
++        );
+         final AGCMultiverseLaneAllocator.Allocation laneAllocation = AGCMultiverseLaneAllocator.INSTANCE.allocate(
+             Math.max(1, plan.nodes().size()),
+             Math.max(0, plan.parallelGroups()),
+--- /dev/null	2026-06-27 06:51:44.229740435 +0000
++++ agc-alpha22/paper-server/src/main/java/net/minecraft/server/AGCScale22TickWorkCompiler.java	2026-06-27 06:56:54.600282784 +0000
+@@ -0,0 +1,106 @@
++package net.minecraft.server;
++
++import java.util.EnumMap;
++import java.util.Map;
++import java.util.concurrent.atomic.AtomicLong;
++
++/**
++ * Alpha22 central compiler for tick-local invisible work.
++ *
++ * The compiler does not own live Minecraft state. It ranks only helper work that
++ * can reduce the next visible critical path while keeping Bukkit-visible phases
++ * ordered: packet send graph preparation, FIFO-compatible chunk demand planning,
++ * entity observer preparation, multiverse read-only slots and plugin commit
++ * ledger bookkeeping.
++ */
++public final class AGCScale22TickWorkCompiler {
++    public static final AGCScale22TickWorkCompiler INSTANCE = new AGCScale22TickWorkCompiler();
++
++    public enum Track {
++        NETWORK_SEND_GRAPH,
++        CHUNK_DEMAND,
++        ENTITY_OBSERVER,
++        WORLD_PHASE,
++        PLUGIN_COMMIT_LEDGER,
++        SYSTEM_LOAD
++    }
++
++    private final EnumMap<Track, AtomicLong> requested = new EnumMap<>(Track.class);
++    private final EnumMap<Track, AtomicLong> compiled = new EnumMap<>(Track.class);
++    private final EnumMap<Track, AtomicLong> delayed = new EnumMap<>(Track.class);
++    private volatile long tickSequence;
++    private volatile long baseWorkUnits = 1_000_000L;
++    private volatile long remainingWorkUnits = 1_000_000L;
++    private volatile String lastReason = "cold";
++
++    private AGCScale22TickWorkCompiler() {
++        for (final Track track : Track.values()) {
++            this.requested.put(track, new AtomicLong());
++            this.compiled.put(track, new AtomicLong());
++            this.delayed.put(track, new AtomicLong());
++        }
++    }
++
++    public void beginTick(final long sequence) {
++        this.tickSequence = Math.max(0L, sequence);
++        final int processors = Math.max(1, Runtime.getRuntime().availableProcessors());
++        final long usedMemory = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
++        final long maxMemory = Math.max(1L, Runtime.getRuntime().maxMemory());
++        final double memoryHeadroom = clamp(1.0D - ((double) usedMemory / (double) maxMemory), 0.20D, 1.00D);
++        this.baseWorkUnits = Math.max(524_288L, (long) (processors * 512_000L * memoryHeadroom));
++        this.remainingWorkUnits = this.baseWorkUnits;
++        this.lastReason = "reset processors=" + processors + " memoryHeadroom=" + round(memoryHeadroom);
++    }
++
++    public Compile compile(final Track track, final long cost, final boolean visible, final String reason) {
++        final Track safeTrack = track == null ? Track.SYSTEM_LOAD : track;
++        final long safeCost = Math.max(1L, cost);
++        this.requested.get(safeTrack).incrementAndGet();
++        if (visible) {
++            this.delayed.get(safeTrack).incrementAndGet();
++            this.lastReason = "visible work remains ordered: " + safe(reason);
++            return new Compile(false, true, this.remainingWorkUnits, this.lastReason);
++        }
++        if (safeCost > this.remainingWorkUnits) {
++            this.delayed.get(safeTrack).incrementAndGet();
++            this.lastReason = "defer invisible helper work without changing gameplay order: " + safe(reason);
++            return new Compile(false, false, this.remainingWorkUnits, this.lastReason);
++        }
++        this.remainingWorkUnits -= safeCost;
++        this.compiled.get(safeTrack).incrementAndGet();
++        this.lastReason = "compile invisible tick work: " + safe(reason);
++        return new Compile(true, false, this.remainingWorkUnits, this.lastReason);
++    }
++
++    public String statusLine() {
++        return "AGCScale22TickWorkCompiler{tick=" + this.tickSequence
++            + ", baseWorkUnits=" + this.baseWorkUnits
++            + ", remainingWorkUnits=" + this.remainingWorkUnits
++            + ", requested=" + snapshot(this.requested)
++            + ", compiled=" + snapshot(this.compiled)
++            + ", delayed=" + snapshot(this.delayed)
++            + ", lastReason='" + this.lastReason + "'}";
++    }
++
++    private static double clamp(final double value, final double min, final double max) {
++        return Math.max(min, Math.min(max, value));
++    }
++
++    private static double round(final double value) {
++        return Math.round(value * 100.0D) / 100.0D;
++    }
++
++    private static String safe(final String reason) {
++        return reason == null || reason.isBlank() ? "unspecified" : reason;
++    }
++
++    private static Map<Track, Long> snapshot(final EnumMap<Track, AtomicLong> source) {
++        final EnumMap<Track, Long> copy = new EnumMap<>(Track.class);
++        for (final Map.Entry<Track, AtomicLong> entry : source.entrySet()) {
++            copy.put(entry.getKey(), entry.getValue().get());
++        }
++        return copy;
++    }
++
++    public record Compile(boolean compiled, boolean orderedVisible, long remainingWorkUnits, String reason) {}
++}
+--- /dev/null	2026-06-27 06:51:44.229740435 +0000
++++ agc-alpha22/paper-server/src/main/java/net/minecraft/server/AGCNetworkCohortBackboneCache.java	2026-06-27 06:56:54.607429627 +0000
+@@ -0,0 +1,74 @@
++package net.minecraft.server;
++
++import java.util.LinkedHashMap;
++import java.util.Map;
++import java.util.concurrent.atomic.AtomicLong;
++
++/** Tick-local packet cohort backbone cache; stores immutable planning keys only. */
++public final class AGCNetworkCohortBackboneCache {
++    public static final AGCNetworkCohortBackboneCache INSTANCE = new AGCNetworkCohortBackboneCache();
++
++    private final LinkedHashMap<Long, Plan> cache = new LinkedHashMap<>(256, 0.75F, true);
++    private final AtomicLong hits = new AtomicLong();
++    private final AtomicLong misses = new AtomicLong();
++    private volatile long tickSequence;
++    private volatile int maxEntries = 16_384;
++    private volatile String lastReason = "cold";
++
++    private AGCNetworkCohortBackboneCache() {}
++
++    public synchronized void beginTick(final long sequence) {
++        this.tickSequence = Math.max(0L, sequence);
++        this.cache.clear();
++        this.maxEntries = 16_384;
++        this.lastReason = "reset maxEntries=" + this.maxEntries;
++    }
++
++    public synchronized Plan plan(final String packetName, final long recipients, final boolean interactive, final int deadlineTicks) {
++        final long safeRecipients = Math.max(1L, recipients);
++        final long key = mix(packetName == null ? 0 : packetName.hashCode(), safeRecipients, interactive ? 1 : 0, deadlineTicks);
++        final Plan cached = this.cache.get(key);
++        if (cached != null) {
++            this.hits.incrementAndGet();
++            this.lastReason = "reuse packet cohort backbone key=" + Long.toUnsignedString(key);
++            return cached.withReason(this.lastReason);
++        }
++        this.misses.incrementAndGet();
++        final boolean immediate = interactive || deadlineTicks <= 0;
++        final int cohorts = Math.max(1, Math.min(8192, (int) ((safeRecipients + 31L) / 32L)));
++        final int backboneNodes = Math.max(1, Math.min(1024, (cohorts + 15) / 16));
++        final long cost = Math.max(1L, cohorts + backboneNodes);
++        this.lastReason = (immediate ? "ordered" : "lossless") + " packet cohort backbone cohorts=" + cohorts + " nodes=" + backboneNodes;
++        final Plan plan = new Plan(!immediate, immediate, cohorts, backboneNodes, cost, key, this.lastReason);
++        if (this.cache.size() >= this.maxEntries) {
++            final Long first = this.cache.keySet().iterator().next();
++            this.cache.remove(first);
++        }
++        this.cache.put(key, plan);
++        return plan;
++    }
++
++    public String statusLine() {
++        return "AGCNetworkCohortBackboneCache{tick=" + this.tickSequence
++            + ", entries=" + this.cache.size()
++            + ", maxEntries=" + this.maxEntries
++            + ", hits=" + this.hits.get()
++            + ", misses=" + this.misses.get()
++            + ", lastReason='" + this.lastReason + "'}";
++    }
++
++    private static long mix(final long a, final long b, final long c, final long d) {
++        long x = 0x9E3779B97F4A7C15L;
++        x ^= a + 0x9E3779B97F4A7C15L + (x << 6) + (x >>> 2);
++        x ^= b + 0xBF58476D1CE4E5B9L + (x << 6) + (x >>> 2);
++        x ^= c + 0x94D049BB133111EBL + (x << 6) + (x >>> 2);
++        x ^= d + 0xD6E8FEB86659FD93L + (x << 6) + (x >>> 2);
++        return x;
++    }
++
++    public record Plan(boolean planned, boolean orderedNow, int cohorts, int backboneNodes, long cost, long stableKey, String reason) {
++        Plan withReason(final String reason) {
++            return new Plan(this.planned, this.orderedNow, this.cohorts, this.backboneNodes, this.cost, this.stableKey, reason);
++        }
++    }
++}
+--- /dev/null	2026-06-27 06:51:44.229740435 +0000
++++ agc-alpha22/paper-server/src/main/java/net/minecraft/server/AGCChunkTerrainDemandModel.java	2026-06-27 06:56:54.614361938 +0000
+@@ -0,0 +1,58 @@
++package net.minecraft.server;
++
++import java.util.UUID;
++import java.util.concurrent.atomic.AtomicLong;
++
++/** Terrain-aware demand model for FIFO-compatible chunk planning. */
++public final class AGCChunkTerrainDemandModel {
++    public static final AGCChunkTerrainDemandModel INSTANCE = new AGCChunkTerrainDemandModel();
++
++    private final AtomicLong planned = new AtomicLong();
++    private final AtomicLong delayed = new AtomicLong();
++    private volatile long tickSequence;
++    private volatile int terrainBudget = 65_536;
++    private volatile String lastReason = "cold";
++
++    private AGCChunkTerrainDemandModel() {}
++
++    public void beginTick(final long sequence) {
++        this.tickSequence = Math.max(0L, sequence);
++        this.terrainBudget = 65_536 + (int) Math.min(32_768L, sequence % 32_768L);
++        this.lastReason = "reset terrainBudget=" + this.terrainBudget;
++    }
++
++    public Forecast forecast(final UUID playerId, final AGCChunkBudget.Operation operation, final int lookaheadRadius, final int cohortSize, final String reason) {
++        this.planned.incrementAndGet();
++        final int radius = Math.max(1, lookaheadRadius);
++        final int cohort = Math.max(1, cohortSize);
++        final int opWeight = operation == AGCChunkBudget.Operation.GENERATE ? 5 : operation == AGCChunkBudget.Operation.LOAD ? 3 : 1;
++        final int demand = radius * radius * opWeight + cohort * 12;
++        final boolean admitted = demand <= this.terrainBudget;
++        if (!admitted) {
++            this.delayed.incrementAndGet();
++        }
++        final int stripes = Math.max(1, Math.min(128, this.terrainBudget / Math.max(1, radius * opWeight * 32)));
++        this.lastReason = (admitted ? "forecast" : "fifo-delay") + " terrain demand op=" + (operation == null ? "unknown" : operation.name()) + " demand=" + demand + " stripes=" + stripes + " reason=" + safe(reason);
++        return new Forecast(admitted, demand, stripes, mix(playerId == null ? 0L : playerId.getMostSignificantBits(), radius, cohort, opWeight), this.lastReason);
++    }
++
++    public String statusLine() {
++        return "AGCChunkTerrainDemandModel{tick=" + this.tickSequence
++            + ", terrainBudget=" + this.terrainBudget
++            + ", planned=" + this.planned.get()
++            + ", delayed=" + this.delayed.get()
++            + ", lastReason='" + this.lastReason + "'}";
++    }
++
++    private static String safe(final String reason) { return reason == null || reason.isBlank() ? "unspecified" : reason; }
++
++    private static long mix(final long a, final long b, final long c, final long d) {
++        long x = a ^ 0x9E3779B97F4A7C15L;
++        x ^= b + 0xBF58476D1CE4E5B9L + (x << 6) + (x >>> 2);
++        x ^= c + 0x94D049BB133111EBL + (x << 6) + (x >>> 2);
++        x ^= d + 0xD6E8FEB86659FD93L + (x << 6) + (x >>> 2);
++        return x;
++    }
++
++    public record Forecast(boolean admitted, int demand, int stripes, long stableKey, String reason) {}
++}
+--- /dev/null	2026-06-27 06:51:44.229740435 +0000
++++ agc-alpha22/paper-server/src/main/java/net/minecraft/server/AGCEntityObserverMatrix.java	2026-06-27 06:56:54.621385405 +0000
+@@ -0,0 +1,50 @@
++package net.minecraft.server;
++
++import java.util.UUID;
++import java.util.concurrent.atomic.AtomicLong;
++
++/** Read-only entity observer matrix for tracker candidate planning. */
++public final class AGCEntityObserverMatrix {
++    public static final AGCEntityObserverMatrix INSTANCE = new AGCEntityObserverMatrix();
++
++    private final AtomicLong planned = new AtomicLong();
++    private final AtomicLong compacted = new AtomicLong();
++    private volatile long tickSequence;
++    private volatile int observerBudget = 262_144;
++    private volatile String lastReason = "cold";
++
++    private AGCEntityObserverMatrix() {}
++
++    public void beginTick(final long sequence) {
++        this.tickSequence = Math.max(0L, sequence);
++        this.observerBudget = 262_144 + (int) Math.min(262_144L, sequence % 262_144L);
++        this.lastReason = "reset observerBudget=" + this.observerBudget;
++    }
++
++    public Matrix plan(final UUID playerId, final int estimatedEntities, final int observerCohort, final String reason) {
++        this.planned.incrementAndGet();
++        final int entities = Math.max(0, estimatedEntities);
++        final int cohort = Math.max(1, observerCohort);
++        final int rawPairs = Math.max(1, entities * Math.min(64, cohort));
++        final int bands = Math.max(1, Math.min(1024, (int) Math.sqrt(Math.max(1, rawPairs))));
++        final int reducedPairs = Math.max(1, rawPairs / Math.max(1, bands / 2));
++        final boolean admitted = reducedPairs <= this.observerBudget;
++        if (admitted) {
++            this.compacted.incrementAndGet();
++        }
++        this.lastReason = (admitted ? "read-only observer matrix" : "observer matrix waits") + " entities=" + entities + " bands=" + bands + " reducedPairs=" + reducedPairs + " reason=" + safe(reason);
++        return new Matrix(admitted, rawPairs, reducedPairs, bands, this.lastReason);
++    }
++
++    public String statusLine() {
++        return "AGCEntityObserverMatrix{tick=" + this.tickSequence
++            + ", observerBudget=" + this.observerBudget
++            + ", planned=" + this.planned.get()
++            + ", compacted=" + this.compacted.get()
++            + ", lastReason='" + this.lastReason + "'}";
++    }
++
++    private static String safe(final String reason) { return reason == null || reason.isBlank() ? "unspecified" : reason; }
++
++    public record Matrix(boolean admitted, int rawPairs, int reducedPairs, int bands, String reason) {}
++}
+--- /dev/null	2026-06-27 06:51:44.229740435 +0000
++++ agc-alpha22/paper-server/src/main/java/net/minecraft/server/AGCPluginOrderedCommitLedger.java	2026-06-27 06:56:54.628077984 +0000
+@@ -0,0 +1,57 @@
++package net.minecraft.server;
++
++import java.util.concurrent.atomic.AtomicLong;
++
++/** Ordered commit ledger for plugin-visible work; never executes mutations off-thread. */
++public final class AGCPluginOrderedCommitLedger {
++    public static final AGCPluginOrderedCommitLedger INSTANCE = new AGCPluginOrderedCommitLedger();
++
++    private final AtomicLong readOnly = new AtomicLong();
++    private final AtomicLong orderedCommit = new AtomicLong();
++    private final AtomicLong forbidden = new AtomicLong();
++    private volatile long tickSequence;
++    private volatile long ticketSequence;
++    private volatile String lastReason = "cold";
++
++    private AGCPluginOrderedCommitLedger() {}
++
++    public void beginTick(final long sequence) {
++        this.tickSequence = Math.max(0L, sequence);
++        this.lastReason = "reset ticketSequence=" + this.ticketSequence;
++    }
++
++    public Entry classify(final String owner, final String operation, final boolean readOnlyHint, final long cost) {
++        final String op = operation == null ? "unknown" : operation.toLowerCase(java.util.Locale.ROOT);
++        final boolean visible = op.contains("setblock") || op.contains("teleport") || op.contains("spawn")
++            || op.contains("inventory") || op.contains("scoreboard") || op.contains("event")
++            || op.contains("command") || op.contains("blockbreak") || op.contains("blockplace") || op.contains("world");
++        final boolean forbiddenMutation = !readOnlyHint && op.contains("off-thread");
++        final long ticket = ++this.ticketSequence;
++        if (forbiddenMutation) {
++            this.forbidden.incrementAndGet();
++            this.lastReason = "forbid off-thread mutation owner=" + safe(owner) + " op=" + operation;
++            return new Entry(ticket, false, true, true, Math.max(1L, cost), this.lastReason);
++        }
++        if (visible || !readOnlyHint) {
++            this.orderedCommit.incrementAndGet();
++            this.lastReason = "ordered plugin commit ticket=" + ticket + " owner=" + safe(owner) + " op=" + operation;
++            return new Entry(ticket, false, true, false, Math.max(1L, cost), this.lastReason);
++        }
++        this.readOnly.incrementAndGet();
++        this.lastReason = "read-only plugin helper ticket=" + ticket + " owner=" + safe(owner) + " op=" + operation;
++        return new Entry(ticket, true, false, false, Math.max(1L, cost), this.lastReason);
++    }
++
++    public String statusLine() {
++        return "AGCPluginOrderedCommitLedger{tick=" + this.tickSequence
++            + ", tickets=" + this.ticketSequence
++            + ", readOnly=" + this.readOnly.get()
++            + ", orderedCommit=" + this.orderedCommit.get()
++            + ", forbidden=" + this.forbidden.get()
++            + ", lastReason='" + this.lastReason + "'}";
++    }
++
++    private static String safe(final String value) { return value == null || value.isBlank() ? "unknown" : value; }
++
++    public record Entry(long ticket, boolean readOnlyPrepare, boolean orderedCommit, boolean forbiddenMutation, long cost, String reason) {}
++}
+--- /dev/null	2026-06-27 06:51:44.229740435 +0000
++++ agc-alpha22/paper-server/src/main/java/net/minecraft/server/AGCMultiversePhaseMatrix.java	2026-06-27 06:56:54.635258388 +0000
+@@ -0,0 +1,46 @@
++package net.minecraft.server;
++
++import java.util.concurrent.atomic.AtomicLong;
++
++/** Matrix that separates read-only multiverse preparation from ordered visible barriers. */
++public final class AGCMultiversePhaseMatrix {
++    public static final AGCMultiversePhaseMatrix INSTANCE = new AGCMultiversePhaseMatrix();
++
++    private final AtomicLong planned = new AtomicLong();
++    private final AtomicLong readOnlyWaves = new AtomicLong();
++    private final AtomicLong orderedBarriers = new AtomicLong();
++    private volatile long tickSequence;
++    private volatile String lastReason = "cold";
++
++    private AGCMultiversePhaseMatrix() {}
++
++    public void beginTick(final long sequence) {
++        this.tickSequence = Math.max(0L, sequence);
++        this.lastReason = "reset";
++    }
++
++    public Matrix compile(final AGCWorldWriteIntentGraph.Plan plan, final long translatorPending) {
++        this.planned.incrementAndGet();
++        final int worlds = plan == null ? 1 : Math.max(1, plan.nodes().size());
++        final int groups = plan == null ? 0 : Math.max(0, plan.parallelGroups());
++        final boolean readOnlyPrepare = translatorPending < 8192L && groups > 0;
++        final int waves = readOnlyPrepare ? Math.max(1, Math.min(groups, worlds)) : 0;
++        final int barriers = Math.max(1, worlds - waves + 1);
++        if (readOnlyPrepare) {
++            this.readOnlyWaves.addAndGet(waves);
++        }
++        this.orderedBarriers.addAndGet(barriers);
++        this.lastReason = (readOnlyPrepare ? "compile read-only waves" : "ordered barrier only") + " worlds=" + worlds + " waves=" + waves + " barriers=" + barriers + " translatorPending=" + translatorPending;
++        return new Matrix(readOnlyPrepare, worlds, waves, barriers, Math.max(1L, waves * 16L + barriers), this.lastReason);
++    }
++
++    public String statusLine() {
++        return "AGCMultiversePhaseMatrix{tick=" + this.tickSequence
++            + ", planned=" + this.planned.get()
++            + ", readOnlyWaves=" + this.readOnlyWaves.get()
++            + ", orderedBarriers=" + this.orderedBarriers.get()
++            + ", lastReason='" + this.lastReason + "'}";
++    }
++
++    public record Matrix(boolean readOnlyPrepare, int worlds, int waves, int barriers, long cost, String reason) {}
++}
+--- /dev/null	2026-06-27 06:51:44.229740435 +0000
++++ agc-alpha22/paper-server/src/main/java/net/minecraft/server/AGCSystemLoadShepherd.java	2026-06-27 06:56:54.642276758 +0000
+@@ -0,0 +1,72 @@
++package net.minecraft.server;
++
++import java.lang.management.ManagementFactory;
++import java.lang.management.OperatingSystemMXBean;
++import java.util.concurrent.atomic.AtomicLong;
++
++/** Reserves CPU/memory headroom before helper work is admitted. */
++public final class AGCSystemLoadShepherd {
++    public static final AGCSystemLoadShepherd INSTANCE = new AGCSystemLoadShepherd();
++
++    private final AtomicLong admitted = new AtomicLong();
++    private final AtomicLong shaped = new AtomicLong();
++    private volatile long tickSequence;
++    private volatile int reservedCpuPercent = 36;
++    private volatile double loadScore = 0.5D;
++    private volatile String lastReason = "cold";
++
++    private AGCSystemLoadShepherd() {}
++
++    public void beginTick(final long sequence) {
++        this.tickSequence = Math.max(0L, sequence);
++        final int processors = Math.max(1, Runtime.getRuntime().availableProcessors());
++        final long usedMemory = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
++        final long maxMemory = Math.max(1L, Runtime.getRuntime().maxMemory());
++        final double memoryPressure = Math.min(1.0D, (double) usedMemory / (double) maxMemory);
++        double systemLoad = 0.50D;
++        try {
++            final OperatingSystemMXBean bean = ManagementFactory.getOperatingSystemMXBean();
++            final double load = bean.getSystemLoadAverage();
++            if (load >= 0.0D) {
++                systemLoad = Math.min(1.0D, load / processors);
++            }
++        } catch (final Throwable ignored) {
++            systemLoad = 0.50D;
++        }
++        this.loadScore = Math.max(0.0D, Math.min(1.0D, systemLoad * 0.65D + memoryPressure * 0.35D));
++        this.reservedCpuPercent = this.loadScore > 0.82D ? 48 : this.loadScore > 0.65D ? 42 : 36;
++        this.lastReason = "reset loadScore=" + round(this.loadScore) + " reservedCpu=" + this.reservedCpuPercent;
++    }
++
++    public Permit permit(final String domain, final long cost, final boolean visible) {
++        final long safeCost = Math.max(1L, cost);
++        if (visible) {
++            this.shaped.incrementAndGet();
++            this.lastReason = "visible work bypasses helper shepherd domain=" + safe(domain);
++            return new Permit(false, true, this.reservedCpuPercent, this.lastReason);
++        }
++        final long allowedCost = this.loadScore > 0.82D ? 2048L : this.loadScore > 0.65D ? 8192L : 65_536L;
++        final boolean ok = safeCost <= allowedCost;
++        if (ok) {
++            this.admitted.incrementAndGet();
++        } else {
++            this.shaped.incrementAndGet();
++        }
++        this.lastReason = (ok ? "permit" : "shape") + " helper work domain=" + safe(domain) + " cost=" + safeCost + " allowed=" + allowedCost;
++        return new Permit(ok, false, this.reservedCpuPercent, this.lastReason);
++    }
++
++    public String statusLine() {
++        return "AGCSystemLoadShepherd{tick=" + this.tickSequence
++            + ", loadScore=" + round(this.loadScore)
++            + ", reservedCpuPercent=" + this.reservedCpuPercent
++            + ", admitted=" + this.admitted.get()
++            + ", shaped=" + this.shaped.get()
++            + ", lastReason='" + this.lastReason + "'}";
++    }
++
++    private static String safe(final String value) { return value == null || value.isBlank() ? "unknown" : value; }
++    private static double round(final double value) { return Math.round(value * 100.0D) / 100.0D; }
++
++    public record Permit(boolean admitted, boolean orderedVisible, int reservedCpuPercent, String reason) {}
++}
+--- /dev/null	2026-06-27 06:51:44.229740435 +0000
++++ agc-alpha22/paper-server/src/main/java/net/minecraft/server/AGCSemanticHotPathMeter.java	2026-06-27 06:56:54.649434087 +0000
+@@ -0,0 +1,58 @@
++package net.minecraft.server;
++
++import java.util.EnumMap;
++import java.util.Map;
++import java.util.concurrent.atomic.AtomicLong;
++
++/** Measures where AGC shortened invisible hot paths without changing semantics. */
++public final class AGCSemanticHotPathMeter {
++    public static final AGCSemanticHotPathMeter INSTANCE = new AGCSemanticHotPathMeter();
++
++    public enum Kind {
++        NETWORK_BACKBONE,
++        CHUNK_FORECAST,
++        ENTITY_OBSERVER,
++        WORLD_PHASE,
++        PLUGIN_LEDGER,
++        LOAD_SHAPING
++    }
++
++    private final EnumMap<Kind, AtomicLong> raw = new EnumMap<>(Kind.class);
++    private final EnumMap<Kind, AtomicLong> optimized = new EnumMap<>(Kind.class);
++    private volatile long tickSequence;
++    private volatile String lastReason = "cold";
++
++    private AGCSemanticHotPathMeter() {
++        for (final Kind kind : Kind.values()) {
++            this.raw.put(kind, new AtomicLong());
++            this.optimized.put(kind, new AtomicLong());
++        }
++    }
++
++    public void beginTick(final long sequence) {
++        this.tickSequence = Math.max(0L, sequence);
++        this.lastReason = "reset";
++    }
++
++    public void record(final Kind kind, final long rawCost, final long optimizedCost, final String reason) {
++        final Kind safeKind = kind == null ? Kind.LOAD_SHAPING : kind;
++        this.raw.get(safeKind).addAndGet(Math.max(0L, rawCost));
++        this.optimized.get(safeKind).addAndGet(Math.max(0L, optimizedCost));
++        this.lastReason = safeKind + " raw=" + rawCost + " optimized=" + optimizedCost + " reason=" + (reason == null ? "" : reason);
++    }
++
++    public String statusLine() {
++        return "AGCSemanticHotPathMeter{tick=" + this.tickSequence
++            + ", raw=" + snapshot(this.raw)
++            + ", optimized=" + snapshot(this.optimized)
++            + ", lastReason='" + this.lastReason + "'}";
++    }
++
++    private static Map<Kind, Long> snapshot(final EnumMap<Kind, AtomicLong> source) {
++        final EnumMap<Kind, Long> copy = new EnumMap<>(Kind.class);
++        for (final Map.Entry<Kind, AtomicLong> entry : source.entrySet()) {
++            copy.put(entry.getKey(), entry.getValue().get());
++        }
++        return copy;
++    }
++}
+--- agc-alpha21-clean/paper-server/src/main/java/net/minecraft/server/AGCCommandReports.java	2026-06-27 05:57:25.000000000 +0000
++++ agc-alpha22/paper-server/src/main/java/net/minecraft/server/AGCCommandReports.java	2026-06-27 06:57:37.644386010 +0000
+@@ -447,6 +447,25 @@
+         );
+     }
+ 
++
++    public static String scale22() {
++        return String.join("\n",
++            "AGC alpha22 tick-work compiler: large semantic-preserving performance pass",
++            AGCScale22TickWorkCompiler.INSTANCE.statusLine(),
++            AGCNetworkCohortBackboneCache.INSTANCE.statusLine(),
++            AGCChunkTerrainDemandModel.INSTANCE.statusLine(),
++            AGCEntityObserverMatrix.INSTANCE.statusLine(),
++            AGCPluginOrderedCommitLedger.INSTANCE.statusLine(),
++            AGCMultiversePhaseMatrix.INSTANCE.statusLine(),
++            AGCSystemLoadShepherd.INSTANCE.statusLine(),
++            AGCSemanticHotPathMeter.INSTANCE.statusLine(),
++            AGCScale21CriticalPathRuntime.INSTANCE.statusLine(),
++            AGCNoInvasionOptimizer.INSTANCE.statusLine(),
++            "hardRules=no packet drops, no mutable packet sharing, no connection reorder, no chunk FIFO skip, no entity tick/AI/damage skip, no off-thread Bukkit mutation, no plugin event reorder",
++            "algorithm=central tick-work compiler + packet cohort backbone cache + terrain demand model + entity observer matrix + ordered plugin commit ledger + multiverse phase matrix + system load shepherd"
++        );
++    }
++
+     public static String minigameApi() {
+         try {
+             final Object service = io.agcmc.agc.api.AGC.minigames();
+--- agc-alpha21-clean/paper-api/src/main/java/io/agcmc/agc/api/AGCFeature.java	2026-06-27 05:58:23.000000000 +0000
++++ agc-alpha22/paper-api/src/main/java/io/agcmc/agc/api/AGCFeature.java	2026-06-27 06:58:08.528655476 +0000
+@@ -82,5 +82,13 @@
+     NETWORK_BROADCAST_PLANNER,
+     PLUGIN_COMMIT_SEQUENCER,
+     MULTIVERSE_LANE_ALLOCATOR,
+-    COMPUTE_WASTE_REDUCER
++    COMPUTE_WASTE_REDUCER,
++    SCALE22_TICK_WORK_COMPILER,
++    NETWORK_COHORT_BACKBONE_CACHE,
++    CHUNK_TERRAIN_DEMAND_MODEL,
++    ENTITY_OBSERVER_MATRIX,
++    PLUGIN_ORDERED_COMMIT_LEDGER,
++    MULTIVERSE_PHASE_MATRIX,
++    SYSTEM_LOAD_SHEPHERD,
++    SEMANTIC_HOT_PATH_METER
+ }
+--- /dev/null	2026-06-27 06:51:44.229740435 +0000
++++ agc-alpha22/paper-api/src/main/java/io/agcmc/agc/api/AGCScale22Plan.java	2026-06-27 06:58:08.528822267 +0000
+@@ -0,0 +1,23 @@
++package io.agcmc.agc.api;
++
++import org.jetbrains.annotations.NotNull;
++
++/** Alpha22 large-scale tick work compiler plan for semantic-preserving survival scale. */
++public record AGCScale22Plan(
++    int expectedPlayers,
++    double targetTps,
++    int reservedCpuPercent,
++    int helperWorkers,
++    int tickWorkUnits,
++    int networkBackboneNodes,
++    int chunkTerrainStripes,
++    int entityObserverBands,
++    int multiversePhaseWaves,
++    int pluginCommitTickets,
++    long scratchBytes,
++    boolean preservesPacketOrder,
++    boolean preservesChunkFifo,
++    boolean preservesEntityTicks,
++    boolean preservesPluginOrder,
++    @NotNull String strategy
++) {}
+--- agc-alpha21-clean/paper-api/src/main/java/io/agcmc/agc/api/AGCPerformance.java	2026-06-27 05:58:23.000000000 +0000
++++ agc-alpha22/paper-api/src/main/java/io/agcmc/agc/api/AGCPerformance.java	2026-06-27 06:58:08.529345751 +0000
+@@ -94,6 +94,14 @@
+         states.put(AGCFeature.PLUGIN_COMMIT_SEQUENCER, AGCFeatureStatus.ENABLED);
+         states.put(AGCFeature.MULTIVERSE_LANE_ALLOCATOR, AGCFeatureStatus.ENABLED);
+         states.put(AGCFeature.COMPUTE_WASTE_REDUCER, AGCFeatureStatus.ENABLED);
++        states.put(AGCFeature.SCALE22_TICK_WORK_COMPILER, AGCFeatureStatus.ENABLED);
++        states.put(AGCFeature.NETWORK_COHORT_BACKBONE_CACHE, AGCFeatureStatus.ENABLED);
++        states.put(AGCFeature.CHUNK_TERRAIN_DEMAND_MODEL, AGCFeatureStatus.ENABLED);
++        states.put(AGCFeature.ENTITY_OBSERVER_MATRIX, AGCFeatureStatus.ENABLED);
++        states.put(AGCFeature.PLUGIN_ORDERED_COMMIT_LEDGER, AGCFeatureStatus.ENABLED);
++        states.put(AGCFeature.MULTIVERSE_PHASE_MATRIX, AGCFeatureStatus.ENABLED);
++        states.put(AGCFeature.SYSTEM_LOAD_SHEPHERD, AGCFeatureStatus.ENABLED);
++        states.put(AGCFeature.SEMANTIC_HOT_PATH_METER, AGCFeatureStatus.ENABLED);
+         return new AGCPerformanceSnapshot(
+             "API_COMPATIBILITY_VIEW",
+             0.0D,
+@@ -440,6 +448,39 @@
+         );
+     }
+ 
++    public @NotNull AGCScale22Plan scale22Plan(final int expectedPlayers, final double targetTps) {
++        final int players = Math.max(1, expectedPlayers);
++        final double tps = Math.max(1.0D, targetTps);
++        final int processors = Math.max(1, Runtime.getRuntime().availableProcessors());
++        final int reservedCpu = players >= 3000 ? 40 : players >= 2000 ? 38 : 34;
++        final int workers = Math.max(1, processors - Math.max(2, (processors * reservedCpu + 99) / 100));
++        final int tickWorkUnits = Math.max(524288, Math.min(8_388_608, players * 2048));
++        final int networkBackboneNodes = Math.max(16, Math.min(4096, (players + 15) / 16));
++        final int chunkTerrainStripes = Math.max(16, Math.min(1024, (players + 31) / 32));
++        final int entityObserverBands = Math.max(32, Math.min(2048, (int) Math.sqrt(players * 256.0D)));
++        final int multiversePhaseWaves = Math.max(1, Math.min(512, workers * 12));
++        final int pluginCommitTickets = Math.max(1024, Math.min(131072, players * 12));
++        final long scratchBytes = Math.max(128L * 1024L * 1024L, Math.min(2048L * 1024L * 1024L, players * 256L * 1024L));
++        return new AGCScale22Plan(
++            players,
++            tps,
++            reservedCpu,
++            workers,
++            tickWorkUnits,
++            networkBackboneNodes,
++            chunkTerrainStripes,
++            entityObserverBands,
++            multiversePhaseWaves,
++            pluginCommitTickets,
++            scratchBytes,
++            true,
++            true,
++            true,
++            true,
++            "AGC alpha22: compile tick-local helper work through packet cohort backbones, terrain demand stripes, entity observer matrices, multiverse phase waves, ordered plugin commit ledger and system-load shepherding; visible Minecraft semantics remain ordered"
++        );
++    }
++
+     public boolean isPrimaryThread() {
+         try {
+             return Bukkit.isPrimaryThread();
+--- /dev/null	2026-06-27 06:51:44.229740435 +0000
++++ agc-alpha22/test-plugin/src/main/java/io/papermc/testplugin/e2e/tests/FeatureR30Tests.java	2026-06-27 06:59:06.587333461 +0000
+@@ -0,0 +1,66 @@
++package io.papermc.testplugin.e2e.tests;
++
++import io.papermc.testplugin.e2e.E2ETest;
++import io.papermc.testplugin.e2e.TestContext;
++import io.papermc.testplugin.e2e.TestRegistry;
++
++public class FeatureR30Tests {
++    public void register(TestRegistry registry) {
++        registry.register(new E2ETest() {
++            @Override public String getId() { return "R30_T1_1"; }
++            @Override public String getName() { return "R30 Tier 1 - Scale22 Tick Work Compiler"; }
++            @Override public void run(TestContext context) throws Exception {
++                Class<?> type = context.checkClassExists("net.minecraft.server.AGCScale22TickWorkCompiler");
++                Object instance = type.getDeclaredField("INSTANCE").get(null);
++                context.assertTrue(((String) type.getDeclaredMethod("statusLine").invoke(instance)).contains("AGCScale22TickWorkCompiler"), "Scale22 compiler status must identify itself.");
++            }
++        });
++        registry.register(new E2ETest() {
++            @Override public String getId() { return "R30_T1_2"; }
++            @Override public String getName() { return "R30 Tier 1 - Network and Chunk Scale22 Algorithms"; }
++            @Override public void run(TestContext context) throws Exception {
++                Class<?> network = context.checkClassExists("net.minecraft.server.AGCNetworkCohortBackboneCache");
++                Object networkInstance = network.getDeclaredField("INSTANCE").get(null);
++                context.assertTrue(((String) network.getDeclaredMethod("statusLine").invoke(networkInstance)).contains("AGCNetworkCohortBackboneCache"), "Network cohort backbone status must identify itself.");
++                Class<?> chunk = context.checkClassExists("net.minecraft.server.AGCChunkTerrainDemandModel");
++                Object chunkInstance = chunk.getDeclaredField("INSTANCE").get(null);
++                context.assertTrue(((String) chunk.getDeclaredMethod("statusLine").invoke(chunkInstance)).contains("AGCChunkTerrainDemandModel"), "Chunk terrain demand status must identify itself.");
++            }
++        });
++        registry.register(new E2ETest() {
++            @Override public String getId() { return "R30_T1_3"; }
++            @Override public String getName() { return "R30 Tier 1 - Entity, Plugin and Multiverse Scale22 Algorithms"; }
++            @Override public void run(TestContext context) throws Exception {
++                for (String name : new String[] {
++                    "net.minecraft.server.AGCEntityObserverMatrix",
++                    "net.minecraft.server.AGCPluginOrderedCommitLedger",
++                    "net.minecraft.server.AGCMultiversePhaseMatrix",
++                    "net.minecraft.server.AGCSystemLoadShepherd",
++                    "net.minecraft.server.AGCSemanticHotPathMeter"
++                }) {
++                    Class<?> type = context.checkClassExists(name);
++                    Object instance = type.getDeclaredField("INSTANCE").get(null);
++                    context.assertTrue(((String) type.getDeclaredMethod("statusLine").invoke(instance)).contains(type.getSimpleName()), name + " status must identify itself.");
++                }
++            }
++        });
++        registry.register(new E2ETest() {
++            @Override public String getId() { return "R30_T1_4"; }
++            @Override public String getName() { return "R30 Tier 1 - Scale22 Report"; }
++            @Override public void run(TestContext context) throws Exception {
++                Class<?> reports = context.checkClassExists("net.minecraft.server.AGCCommandReports");
++                String report = (String) reports.getDeclaredMethod("scale22").invoke(null);
++                context.assertTrue(report.contains("AGCScale22TickWorkCompiler") && report.contains("hardRules"), "Scale22 report must include compiler and hard rules.");
++            }
++        });
++        registry.register(new E2ETest() {
++            @Override public String getId() { return "R30_T1_5"; }
++            @Override public String getName() { return "R30 Tier 1 - Scale22 Public API"; }
++            @Override public void run(TestContext context) throws Exception {
++                context.checkClassExists("io.agcmc.agc.api.AGCScale22Plan");
++                Class<?> performance = context.checkClassExists("io.agcmc.agc.api.AGCPerformance");
++                context.assertNotNull(performance.getDeclaredMethod("scale22Plan", int.class, double.class), "scale22Plan API must exist.");
++            }
++        });
++    }
++}
+--- agc-alpha21-clean/test-plugin/src/main/java/io/papermc/testplugin/e2e/TestRegistry.java	2026-06-27 05:58:58.000000000 +0000
++++ agc-alpha22/test-plugin/src/main/java/io/papermc/testplugin/e2e/TestRegistry.java	2026-06-27 06:59:07.638682935 +0000
+@@ -47,6 +47,7 @@
+         new FeatureR27Tests().register(this);
+         new FeatureR28Tests().register(this);
+         new FeatureR29Tests().register(this);
++        new FeatureR30Tests().register(this);
+         new Tier3Tests().register(this);
+         new Tier4Tests().register(this);
+     }

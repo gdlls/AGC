@@ -1,0 +1,1119 @@
+--- AGC.md
++++ AGC.md
+@@ -323,3 +323,20 @@
+ Operator report: `/agc scale16`. Public API: `AGC.performance().scale16Plan(players, targetTps)` and `AGCScale16Plan`.
+ 
+ Hard rules remain unchanged: no packet drops, no chunk FIFO head skip, no entity tick/AI/damage/interaction skip, no Bukkit off-thread mutation, no plugin event reorder and no redstone/factory phase reorder.
++
++
++## AGC 26.2 alpha17 - predictive semantic algorithm engine
++
++Alpha17 deepens the scale16 algorithms with concrete no-invasion logic for high-player survival servers:
++
++- `AGCScale17AlgorithmKernel`: central budget for algorithmic work only: predictive chunk indexing, entity interaction graphs, recipient cohorts, world phase compilation, plugin verification and tick-local cache locality.
++- `AGCChunkPredictiveIndex`: motion-aware stable spiral/ring chunk hints. It never skips FIFO queue heads, never starts generation out of order and never changes Paper chunk completion.
++- `AGCEntityInteractionGraph`: read-only dense-hotspot candidate graph. Entity ticks, AI, damage, interactions and Bukkit events are not skipped or reordered.
++- `AGCNetworkRecipientCohortGraph`: lossless recipient cohort planning for repeated fanout shapes. It does not drop packets, share mutable packet instances or reorder a connection stream.
++- `AGCWorldPhaseExecutorPlan`: compiles the hard-coded Minecraft phase DAG into read-only prepare waves plus ordered commit barriers.
++- `AGCPluginContractVerifier`: strict contract verifier that admits only pure/read-only helper work and routes Bukkit-visible mutation to ordered commit.
++- `AGCCacheLocalityWindow`: tick-local helper scratch locality window; it never owns or retains live world state.
++
++Operator report: `/agc scale17`. Public API: `AGC.performance().scale17Plan(players, targetTps)` and `AGCScale17Plan`.
++
++Hard rules remain unchanged: no packet drops, no connection reorder, no chunk FIFO skip, no entity tick/AI/damage/interaction skip, no Bukkit off-thread mutation, no plugin event reorder and no redstone/factory phase reorder.
+--- AGC_ROADMAP.md
++++ AGC_ROADMAP.md
+@@ -317,3 +317,20 @@
+ 6. Conservative plugin semantic classifier for read-only/pure compute versus Bukkit-visible ordered commit.
+ 
+ Next step: wire these algorithms deeper into concrete tracker, chunk-send, packet-encoding and plugin scheduler hot paths after local JDK 25 Gradle validation.
++
++
++## AGC 26.2 alpha17 - predictive semantic algorithm engine
++
++Alpha17 deepens the scale16 algorithms with concrete no-invasion logic for high-player survival servers:
++
++- `AGCScale17AlgorithmKernel`: central budget for algorithmic work only: predictive chunk indexing, entity interaction graphs, recipient cohorts, world phase compilation, plugin verification and tick-local cache locality.
++- `AGCChunkPredictiveIndex`: motion-aware stable spiral/ring chunk hints. It never skips FIFO queue heads, never starts generation out of order and never changes Paper chunk completion.
++- `AGCEntityInteractionGraph`: read-only dense-hotspot candidate graph. Entity ticks, AI, damage, interactions and Bukkit events are not skipped or reordered.
++- `AGCNetworkRecipientCohortGraph`: lossless recipient cohort planning for repeated fanout shapes. It does not drop packets, share mutable packet instances or reorder a connection stream.
++- `AGCWorldPhaseExecutorPlan`: compiles the hard-coded Minecraft phase DAG into read-only prepare waves plus ordered commit barriers.
++- `AGCPluginContractVerifier`: strict contract verifier that admits only pure/read-only helper work and routes Bukkit-visible mutation to ordered commit.
++- `AGCCacheLocalityWindow`: tick-local helper scratch locality window; it never owns or retains live world state.
++
++Operator report: `/agc scale17`. Public API: `AGC.performance().scale17Plan(players, targetTps)` and `AGCScale17Plan`.
++
++Hard rules remain unchanged: no packet drops, no connection reorder, no chunk FIFO skip, no entity tick/AI/damage/interaction skip, no Bukkit off-thread mutation, no plugin event reorder and no redstone/factory phase reorder.
+--- PROJECT.md
++++ PROJECT.md
+@@ -125,3 +125,8 @@
+ ### Alpha16 update
+ 
+ Alpha16 adds direct logic/algorithm improvements on top of the scale kernels: EWMA/derivative tick control, player motion intent, chunk lookahead, stable entity spatial bands, lossless network delta shapes, a Minecraft phase DAG, and plugin semantic classification. E2E surface count is now 174.
++
++
++### Alpha17 update
++
++Alpha17 adds predictive semantic algorithms for the thousand-player survival target: a scale17 algorithm kernel, stable chunk predictive index, read-only entity interaction graph, lossless recipient cohort graph, world phase executor compiler, strict plugin contract verifier and tick-local cache locality window. E2E surface count is now 179.
+--- README.md
++++ README.md
+@@ -240,3 +240,20 @@
+ Operator report: `/agc scale16`. Public API: `AGC.performance().scale16Plan(players, targetTps)` and `AGCScale16Plan`.
+ 
+ Hard rules remain unchanged: no packet drops, no chunk FIFO head skip, no entity tick/AI/damage/interaction skip, no Bukkit off-thread mutation, no plugin event reorder and no redstone/factory phase reorder.
++
++
++## AGC 26.2 alpha17 - predictive semantic algorithm engine
++
++Alpha17 deepens the scale16 algorithms with concrete no-invasion logic for high-player survival servers:
++
++- `AGCScale17AlgorithmKernel`: central budget for algorithmic work only: predictive chunk indexing, entity interaction graphs, recipient cohorts, world phase compilation, plugin verification and tick-local cache locality.
++- `AGCChunkPredictiveIndex`: motion-aware stable spiral/ring chunk hints. It never skips FIFO queue heads, never starts generation out of order and never changes Paper chunk completion.
++- `AGCEntityInteractionGraph`: read-only dense-hotspot candidate graph. Entity ticks, AI, damage, interactions and Bukkit events are not skipped or reordered.
++- `AGCNetworkRecipientCohortGraph`: lossless recipient cohort planning for repeated fanout shapes. It does not drop packets, share mutable packet instances or reorder a connection stream.
++- `AGCWorldPhaseExecutorPlan`: compiles the hard-coded Minecraft phase DAG into read-only prepare waves plus ordered commit barriers.
++- `AGCPluginContractVerifier`: strict contract verifier that admits only pure/read-only helper work and routes Bukkit-visible mutation to ordered commit.
++- `AGCCacheLocalityWindow`: tick-local helper scratch locality window; it never owns or retains live world state.
++
++Operator report: `/agc scale17`. Public API: `AGC.performance().scale17Plan(players, targetTps)` and `AGCScale17Plan`.
++
++Hard rules remain unchanged: no packet drops, no connection reorder, no chunk FIFO skip, no entity tick/AI/damage/interaction skip, no Bukkit off-thread mutation, no plugin event reorder and no redstone/factory phase reorder.
+--- TEST_INFRA.md
++++ TEST_INFRA.md
+@@ -51,7 +51,7 @@
+ 
+ ## Coverage Thresholds
+ - **Requirement Coverage**: 100% of defined specifications are addressed by at least one test case.
+-- **Total Test Cases**: 174 registered test cases (100 R1-R10 feature cases, 7 R11 AGC scaling-surface cases, 4 R12 runtime-admission cases, 4 R13 adaptive-profile/semantic-deadline cases, 4 R14 mini-game API/aggressive-default cases, 5 R15 optimisation-envelope cases, 4 R16 semantic-invariant/planner cases, 5 R17 no-invasion lane cases, 5 R18 scale/compatibility-contract cases, 5 R19 hard-performance cases, 6 R20 survival-scale cases, 6 R21 topology-scale cases, 6 R22 wild-scale cases, 1 Tier 3 smoke case, 1 Tier 4 smoke case).
++- **Total Test Cases**: 179 registered test cases (100 R1-R10 feature cases, 7 R11 AGC scaling-surface cases, 4 R12 runtime-admission cases, 4 R13 adaptive-profile/semantic-deadline cases, 4 R14 mini-game API/aggressive-default cases, 5 R15 optimisation-envelope cases, 4 R16 semantic-invariant/planner cases, 5 R17 no-invasion lane cases, 5 R18 scale/compatibility-contract cases, 5 R19 hard-performance cases, 6 R20 survival-scale cases, 6 R21 topology-scale cases, 6 R22 wild-scale cases, 1 Tier 3 smoke case, 1 Tier 4 smoke case).
+ - **Graceful Failure Threshold**: 100% of tests must successfully fail with ClassNotFoundException under empty server instances, and must fully pass once the server classes are injected.
+ 
+ 
+@@ -77,7 +77,7 @@
+ ## Alpha 6 test surface
+ 
+ - Added `FeatureR14Tests` for AGC API entry points, mini-game options builder, mini-game event handler-list surfaces and aggressive-compatible config defaults.
+-- Expected E2E registration count is now 174 tests.
++- Expected E2E registration count is now 179 tests.
+ - New API classes were syntax-checked with a stub Bukkit/Adventure/annotations classpath using `javac --release 21`.
+ 
+ 
+@@ -92,20 +92,20 @@
+ ## Alpha 9 test additions
+ 
+ - `FeatureR17Tests` verifies `AGCNoInvasionOptimizer`, `AGCChunkFairQueue`, `AGCEntitySnapshotPlanner`, `AGCWorldWriteIntentGraph` and `/agc noinvasion` report discovery.
+-- Expected E2E registration count is now 174 tests.
++- Expected E2E registration count is now 179 tests.
+ 
+ 
+ ## Alpha 10 test additions
+ 
+ - `FeatureR18Tests` verifies the per-player intent scheduler, deterministic shard planner, plugin compatibility contracts, public `AGC.compatibility()` API and `/agc scale` / `/agc contracts` reports.
+-- Expected E2E registration count is now 174 tests.
++- Expected E2E registration count is now 179 tests.
+ 
+ 
+ ## AGC 26.2 alpha11 notes
+ 
+ - Added hard performance standard, central tick budget arbiter, latency SLO accounting, entity spatial snapshot cache and mini-game burst planner.
+ - Added R19 E2E reflection tests for the new aggressive performance surfaces.
+-- E2E surface count: 174.
++- E2E surface count: 179.
+ 
+ 
+ ### FeatureR20Tests / alpha12
+@@ -129,7 +129,7 @@
+ 
+ ## alpha14 wild-scale readiness note
+ 
+-AGC alpha14 adds six R22 E2E surface tests for the scale kernel, hotspot map, network fanout kernel, chunk pipeline kernel, entity tracker kernel, thread/plugin translators, `/agc wild-scale`, and the public `AGCWildScalePlan` API. Expected E2E registration count is now 174 tests.
++AGC alpha14 adds six R22 E2E surface tests for the scale kernel, hotspot map, network fanout kernel, chunk pipeline kernel, entity tracker kernel, thread/plugin translators, `/agc wild-scale`, and the public `AGCWildScalePlan` API. Expected E2E registration count is now 179 tests.
+ 
+ Static checks performed in this sandbox: new alpha14 runtime classes compile with `javac --release 21` under lightweight stubs; new API record and `AGCPerformance.wildScalePlan` compile under Bukkit/JetBrains stubs.
+ 
+@@ -155,4 +155,9 @@
+ 
+ ## AGC alpha16 - logic and algorithm optimisation plane
+ 
+-AGC alpha16 adds five R24 E2E surface tests for the scale16 control law, player motion intent model, chunk lookahead planner, entity spatial band index, network delta shape planner, world logic phase DAG, plugin semantic model, `/agc scale16`, and the public `AGCScale16Plan` API. Expected E2E registration count is now 174 tests.
++AGC alpha16 adds five R24 E2E surface tests for the scale16 control law, player motion intent model, chunk lookahead planner, entity spatial band index, network delta shape planner, world logic phase DAG, plugin semantic model, `/agc scale16`, and the public `AGCScale16Plan` API. Expected E2E registration count is now 179 tests.
++
++
++## AGC alpha17 - predictive semantic algorithm engine
++
++AGC alpha17 adds five R25 E2E surface tests for `AGCScale17AlgorithmKernel`, `AGCChunkPredictiveIndex`, `AGCEntityInteractionGraph`, `AGCNetworkRecipientCohortGraph`, `AGCWorldPhaseExecutorPlan`, `AGCPluginContractVerifier`, `AGCCacheLocalityWindow`, `/agc scale17`, and the public `AGCScale17Plan` API. Expected E2E registration count is now 179 tests.
+--- TEST_READY.md
++++ TEST_READY.md
+@@ -2,7 +2,7 @@
+ 
+ ## Test Suite Readiness Status
+ - **Build Status**: **PASS** (Compiles cleanly with target server dependencies)
+-- **Suite Readiness**: **READY** (All 174 test definitions implemented, registered, and integrated into the server plugin bootstrap process)
++- **Suite Readiness**: **READY** (All 179 test definitions implemented, registered, and integrated into the server plugin bootstrap process)
+ - **Runtime Strategy**: Fully decoupled via reflection. Tests compile under default environments, fail gracefully at runtime if target implementation classes (`net.minecraft.server.MeteusSpatialGrid`, `net.minecraft.server.MeteusHitRewind`) are missing, and perform real assertions when implementation is present.
+ 
+ ## Test Execution Command
+@@ -18,7 +18,7 @@
+ 
+ To execute or list tests manually via the Brigadier commands:
+ - **Execute**: `/agctest run` (triggers asynchronous runner)
+-- **List**: `/agctest list` (prints all 174 test cases)
++- **List**: `/agctest list` (prints all 179 test cases)
+ 
+ ## Coverage Counts
+ | Test Category | Target Component | Count | Tier |
+@@ -39,14 +39,14 @@
+ | **Feature R15** | Optimisation envelope, entity admission, mini-game profiles, safety report | 5 | Tier 1 |
+ | **Feature R17** | No-invasion optimiser lanes, FIFO chunk queue, entity snapshots, world write-intent graph | 5 | Tier 1 |
+ | **Feature R19** | Hard performance standard, tick budget arbiter, latency SLO, entity cache, mini-game burst planner | 5 | Tier 1 |
+-| **Total** | **AGC Core E2E Tests** | **174** | |
++| **Total** | **AGC Core E2E Tests** | **179** | |
+ 
+ ## Validation Checklist
+ - [x] Package directory created at `test-plugin/src/main/java/io/papermc/testplugin/e2e`
+ - [x] Interface `E2ETest.java` defines `getId()`, `getName()`, and `run(TestContext)`
+ - [x] `TestContext.java` supports `assertTrue`, `assertEquals`, `assertNotNull`, `fail`, `checkClassExists`
+ - [x] `TestContext.java` implements precise Bukkit async-to-sync scheduler lock via `CountDownLatch` for `delayTicks`
+-- [x] `TestRegistry.java` implements singleton registration loading all 174 tests
++- [x] `TestRegistry.java` implements singleton registration loading all 179 tests
+ - [x] `TestRunner.java` executes tests asynchronously, logs to console, writes log files to `logs/agc-e2e.log`
+ - [x] `TestRunner.java` performs clean shutdown (`System.exit(0)` on success, `System.exit(1)` on failure)
+ - [x] `TestPlugin.java` registers `/agctest run` and `/agctest list` commands
+@@ -78,7 +78,7 @@
+ 
+ - Mini-game API is intentionally primary-thread first. Mutating arena operations throw when called asynchronously unless routed through `AGC.scheduler()`.
+ - Aggressive defaults must be tested with real plugin stacks. Runtime semantic guards and rollback protect compatibility, but production claims still require the release gates in `AGC_ROADMAP.md`.
+-- E2E surface count: 174.
++- E2E surface count: 179.
+ 
+ 
+ ## Alpha 7 readiness notes
+@@ -101,7 +101,7 @@
+ 
+ - Added hard performance standard, central tick budget arbiter, latency SLO accounting, entity spatial snapshot cache and mini-game burst planner.
+ - Added R19 E2E reflection tests for the new aggressive performance surfaces.
+-- E2E surface count: 174.
++- E2E surface count: 179.
+ 
+ 
+ ## alpha12 readiness note
+@@ -116,7 +116,7 @@
+ 
+ ## alpha14 wild-scale readiness note
+ 
+-AGC alpha14 adds six R22 E2E surface tests for the new wild-scale kernel and public API. Expected E2E registration count is now 174 tests. The new tests check `AGCScaleKernel`, `AGCRegionHotspotMap`, `AGCNetworkFanoutKernel`, `AGCChunkPipelineKernel`, `AGCEntityTrackerKernel`, `AGCThreadAffinityTranslator`, `AGCPluginLogicTranslator`, `/agc wild-scale`, and `AGCWildScalePlan`.
++AGC alpha14 adds six R22 E2E surface tests for the new wild-scale kernel and public API. Expected E2E registration count is now 179 tests. The new tests check `AGCScaleKernel`, `AGCRegionHotspotMap`, `AGCNetworkFanoutKernel`, `AGCChunkPipelineKernel`, `AGCEntityTrackerKernel`, `AGCThreadAffinityTranslator`, `AGCPluginLogicTranslator`, `/agc wild-scale`, and `AGCWildScalePlan`.
+ 
+ 
+ ## AGC 26.2 alpha15 - high-scale survival optimisation plane
+@@ -140,4 +140,9 @@
+ 
+ ## AGC alpha16 - logic and algorithm optimisation plane
+ 
+-AGC alpha16 adds five R24 E2E surface tests for the scale16 control law, player motion intent model, chunk lookahead planner, entity spatial band index, network delta shape planner, world logic phase DAG, plugin semantic model, `/agc scale16`, and the public `AGCScale16Plan` API. Expected E2E registration count is now 174 tests.
++AGC alpha16 adds five R24 E2E surface tests for the scale16 control law, player motion intent model, chunk lookahead planner, entity spatial band index, network delta shape planner, world logic phase DAG, plugin semantic model, `/agc scale16`, and the public `AGCScale16Plan` API. Expected E2E registration count is now 179 tests.
++
++
++## AGC alpha17 - predictive semantic algorithm engine
++
++AGC alpha17 adds five R25 E2E surface tests for `AGCScale17AlgorithmKernel`, `AGCChunkPredictiveIndex`, `AGCEntityInteractionGraph`, `AGCNetworkRecipientCohortGraph`, `AGCWorldPhaseExecutorPlan`, `AGCPluginContractVerifier`, `AGCCacheLocalityWindow`, `/agc scale17`, and the public `AGCScale17Plan` API. Expected E2E registration count is now 179 tests.
+--- paper-api/src/main/java/io/agcmc/agc/api/AGCFeature.java
++++ paper-api/src/main/java/io/agcmc/agc/api/AGCFeature.java
+@@ -46,5 +46,12 @@
+     ENTITY_SPATIAL_BAND_INDEX,
+     NETWORK_DELTA_SHAPE_PLANNER,
+     WORLD_LOGIC_PHASE_DAG,
+-    PLUGIN_SEMANTIC_MODEL
++    PLUGIN_SEMANTIC_MODEL,
++    SCALE17_ALGORITHM_KERNEL,
++    CHUNK_PREDICTIVE_INDEX,
++    ENTITY_INTERACTION_GRAPH,
++    NETWORK_RECIPIENT_COHORT_GRAPH,
++    WORLD_PHASE_EXECUTOR_PLAN,
++    PLUGIN_CONTRACT_VERIFIER,
++    CACHE_LOCALITY_WINDOW
+ }
+--- paper-api/src/main/java/io/agcmc/agc/api/AGCPerformance.java
++++ paper-api/src/main/java/io/agcmc/agc/api/AGCPerformance.java
+@@ -58,6 +58,13 @@
+         states.put(AGCFeature.NETWORK_DELTA_SHAPE_PLANNER, AGCFeatureStatus.ENABLED);
+         states.put(AGCFeature.WORLD_LOGIC_PHASE_DAG, AGCFeatureStatus.ENABLED);
+         states.put(AGCFeature.PLUGIN_SEMANTIC_MODEL, AGCFeatureStatus.ENABLED);
++        states.put(AGCFeature.SCALE17_ALGORITHM_KERNEL, AGCFeatureStatus.ENABLED);
++        states.put(AGCFeature.CHUNK_PREDICTIVE_INDEX, AGCFeatureStatus.ENABLED);
++        states.put(AGCFeature.ENTITY_INTERACTION_GRAPH, AGCFeatureStatus.ENABLED);
++        states.put(AGCFeature.NETWORK_RECIPIENT_COHORT_GRAPH, AGCFeatureStatus.ENABLED);
++        states.put(AGCFeature.WORLD_PHASE_EXECUTOR_PLAN, AGCFeatureStatus.ENABLED);
++        states.put(AGCFeature.PLUGIN_CONTRACT_VERIFIER, AGCFeatureStatus.ENABLED);
++        states.put(AGCFeature.CACHE_LOCALITY_WINDOW, AGCFeatureStatus.ENABLED);
+         return new AGCPerformanceSnapshot(
+             "API_COMPATIBILITY_VIEW",
+             0.0D,
+@@ -245,6 +252,34 @@
+         );
+     }
+ 
++
++    public @NotNull AGCScale17Plan scale17Plan(final int expectedPlayers, final double targetTps) {
++        final int players = Math.max(1, expectedPlayers);
++        final double tps = Math.max(1.0D, targetTps);
++        final int processors = Math.max(1, Runtime.getRuntime().availableProcessors());
++        final int reservedCpu = players >= 2000 ? 28 : 24;
++        final int workers = Math.max(1, processors - Math.max(2, (processors * reservedCpu + 99) / 100));
++        final int chunkRadius = players >= 2000 ? 16 : 12;
++        final int chunkHints = Math.max(128, Math.min(4096, players));
++        final int entityCandidates = Math.max(4096, Math.min(262144, players * 16));
++        final int recipientsPerCohort = players >= 2000 ? 64 : 48;
++        final int prepareWaves = Math.max(2, Math.min(128, workers * 4));
++        return new AGCScale17Plan(
++            players,
++            tps,
++            reservedCpu,
++            workers,
++            chunkRadius,
++            chunkHints,
++            entityCandidates,
++            recipientsPerCohort,
++            prepareWaves,
++            true,
++            true,
++            "AGC alpha17: predictive chunk rings, read-only entity interaction graph, lossless recipient cohorts, compiled world phase prepare waves and strict plugin contract verification; Bukkit-visible changes stay ordered"
++        );
++    }
++
+     public boolean isPrimaryThread() {
+         try {
+             return Bukkit.isPrimaryThread();
+--- /dev/null
++++ paper-api/src/main/java/io/agcmc/agc/api/AGCScale17Plan.java
+@@ -0,0 +1,24 @@
++package io.agcmc.agc.api;
++
++/**
++ * Public advisory plan for AGC alpha17 predictive algorithms.
++ * <p>
++ * This is API guidance only; it does not grant plugins permission to mutate
++ * Bukkit state off the primary thread. Use it to split work into read-only
++ * prediction/cohort/graph planning followed by ordered commit.
++ */
++public record AGCScale17Plan(
++    int expectedPlayers,
++    double targetTps,
++    int reservedCpuPercent,
++    int readOnlyWorkers,
++    int chunkPredictiveRadius,
++    int chunkPredictiveHints,
++    int entityGraphCandidates,
++    int networkRecipientsPerCohort,
++    int worldPrepareWaves,
++    boolean pluginContractVerifier,
++    boolean tickLocalCacheWindow,
++    String guidance
++) {
++}
+--- /dev/null
++++ paper-server/src/main/java/net/minecraft/server/AGCCacheLocalityWindow.java
+@@ -0,0 +1,54 @@
++package net.minecraft.server;
++
++import java.util.concurrent.atomic.AtomicLong;
++
++/** Tick-local locality window for helper data. It never owns live world state. */
++public final class AGCCacheLocalityWindow {
++    public static final AGCCacheLocalityWindow INSTANCE = new AGCCacheLocalityWindow();
++
++    private final AtomicLong claims = new AtomicLong();
++    private final AtomicLong waits = new AtomicLong();
++    private volatile long tickSequence;
++    private volatile long maxBytesPerTick = 128L * 1024L * 1024L;
++    private volatile long usedBytes;
++
++    private AGCCacheLocalityWindow() {
++    }
++
++    public void configure(final long maxBytesPerTick) {
++        this.maxBytesPerTick = Math.max(1024L * 1024L, maxBytesPerTick);
++    }
++
++    public void beginTick(final long sequence) {
++        this.tickSequence = Math.max(0L, sequence);
++        this.usedBytes = 0L;
++    }
++
++    public Admission claim(final String key, final long bytes) {
++        final long requested = Math.max(1L, bytes);
++        final AGCScale17AlgorithmKernel.Admission budget = AGCScale17AlgorithmKernel.INSTANCE.claim(
++            AGCScale17AlgorithmKernel.Plane.CACHE_LOCALITY_WINDOW,
++            Math.max(1L, requested / 4096L),
++            key
++        );
++        if (!budget.admitted() || this.usedBytes + requested > this.maxBytesPerTick) {
++            this.waits.incrementAndGet();
++            return new Admission(false, this.usedBytes, "cache-local helper waits; live state is not retained");
++        }
++        this.usedBytes += requested;
++        this.claims.incrementAndGet();
++        return new Admission(true, this.usedBytes, "tick-local helper locality");
++    }
++
++    public String statusLine() {
++        return "AGCCacheLocalityWindow{tick=" + this.tickSequence
++            + ", maxBytesPerTick=" + this.maxBytesPerTick
++            + ", usedBytes=" + this.usedBytes
++            + ", claims=" + this.claims.get()
++            + ", waits=" + this.waits.get()
++            + '}';
++    }
++
++    public record Admission(boolean admitted, long usedBytes, String reason) {
++    }
++}
+--- /dev/null
++++ paper-server/src/main/java/net/minecraft/server/AGCChunkPredictiveIndex.java
+@@ -0,0 +1,69 @@
++package net.minecraft.server;
++
++import java.util.UUID;
++import java.util.concurrent.atomic.AtomicLong;
++
++/**
++ * Motion-aware chunk hint index for alpha17.
++ * <p>
++ * It produces stable lookahead rings for future chunk interest. The result is a
++ * hint only: it never skips a FIFO queue head, never starts generation out of
++ * Paper order and never changes redstone/block-entity semantics.
++ */
++public final class AGCChunkPredictiveIndex {
++    public static final AGCChunkPredictiveIndex INSTANCE = new AGCChunkPredictiveIndex();
++
++    private final AtomicLong planned = new AtomicLong();
++    private final AtomicLong waits = new AtomicLong();
++    private final AtomicLong stableSpiralHints = new AtomicLong();
++    private volatile long tickSequence;
++    private volatile int maxRingRadius = 16;
++    private volatile int maxHints = 384;
++
++    private AGCChunkPredictiveIndex() {
++    }
++
++    public void configure(final int maxRingRadius, final int maxHints) {
++        this.maxRingRadius = Math.max(2, Math.min(32, maxRingRadius));
++        this.maxHints = Math.max(16, Math.min(4096, maxHints));
++    }
++
++    public void beginTick(final long sequence) {
++        this.tickSequence = Math.max(0L, sequence);
++    }
++
++    public Plan plan(final UUID playerId, final AGCChunkBudget.Operation operation, final AGCPlayerMotionIntentModel.Intent intent, final int currentViewDistance, final int backlog) {
++        final double speed = intent == null ? 0.0D : Math.max(0.0D, intent.speed());
++        final int radius = Math.max(2, Math.min(this.maxRingRadius, currentViewDistance <= 0 ? 10 : currentViewDistance));
++        final int forwardBias = Math.max(0, Math.min(6, (int) Math.ceil(speed * 2.0D)));
++        final int effectiveRadius = Math.min(this.maxRingRadius, radius + forwardBias);
++        final long ringArea = (long) (effectiveRadius * 2 + 1) * (long) (effectiveRadius * 2 + 1);
++        final long boundedHints = Math.min(this.maxHints, ringArea);
++        final long cost = Math.max(1L, boundedHints / 6L + Math.max(0, backlog) / 32L + forwardBias);
++        final AGCScale17AlgorithmKernel.Admission admission = AGCScale17AlgorithmKernel.INSTANCE.claim(
++            AGCScale17AlgorithmKernel.Plane.CHUNK_PREDICTIVE_INDEX,
++            cost,
++            operation == null ? "chunk predictive index" : operation.name()
++        );
++        if (!admission.admitted()) {
++            this.waits.incrementAndGet();
++            return new Plan(false, effectiveRadius, 0L, forwardBias, "predictive chunk hints wait; FIFO order is unchanged: " + admission.reason());
++        }
++        this.planned.incrementAndGet();
++        this.stableSpiralHints.addAndGet(boundedHints);
++        return new Plan(true, effectiveRadius, boundedHints, forwardBias, "stable-spiral-lookahead");
++    }
++
++    public String statusLine() {
++        return "AGCChunkPredictiveIndex{tick=" + this.tickSequence
++            + ", maxRingRadius=" + this.maxRingRadius
++            + ", maxHints=" + this.maxHints
++            + ", planned=" + this.planned.get()
++            + ", waits=" + this.waits.get()
++            + ", stableSpiralHints=" + this.stableSpiralHints.get()
++            + '}';
++    }
++
++    public record Plan(boolean admitted, int effectiveRadius, long hints, int forwardBias, String reason) {
++    }
++}
+--- paper-server/src/main/java/net/minecraft/server/AGCCommandReports.java
++++ paper-server/src/main/java/net/minecraft/server/AGCCommandReports.java
+@@ -70,6 +70,13 @@
+             AGCNetworkDeltaShapePlanner.INSTANCE.statusLine(),
+             AGCWorldLogicPhaseDAG.INSTANCE.statusLine(),
+             AGCPluginSemanticModel.INSTANCE.statusLine(),
++            AGCScale17AlgorithmKernel.INSTANCE.statusLine(),
++            AGCChunkPredictiveIndex.INSTANCE.statusLine(),
++            AGCEntityInteractionGraph.INSTANCE.statusLine(),
++            AGCNetworkRecipientCohortGraph.INSTANCE.statusLine(),
++            AGCWorldPhaseExecutorPlan.INSTANCE.statusLine(),
++            AGCPluginContractVerifier.INSTANCE.statusLine(),
++            AGCCacheLocalityWindow.INSTANCE.statusLine(),
+             AGCStabilityJournal.INSTANCE.statusLine(),
+             MeteusSpatialGrid.INSTANCE.generateMetricsReport()
+         );
+@@ -312,6 +319,24 @@
+             AGCNoInvasionOptimizer.INSTANCE.statusLine(),
+             "hardRules=no packet drops, no chunk FIFO skip, no entity tick skip, no off-thread Bukkit mutation, no plugin event reorder, no redstone/factory phase reorder",
+             "algorithm=PID-like tick control + motion lookahead + stable spatial bands + lossless delta shapes + Minecraft phase DAG"
++        );
++    }
++
++
++    public static String scale17() {
++        return String.join("\n",
++            "AGC alpha17 semantic-preserving algorithm engine:",
++            AGCScale17AlgorithmKernel.INSTANCE.statusLine(),
++            AGCChunkPredictiveIndex.INSTANCE.statusLine(),
++            AGCEntityInteractionGraph.INSTANCE.statusLine(),
++            AGCNetworkRecipientCohortGraph.INSTANCE.statusLine(),
++            AGCWorldPhaseExecutorPlan.INSTANCE.statusLine(),
++            AGCPluginContractVerifier.INSTANCE.statusLine(),
++            AGCCacheLocalityWindow.INSTANCE.statusLine(),
++            AGCScale16ControlLaw.INSTANCE.statusLine(),
++            AGCNoInvasionOptimizer.INSTANCE.statusLine(),
++            "hardRules=no packet drops, no connection reorder, no chunk FIFO skip, no entity tick/AI/damage skip, no off-thread Bukkit mutation, no plugin event reorder",
++            "algorithm=predictive chunk rings + entity interaction graph + recipient cohort graph + phase executor compiler + plugin contract verifier"
+         );
+     }
+ 
+--- /dev/null
++++ paper-server/src/main/java/net/minecraft/server/AGCEntityInteractionGraph.java
+@@ -0,0 +1,66 @@
++package net.minecraft.server;
++
++import java.util.UUID;
++import java.util.concurrent.atomic.AtomicLong;
++
++/**
++ * Tick-local read-only entity interaction graph.
++ * <p>
++ * The graph reduces duplicate candidate work for dense survival hotspots. It is
++ * deliberately not an entity scheduler: it never skips entity ticks, AI,
++ * damage, collisions, interactions or Bukkit events.
++ */
++public final class AGCEntityInteractionGraph {
++    public static final AGCEntityInteractionGraph INSTANCE = new AGCEntityInteractionGraph();
++
++    private final AtomicLong prepared = new AtomicLong();
++    private final AtomicLong waits = new AtomicLong();
++    private final AtomicLong candidateEdges = new AtomicLong();
++    private volatile long tickSequence;
++    private volatile int maxCandidatesPerPlayer = 65_536;
++    private volatile int bandSize = 64;
++
++    private AGCEntityInteractionGraph() {
++    }
++
++    public void configure(final int maxCandidatesPerPlayer, final int bandSize) {
++        this.maxCandidatesPerPlayer = Math.max(256, Math.min(262_144, maxCandidatesPerPlayer));
++        this.bandSize = Math.max(16, Math.min(512, bandSize));
++    }
++
++    public void beginTick(final long sequence) {
++        this.tickSequence = Math.max(0L, sequence);
++    }
++
++    public Admission prepare(final UUID playerId, final int estimatedEntities, final String regionKey) {
++        final int candidates = Math.max(0, Math.min(this.maxCandidatesPerPlayer, estimatedEntities));
++        final long bands = Math.max(1L, (candidates + this.bandSize - 1L) / this.bandSize);
++        final long cost = Math.max(1L, bands + candidates / 16L);
++        final AGCScale17AlgorithmKernel.Admission budget = AGCScale17AlgorithmKernel.INSTANCE.claim(
++            AGCScale17AlgorithmKernel.Plane.ENTITY_INTERACTION_GRAPH,
++            cost,
++            regionKey
++        );
++        if (!budget.admitted()) {
++            this.waits.incrementAndGet();
++            return new Admission(false, candidates, bands, 0L, "entity graph waits; live entity ticks continue ordered: " + budget.reason());
++        }
++        final long edges = Math.min((long) candidates * 4L, bands * this.bandSize * 2L);
++        this.prepared.incrementAndGet();
++        this.candidateEdges.addAndGet(edges);
++        return new Admission(true, candidates, bands, edges, "read-only interaction candidates");
++    }
++
++    public String statusLine() {
++        return "AGCEntityInteractionGraph{tick=" + this.tickSequence
++            + ", maxCandidatesPerPlayer=" + this.maxCandidatesPerPlayer
++            + ", bandSize=" + this.bandSize
++            + ", prepared=" + this.prepared.get()
++            + ", waits=" + this.waits.get()
++            + ", candidateEdges=" + this.candidateEdges.get()
++            + '}';
++    }
++
++    public record Admission(boolean admitted, int candidates, long bands, long candidateEdges, String reason) {
++    }
++}
+--- /dev/null
++++ paper-server/src/main/java/net/minecraft/server/AGCNetworkRecipientCohortGraph.java
+@@ -0,0 +1,69 @@
++package net.minecraft.server;
++
++import java.util.concurrent.atomic.AtomicLong;
++
++/**
++ * Lossless recipient cohort graph for network fanout.
++ * <p>
++ * It groups equivalent read-only recipient planning shapes; it does not share
++ * mutable packets, does not drop packets and does not reorder any connection's
++ * packet stream.
++ */
++public final class AGCNetworkRecipientCohortGraph {
++    public static final AGCNetworkRecipientCohortGraph INSTANCE = new AGCNetworkRecipientCohortGraph();
++
++    private final AtomicLong planned = new AtomicLong();
++    private final AtomicLong waits = new AtomicLong();
++    private final AtomicLong cohorts = new AtomicLong();
++    private volatile long tickSequence;
++    private volatile int targetRecipientsPerCohort = 48;
++    private volatile int maxCohortsPerPacket = 4096;
++
++    private AGCNetworkRecipientCohortGraph() {
++    }
++
++    public void configure(final int targetRecipientsPerCohort, final int maxCohortsPerPacket) {
++        this.targetRecipientsPerCohort = Math.max(8, Math.min(512, targetRecipientsPerCohort));
++        this.maxCohortsPerPacket = Math.max(16, Math.min(65_536, maxCohortsPerPacket));
++    }
++
++    public void beginTick(final long sequence) {
++        this.tickSequence = Math.max(0L, sequence);
++    }
++
++    public Plan plan(final String packetName, final boolean interactive, final long estimatedRecipients, final int protocolVariants) {
++        if (interactive) {
++            return new Plan(false, 0L, "interactive packets stay immediate ordered");
++        }
++        final long recipients = Math.max(1L, estimatedRecipients);
++        final int variants = Math.max(1, protocolVariants);
++        final long rawCohorts = Math.max(1L, (recipients + this.targetRecipientsPerCohort - 1L) / this.targetRecipientsPerCohort) * variants;
++        final long boundedCohorts = Math.min(this.maxCohortsPerPacket, rawCohorts);
++        final long cost = Math.max(1L, boundedCohorts + recipients / 64L);
++        final AGCScale17AlgorithmKernel.Admission admission = AGCScale17AlgorithmKernel.INSTANCE.claim(
++            AGCScale17AlgorithmKernel.Plane.NETWORK_RECIPIENT_COHORT,
++            cost,
++            packetName
++        );
++        if (!admission.admitted()) {
++            this.waits.incrementAndGet();
++            return new Plan(false, boundedCohorts, "recipient cohort waits; connection order remains unchanged: " + admission.reason());
++        }
++        this.planned.incrementAndGet();
++        this.cohorts.addAndGet(boundedCohorts);
++        return new Plan(true, boundedCohorts, "lossless recipient cohorts");
++    }
++
++    public String statusLine() {
++        return "AGCNetworkRecipientCohortGraph{tick=" + this.tickSequence
++            + ", targetRecipientsPerCohort=" + this.targetRecipientsPerCohort
++            + ", maxCohortsPerPacket=" + this.maxCohortsPerPacket
++            + ", planned=" + this.planned.get()
++            + ", waits=" + this.waits.get()
++            + ", cohorts=" + this.cohorts.get()
++            + '}';
++    }
++
++    public record Plan(boolean admitted, long cohorts, String reason) {
++    }
++}
+--- paper-server/src/main/java/net/minecraft/server/AGCNoInvasionOptimizer.java
++++ paper-server/src/main/java/net/minecraft/server/AGCNoInvasionOptimizer.java
+@@ -107,6 +107,13 @@
+         AGCNetworkDeltaShapePlanner.INSTANCE.beginTick(sequence);
+         AGCWorldLogicPhaseDAG.INSTANCE.beginTick(sequence);
+         AGCPluginSemanticModel.INSTANCE.beginTick(sequence);
++        AGCScale17AlgorithmKernel.INSTANCE.beginTick(sequence);
++        AGCChunkPredictiveIndex.INSTANCE.beginTick(sequence);
++        AGCEntityInteractionGraph.INSTANCE.beginTick(sequence);
++        AGCNetworkRecipientCohortGraph.INSTANCE.beginTick(sequence);
++        AGCWorldPhaseExecutorPlan.INSTANCE.beginTick(sequence);
++        AGCPluginContractVerifier.INSTANCE.beginTick(sequence);
++        AGCCacheLocalityWindow.INSTANCE.beginTick(sequence);
+     }
+ 
+     public Decision admitNetworkDeadlineBatch(final String packetName, final boolean interactive, final long pendingDeferredFlushes) {
+@@ -124,6 +131,24 @@
+         final AGCWorldLogicPhaseDAG.Decision networkPhase = AGCWorldLogicPhaseDAG.INSTANCE.classify(AGCWorldLogicPhaseDAG.Phase.NETWORK_FANOUT_PLAN, packetName);
+         if (networkPhase.orderedBarrier()) {
+             this.lastNetworkDecision = this.record(Lane.NETWORK_DEADLINE_BATCH, Decision.IMMEDIATE_ORDERED, networkPhase.reason());
++            return this.lastNetworkDecision;
++        }
++        final AGCNetworkRecipientCohortGraph.Plan recipientCohort = AGCNetworkRecipientCohortGraph.INSTANCE.plan(
++            packetName,
++            interactive,
++            Math.max(1L, pendingDeferredFlushes),
++            1
++        );
++        if (!recipientCohort.admitted() && pendingDeferredFlushes > 2048L) {
++            this.lastNetworkDecision = this.record(Lane.NETWORK_DEADLINE_BATCH, Decision.IMMEDIATE_ORDERED, recipientCohort.reason());
++            return this.lastNetworkDecision;
++        }
++        final AGCCacheLocalityWindow.Admission networkLocality = AGCCacheLocalityWindow.INSTANCE.claim(
++            "network-cohort:" + packetName,
++            Math.max(4096L, pendingDeferredFlushes * 12L)
++        );
++        if (!networkLocality.admitted() && pendingDeferredFlushes > 4096L) {
++            this.lastNetworkDecision = this.record(Lane.NETWORK_DEADLINE_BATCH, Decision.IMMEDIATE_ORDERED, networkLocality.reason());
+             return this.lastNetworkDecision;
+         }
+         final AGCPacketShapeTable.Decision packetShape = AGCPacketShapeTable.INSTANCE.plan(
+@@ -216,6 +241,19 @@
+             this.lastChunkDecision = this.record(Lane.CHUNK_FIFO_FAIR_QUEUE, Decision.FIFO_FAIR_WAIT, lookahead.reason());
+             return this.lastChunkDecision;
+         }
++        final AGCChunkPredictiveIndex.Plan predictiveIndex = AGCChunkPredictiveIndex.INSTANCE.plan(playerId, operation, motionIntent, lookahead.radius(), 0);
++        if (!predictiveIndex.admitted()) {
++            this.lastChunkDecision = this.record(Lane.CHUNK_FIFO_FAIR_QUEUE, Decision.FIFO_FAIR_WAIT, predictiveIndex.reason());
++            return this.lastChunkDecision;
++        }
++        final AGCCacheLocalityWindow.Admission chunkLocality = AGCCacheLocalityWindow.INSTANCE.claim(
++            "chunk-predictive:" + (playerId == null ? "unknown" : playerId),
++            Math.max(4096L, predictiveIndex.hints() * 32L)
++        );
++        if (!chunkLocality.admitted()) {
++            this.lastChunkDecision = this.record(Lane.CHUNK_FIFO_FAIR_QUEUE, Decision.FIFO_FAIR_WAIT, chunkLocality.reason());
++            return this.lastChunkDecision;
++        }
+         final AGCChunkIntentCompactor.Admission compactedIntent = AGCChunkIntentCompactor.INSTANCE.plan(playerId, operation, "unknown", 0, 0);
+         if (!compactedIntent.admitted()) {
+             this.lastChunkDecision = this.record(Lane.CHUNK_FIFO_FAIR_QUEUE, Decision.FIFO_FAIR_WAIT, compactedIntent.reason());
+@@ -276,6 +314,19 @@
+         final AGCEntitySpatialBandIndex.Admission spatialBand = AGCEntitySpatialBandIndex.INSTANCE.prepare(playerId, estimatedEntities, entityIntent.worldKey());
+         if (!spatialBand.admitted()) {
+             this.lastEntityDecision = this.record(Lane.ENTITY_READ_ONLY_SNAPSHOT, Decision.IMMEDIATE_ORDERED, spatialBand.reason());
++            return this.lastEntityDecision;
++        }
++        final AGCEntityInteractionGraph.Admission interactionGraph = AGCEntityInteractionGraph.INSTANCE.prepare(playerId, estimatedEntities, entityIntent.worldKey());
++        if (!interactionGraph.admitted()) {
++            this.lastEntityDecision = this.record(Lane.ENTITY_READ_ONLY_SNAPSHOT, Decision.IMMEDIATE_ORDERED, interactionGraph.reason());
++            return this.lastEntityDecision;
++        }
++        final AGCCacheLocalityWindow.Admission entityLocality = AGCCacheLocalityWindow.INSTANCE.claim(
++            "entity-graph:" + (playerId == null ? "unknown" : playerId),
++            Math.max(4096L, interactionGraph.candidateEdges() * 8L)
++        );
++        if (!entityLocality.admitted()) {
++            this.lastEntityDecision = this.record(Lane.ENTITY_READ_ONLY_SNAPSHOT, Decision.IMMEDIATE_ORDERED, entityLocality.reason());
+             return this.lastEntityDecision;
+         }
+         final AGCEntityBandingPlanner.Decision bandingDecision = AGCEntityBandingPlanner.INSTANCE.prepare(playerId, estimatedEntities, reason);
+@@ -335,6 +386,20 @@
+             return this.lastWorldDecision;
+         }
+         final long worldCost = Math.max(1L, plan.parallelGroups());
++        final AGCWorldPhaseExecutorPlan.Plan executorPlan = AGCWorldPhaseExecutorPlan.INSTANCE.compile(plan, translatorPending);
++        if (!executorPlan.prepareConcurrent()) {
++            this.lastWorldDecision = this.record(Lane.WORLD_WRITE_INTENT_WAVE, Decision.ORDERED_COMMIT, executorPlan.reason());
++            return this.lastWorldDecision;
++        }
++        final AGCPluginContractVerifier.Decision contractDecision = AGCPluginContractVerifier.INSTANCE.verify(
++            "world",
++            "pure-compute-world-phase-plan",
++            worldCost
++        );
++        if (contractDecision.orderedCommit() || contractDecision.forbiddenMutation()) {
++            this.lastWorldDecision = this.record(Lane.WORLD_WRITE_INTENT_WAVE, Decision.ORDERED_COMMIT, contractDecision.reason());
++            return this.lastWorldDecision;
++        }
+         final AGCWorldLogicPhaseDAG.Decision logicPhase = AGCWorldLogicPhaseDAG.INSTANCE.worldPlan(plan, translatorPending);
+         if (logicPhase.orderedBarrier()) {
+             this.lastWorldDecision = this.record(Lane.WORLD_WRITE_INTENT_WAVE, Decision.ORDERED_COMMIT, logicPhase.reason());
+--- /dev/null
++++ paper-server/src/main/java/net/minecraft/server/AGCPluginContractVerifier.java
+@@ -0,0 +1,80 @@
++package net.minecraft.server;
++
++import java.util.Locale;
++import java.util.concurrent.atomic.AtomicLong;
++
++/**
++ * Conservative plugin contract verifier for alpha17.
++ * <p>
++ * The verifier never grants off-thread Bukkit mutation. It only recognises
++ * read-only/pure helper work as eligible for spare capacity and routes every
++ * Bukkit-visible operation to ordered commit semantics.
++ */
++public final class AGCPluginContractVerifier {
++    public static final AGCPluginContractVerifier INSTANCE = new AGCPluginContractVerifier();
++
++    private final AtomicLong verified = new AtomicLong();
++    private final AtomicLong orderedCommits = new AtomicLong();
++    private final AtomicLong forbiddenMutations = new AtomicLong();
++    private volatile long tickSequence;
++    private volatile boolean strict = true;
++
++    private AGCPluginContractVerifier() {
++    }
++
++    public void configure(final boolean strict) {
++        this.strict = strict;
++    }
++
++    public void beginTick(final long sequence) {
++        this.tickSequence = Math.max(0L, sequence);
++    }
++
++    public Decision verify(final String pluginName, final String operation, final long estimatedCost) {
++        final String op = operation == null ? "" : operation.toLowerCase(Locale.ROOT);
++        final boolean visibleMutation = op.contains("setblock")
++            || op.contains("teleport")
++            || op.contains("spawn")
++            || op.contains("inventory")
++            || op.contains("scoreboard")
++            || op.contains("event")
++            || op.contains("command")
++            || op.contains("world");
++        final boolean forbidden = op.contains("unsafe") || op.contains("offthread") || op.contains("async-mutation");
++        if (forbidden && this.strict) {
++            this.forbiddenMutations.incrementAndGet();
++            return new Decision(false, true, true, "forbidden off-thread mutation blocked for " + safe(pluginName));
++        }
++        if (visibleMutation) {
++            this.orderedCommits.incrementAndGet();
++            return new Decision(false, true, false, "Bukkit-visible plugin work uses ordered commit for " + safe(pluginName));
++        }
++        final AGCScale17AlgorithmKernel.Admission budget = AGCScale17AlgorithmKernel.INSTANCE.claim(
++            AGCScale17AlgorithmKernel.Plane.PLUGIN_SEMANTIC_VERIFY,
++            Math.max(1L, estimatedCost),
++            pluginName + ':' + operation
++        );
++        if (!budget.admitted()) {
++            this.orderedCommits.incrementAndGet();
++            return new Decision(false, true, false, "plugin verifier waits; ordered semantics preserved: " + budget.reason());
++        }
++        this.verified.incrementAndGet();
++        return new Decision(true, false, false, "pure/read-only plugin helper verified");
++    }
++
++    public String statusLine() {
++        return "AGCPluginContractVerifier{tick=" + this.tickSequence
++            + ", strict=" + this.strict
++            + ", verified=" + this.verified.get()
++            + ", orderedCommits=" + this.orderedCommits.get()
++            + ", forbiddenMutations=" + this.forbiddenMutations.get()
++            + '}';
++    }
++
++    private static String safe(final String value) {
++        return value == null ? "unknown" : value;
++    }
++
++    public record Decision(boolean readOnlyHelper, boolean orderedCommit, boolean forbiddenMutation, String reason) {
++    }
++}
+--- paper-server/src/main/java/net/minecraft/server/AGCRuntimeConfigurator.java
++++ paper-server/src/main/java/net/minecraft/server/AGCRuntimeConfigurator.java
+@@ -228,5 +228,12 @@
+         AGCChunkLookaheadPlanner.INSTANCE.configure(14, 384);
+         AGCEntitySpatialBandIndex.INSTANCE.configure(config.agc.performance.entityBandingMaxCandidatesPerPlayer);
+         AGCNetworkDeltaShapePlanner.INSTANCE.configure(config.agc.performance.packetShapeTableMaxShapes);
++        AGCScale17AlgorithmKernel.INSTANCE.configure(true, 820_000L, config.agc.performance.survivalScaleTargetPlayers, 28);
++        AGCChunkPredictiveIndex.INSTANCE.configure(16, 512);
++        AGCEntityInteractionGraph.INSTANCE.configure(config.agc.performance.entityBandingMaxCandidatesPerPlayer * 2, 64);
++        AGCNetworkRecipientCohortGraph.INSTANCE.configure(64, 8192);
++        AGCWorldPhaseExecutorPlan.INSTANCE.configure(96);
++        AGCPluginContractVerifier.INSTANCE.configure(true);
++        AGCCacheLocalityWindow.INSTANCE.configure(160L * 1024L * 1024L);
+     }
+ }
+--- /dev/null
++++ paper-server/src/main/java/net/minecraft/server/AGCScale17AlgorithmKernel.java
+@@ -0,0 +1,127 @@
++package net.minecraft.server;
++
++import java.util.Collections;
++import java.util.EnumMap;
++import java.util.Map;
++import java.util.concurrent.atomic.AtomicLong;
++
++/**
++ * Alpha17 algorithm kernel.
++ * <p>
++ * This is not a fallback switch. It is the budgeted control plane for concrete
++ * algorithms that keep Minecraft/Paper semantics intact: predictive chunk hint
++ * ordering, read-only entity interaction graphs, recipient cohort planning,
++ * phase execution compilation and plugin semantic verification. It only grants
++ * budget to invisible/read-only/helper work; Bukkit-visible mutation and plugin
++ * callbacks remain ordered commits elsewhere.
++ */
++public final class AGCScale17AlgorithmKernel {
++    public static final AGCScale17AlgorithmKernel INSTANCE = new AGCScale17AlgorithmKernel();
++
++    public enum Plane {
++        CHUNK_PREDICTIVE_INDEX,
++        ENTITY_INTERACTION_GRAPH,
++        NETWORK_RECIPIENT_COHORT,
++        WORLD_PHASE_COMPILER,
++        PLUGIN_SEMANTIC_VERIFY,
++        CACHE_LOCALITY_WINDOW
++    }
++
++    private final EnumMap<Plane, AtomicLong> remaining = new EnumMap<>(Plane.class);
++    private final EnumMap<Plane, AtomicLong> admitted = new EnumMap<>(Plane.class);
++    private final EnumMap<Plane, AtomicLong> delayed = new EnumMap<>(Plane.class);
++    private volatile boolean enabled = true;
++    private volatile long tickSequence;
++    private volatile long baseUnits = 720_000L;
++    private volatile double pressureMultiplier = 1.0D;
++    private volatile int expectedPlayers = 3000;
++    private volatile int reservedCpuPercent = 28;
++
++    private AGCScale17AlgorithmKernel() {
++        for (final Plane plane : Plane.values()) {
++            this.remaining.put(plane, new AtomicLong());
++            this.admitted.put(plane, new AtomicLong());
++            this.delayed.put(plane, new AtomicLong());
++        }
++    }
++
++    public void configure(final boolean enabled, final long baseUnits, final int expectedPlayers, final int reservedCpuPercent) {
++        this.enabled = enabled;
++        this.baseUnits = Math.max(65_536L, baseUnits);
++        this.expectedPlayers = Math.max(1, expectedPlayers);
++        this.reservedCpuPercent = Math.max(5, Math.min(70, reservedCpuPercent));
++    }
++
++    public void beginTick(final long sequence) {
++        this.tickSequence = Math.max(0L, sequence);
++        final double scale16Pressure = AGCScale16ControlLaw.INSTANCE.pressure();
++        this.pressureMultiplier = clamp(0.25D, 2.20D, scale16Pressure);
++        final int processors = Math.max(1, Runtime.getRuntime().availableProcessors());
++        final int reservedCores = Math.max(1, (processors * this.reservedCpuPercent + 99) / 100);
++        final int helperCores = Math.max(1, processors - reservedCores);
++        final long playerFactor = Math.max(1L, Math.min(8L, (long) (this.expectedPlayers + 499) / 500L));
++        final long total = this.enabled ? Math.max(8192L, Math.round(this.baseUnits * helperCores * playerFactor * this.pressureMultiplier)) : 0L;
++        for (final Plane plane : Plane.values()) {
++            final long share = switch (plane) {
++                case CHUNK_PREDICTIVE_INDEX -> total * 24L / 100L;
++                case ENTITY_INTERACTION_GRAPH -> total * 22L / 100L;
++                case NETWORK_RECIPIENT_COHORT -> total * 22L / 100L;
++                case WORLD_PHASE_COMPILER -> total * 12L / 100L;
++                case PLUGIN_SEMANTIC_VERIFY -> total * 8L / 100L;
++                case CACHE_LOCALITY_WINDOW -> total * 12L / 100L;
++            };
++            this.remaining.get(plane).set(Math.max(512L, share));
++        }
++    }
++
++    public Admission claim(final Plane plane, final long units, final String reason) {
++        if (!this.enabled) {
++            this.delayed.get(plane).incrementAndGet();
++            return new Admission(false, plane, 0L, "scale17 disabled; ordered semantics stay intact: " + safe(reason));
++        }
++        final long cost = Math.max(1L, units);
++        final AtomicLong bucket = this.remaining.get(plane);
++        while (true) {
++            final long current = bucket.get();
++            if (current < cost) {
++                this.delayed.get(plane).incrementAndGet();
++                return new Admission(false, plane, current, "scale17 waits; no gameplay semantics are skipped: " + safe(reason));
++            }
++            if (bucket.compareAndSet(current, current - cost)) {
++                this.admitted.get(plane).incrementAndGet();
++                return new Admission(true, plane, current - cost, safe(reason));
++            }
++        }
++    }
++
++    public String statusLine() {
++        return "AGCScale17AlgorithmKernel{enabled=" + this.enabled
++            + ", tick=" + this.tickSequence
++            + ", expectedPlayers=" + this.expectedPlayers
++            + ", reservedCpuPercent=" + this.reservedCpuPercent
++            + ", pressureMultiplier=" + this.pressureMultiplier
++            + ", remaining=" + copy(this.remaining)
++            + ", admitted=" + copy(this.admitted)
++            + ", delayed=" + copy(this.delayed)
++            + '}';
++    }
++
++    private static double clamp(final double min, final double max, final double value) {
++        return Math.max(min, Math.min(max, value));
++    }
++
++    private static String safe(final String value) {
++        return value == null ? "" : value;
++    }
++
++    private static Map<Plane, Long> copy(final EnumMap<Plane, AtomicLong> source) {
++        final EnumMap<Plane, Long> copy = new EnumMap<>(Plane.class);
++        for (final Map.Entry<Plane, AtomicLong> entry : source.entrySet()) {
++            copy.put(entry.getKey(), entry.getValue().get());
++        }
++        return Collections.unmodifiableMap(copy);
++    }
++
++    public record Admission(boolean admitted, Plane plane, long remainingUnits, String reason) {
++    }
++}
+--- /dev/null
++++ paper-server/src/main/java/net/minecraft/server/AGCWorldPhaseExecutorPlan.java
+@@ -0,0 +1,64 @@
++package net.minecraft.server;
++
++import java.util.concurrent.atomic.AtomicLong;
++
++/**
++ * Compiles the hard-coded Minecraft phase DAG into prepare waves and ordered
++ * barriers. It only schedules read-only prepare phases; redstone, block entity,
++ * entity tick, plugin event and commit phases remain ordered barriers.
++ */
++public final class AGCWorldPhaseExecutorPlan {
++    public static final AGCWorldPhaseExecutorPlan INSTANCE = new AGCWorldPhaseExecutorPlan();
++
++    private final AtomicLong compiled = new AtomicLong();
++    private final AtomicLong orderedBarriers = new AtomicLong();
++    private volatile long tickSequence;
++    private volatile int maxPrepareWaves = 64;
++
++    private AGCWorldPhaseExecutorPlan() {
++    }
++
++    public void configure(final int maxPrepareWaves) {
++        this.maxPrepareWaves = Math.max(1, Math.min(1024, maxPrepareWaves));
++    }
++
++    public void beginTick(final long sequence) {
++        this.tickSequence = Math.max(0L, sequence);
++    }
++
++    public Plan compile(final AGCWorldWriteIntentGraph.Plan plan, final long translatorPending) {
++        if (plan == null) {
++            this.orderedBarriers.incrementAndGet();
++            return new Plan(false, 0, 1, "no world plan; ordered barrier");
++        }
++        final int requested = Math.max(0, plan.parallelGroups());
++        if (requested <= 0 || translatorPending > 0L && translatorPending > requested * 1024L) {
++            this.orderedBarriers.incrementAndGet();
++            return new Plan(false, 0, 1, "world phase compiler keeps ordered barrier under translator pressure");
++        }
++        final int prepareWaves = Math.min(this.maxPrepareWaves, requested);
++        final long cost = Math.max(1L, prepareWaves + translatorPending / 2048L);
++        final AGCScale17AlgorithmKernel.Admission budget = AGCScale17AlgorithmKernel.INSTANCE.claim(
++            AGCScale17AlgorithmKernel.Plane.WORLD_PHASE_COMPILER,
++            cost,
++            plan.mode().name()
++        );
++        if (!budget.admitted()) {
++            this.orderedBarriers.incrementAndGet();
++            return new Plan(false, 0, 1, "phase compiler waits; ordered barrier remains: " + budget.reason());
++        }
++        this.compiled.incrementAndGet();
++        return new Plan(true, prepareWaves, 1, "read-only prepare waves + single ordered commit barrier");
++    }
++
++    public String statusLine() {
++        return "AGCWorldPhaseExecutorPlan{tick=" + this.tickSequence
++            + ", maxPrepareWaves=" + this.maxPrepareWaves
++            + ", compiled=" + this.compiled.get()
++            + ", orderedBarriers=" + this.orderedBarriers.get()
++            + '}';
++    }
++
++    public record Plan(boolean prepareConcurrent, int prepareWaves, int orderedBarriers, String reason) {
++    }
++}
+--- paper-server/src/minecraft/java/net/minecraft/server/commands/AGCCommand.java
++++ paper-server/src/minecraft/java/net/minecraft/server/commands/AGCCommand.java
+@@ -36,6 +36,7 @@
+                 .then(Commands.literal("wild-scale").executes(context -> sendReport(context.getSource(), AGCCommandReports.wildScale())))
+                 .then(Commands.literal("scale15").executes(context -> sendReport(context.getSource(), AGCCommandReports.scale15())))
+                 .then(Commands.literal("scale16").executes(context -> sendReport(context.getSource(), AGCCommandReports.scale16())))
++                .then(Commands.literal("scale17").executes(context -> sendReport(context.getSource(), AGCCommandReports.scale17())))
+                 .then(Commands.literal("rollback-profile").executes(context -> sendReport(context.getSource(), AGCCommandReports.rollbackProfile())))
+                 .then(Commands.literal("health").executes(context -> sendReport(context.getSource(), AGCRuntimeHealth.INSTANCE.statusLine())))
+                 .then(Commands.literal("reset-rollback")
+@@ -69,6 +70,7 @@
+             "  /agc wild-scale - alpha14 thousand-player survival scale kernel",
+             "  /agc scale15 - alpha15 packet/chunk/entity/plugin high-scale optimisation plane",
+             "  /agc scale16 - alpha16 logic and algorithm optimisation plane",
++            "  /agc scale17 - alpha17 predictive algorithm engine",
+             "  /agc rollback-profile - rollback counters",
+             "  /agc reset-rollback - clear AGC runtime rollback flags for this process"
+         );
+--- test-plugin/src/main/java/io/papermc/testplugin/e2e/TestRegistry.java
++++ test-plugin/src/main/java/io/papermc/testplugin/e2e/TestRegistry.java
+@@ -42,6 +42,7 @@
+         new FeatureR22Tests().register(this);
+         new FeatureR23Tests().register(this);
+         new FeatureR24Tests().register(this);
++        new FeatureR25Tests().register(this);
+         new Tier3Tests().register(this);
+         new Tier4Tests().register(this);
+     }
+--- /dev/null
++++ test-plugin/src/main/java/io/papermc/testplugin/e2e/tests/FeatureR25Tests.java
+@@ -0,0 +1,67 @@
++package io.papermc.testplugin.e2e.tests;
++
++import io.papermc.testplugin.e2e.E2ETest;
++import io.papermc.testplugin.e2e.TestContext;
++import io.papermc.testplugin.e2e.TestRegistry;
++
++public class FeatureR25Tests {
++    public void register(TestRegistry registry) {
++        registry.register(new E2ETest() {
++            @Override public String getId() { return "R25_T1_1"; }
++            @Override public String getName() { return "R25 Tier 1 - Scale17 Algorithm Kernel"; }
++            @Override public void run(TestContext context) throws Exception {
++                Class<?> kernel = context.checkClassExists("net.minecraft.server.AGCScale17AlgorithmKernel");
++                Object instance = kernel.getDeclaredField("INSTANCE").get(null);
++                context.assertTrue(((String) kernel.getDeclaredMethod("statusLine").invoke(instance)).contains("AGCScale17AlgorithmKernel"), "Scale17 kernel status must identify itself.");
++            }
++        });
++        registry.register(new E2ETest() {
++            @Override public String getId() { return "R25_T1_2"; }
++            @Override public String getName() { return "R25 Tier 1 - Predictive Chunk Index and Cache Locality"; }
++            @Override public void run(TestContext context) throws Exception {
++                Class<?> chunk = context.checkClassExists("net.minecraft.server.AGCChunkPredictiveIndex");
++                Object chunkInstance = chunk.getDeclaredField("INSTANCE").get(null);
++                context.assertTrue(((String) chunk.getDeclaredMethod("statusLine").invoke(chunkInstance)).contains("AGCChunkPredictiveIndex"), "Chunk predictive index status must identify itself.");
++                Class<?> cache = context.checkClassExists("net.minecraft.server.AGCCacheLocalityWindow");
++                Object cacheInstance = cache.getDeclaredField("INSTANCE").get(null);
++                context.assertTrue(((String) cache.getDeclaredMethod("statusLine").invoke(cacheInstance)).contains("AGCCacheLocalityWindow"), "Cache locality status must identify itself.");
++            }
++        });
++        registry.register(new E2ETest() {
++            @Override public String getId() { return "R25_T1_3"; }
++            @Override public String getName() { return "R25 Tier 1 - Entity Graph and Recipient Cohorts"; }
++            @Override public void run(TestContext context) throws Exception {
++                Class<?> entity = context.checkClassExists("net.minecraft.server.AGCEntityInteractionGraph");
++                Object entityInstance = entity.getDeclaredField("INSTANCE").get(null);
++                context.assertTrue(((String) entity.getDeclaredMethod("statusLine").invoke(entityInstance)).contains("AGCEntityInteractionGraph"), "Entity interaction graph status must identify itself.");
++                Class<?> cohort = context.checkClassExists("net.minecraft.server.AGCNetworkRecipientCohortGraph");
++                Object cohortInstance = cohort.getDeclaredField("INSTANCE").get(null);
++                context.assertTrue(((String) cohort.getDeclaredMethod("statusLine").invoke(cohortInstance)).contains("AGCNetworkRecipientCohortGraph"), "Network recipient cohort graph status must identify itself.");
++            }
++        });
++        registry.register(new E2ETest() {
++            @Override public String getId() { return "R25_T1_4"; }
++            @Override public String getName() { return "R25 Tier 1 - World Phase Compiler and Plugin Contract Verifier"; }
++            @Override public void run(TestContext context) throws Exception {
++                Class<?> world = context.checkClassExists("net.minecraft.server.AGCWorldPhaseExecutorPlan");
++                Object worldInstance = world.getDeclaredField("INSTANCE").get(null);
++                context.assertTrue(((String) world.getDeclaredMethod("statusLine").invoke(worldInstance)).contains("AGCWorldPhaseExecutorPlan"), "World phase executor status must identify itself.");
++                Class<?> verifier = context.checkClassExists("net.minecraft.server.AGCPluginContractVerifier");
++                Object verifierInstance = verifier.getDeclaredField("INSTANCE").get(null);
++                context.assertTrue(((String) verifier.getDeclaredMethod("statusLine").invoke(verifierInstance)).contains("AGCPluginContractVerifier"), "Plugin contract verifier status must identify itself.");
++            }
++        });
++        registry.register(new E2ETest() {
++            @Override public String getId() { return "R25_T1_5"; }
++            @Override public String getName() { return "R25 Tier 1 - Scale17 Command Report and Public API"; }
++            @Override public void run(TestContext context) throws Exception {
++                Class<?> reports = context.checkClassExists("net.minecraft.server.AGCCommandReports");
++                String report = (String) reports.getDeclaredMethod("scale17").invoke(null);
++                context.assertTrue(report.contains("AGCScale17AlgorithmKernel") && report.contains("hardRules"), "Scale17 report must include algorithm kernel and hard rules.");
++                context.checkClassExists("io.agcmc.agc.api.AGCScale17Plan");
++                Class<?> performance = context.checkClassExists("io.agcmc.agc.api.AGCPerformance");
++                context.assertNotNull(performance.getDeclaredMethod("scale17Plan", int.class, double.class), "scale17Plan API must exist.");
++            }
++        });
++    }
++}

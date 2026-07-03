@@ -1,0 +1,1064 @@
+diff -ruN agc-alpha10-baseline/agc-26.2/paper-api/src/main/java/io/agcmc/agc/api/AGC.java agc-alpha10/agc-26.2/paper-api/src/main/java/io/agcmc/agc/api/AGC.java
+--- agc-alpha10-baseline/agc-26.2/paper-api/src/main/java/io/agcmc/agc/api/AGC.java	2026-06-26 12:16:42.000000000 +0000
++++ agc-alpha10/agc-26.2/paper-api/src/main/java/io/agcmc/agc/api/AGC.java	2026-06-26 15:09:03.386421865 +0000
+@@ -1,5 +1,6 @@
+ package io.agcmc.agc.api;
+ 
++import io.agcmc.agc.api.compat.AGCCompatibility;
+ import io.agcmc.agc.api.minigame.AGCMinigames;
+ import org.jetbrains.annotations.NotNull;
+ 
+@@ -14,6 +15,7 @@
+     private static final AGCMinigames MINIGAMES = new AGCMinigames();
+     private static final AGCScheduler SCHEDULER = new AGCScheduler();
+     private static final AGCPerformance PERFORMANCE = new AGCPerformance();
++    private static final AGCCompatibility COMPATIBILITY = new AGCCompatibility();
+ 
+     private AGC() {
+     }
+@@ -44,4 +46,14 @@
+     public static @NotNull AGCPerformance performance() {
+         return PERFORMANCE;
+     }
++
++    /**
++     * Plugin compatibility contract registry. Declarations are conservative hints
++     * for AGC no-invasion lanes and never permit off-thread Bukkit mutations.
++     *
++     * @return the AGC compatibility registry
++     */
++    public static @NotNull AGCCompatibility compatibility() {
++        return COMPATIBILITY;
++    }
+ }
+diff -ruN agc-alpha10-baseline/agc-26.2/paper-api/src/main/java/io/agcmc/agc/api/AGCScheduler.java agc-alpha10/agc-26.2/paper-api/src/main/java/io/agcmc/agc/api/AGCScheduler.java
+--- agc-alpha10-baseline/agc-26.2/paper-api/src/main/java/io/agcmc/agc/api/AGCScheduler.java	2026-06-26 12:16:42.000000000 +0000
++++ agc-alpha10/agc-26.2/paper-api/src/main/java/io/agcmc/agc/api/AGCScheduler.java	2026-06-26 15:09:15.165917529 +0000
+@@ -3,6 +3,7 @@
+ import org.bukkit.Bukkit;
+ import org.bukkit.Location;
+ import org.bukkit.plugin.Plugin;
++import java.util.concurrent.CompletableFuture;
+ import org.bukkit.scheduler.BukkitTask;
+ import org.jetbrains.annotations.NotNull;
+ 
+@@ -33,6 +34,40 @@
+         return Bukkit.getScheduler().runTaskTimer(plugin, task, Math.max(0L, delayTicks), Math.max(1L, periodTicks));
+     }
+ 
++
++    /**
++     * Runs a plugin-supplied read-only preparation task asynchronously and then
++     * commits on the primary thread. The prepare task must not call mutating
++     * Bukkit APIs; the commit task is where Bukkit-visible state changes belong.
++     */
++    public @NotNull BukkitTask prepareAsyncThenCommit(
++        final @NotNull Plugin plugin,
++        final @NotNull Runnable readOnlyPrepare,
++        final @NotNull Runnable orderedCommit
++    ) {
++        return Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
++            readOnlyPrepare.run();
++            Bukkit.getScheduler().runTask(plugin, orderedCommit);
++        });
++    }
++
++    /**
++     * Runs read-only work asynchronously and exposes a future. Mutating Bukkit
++     * operations must be scheduled through runPrimary/prepareAsyncThenCommit.
++     */
++    public @NotNull CompletableFuture<Void> readOnlyAsync(final @NotNull Plugin plugin, final @NotNull Runnable readOnlyPrepare) {
++        final CompletableFuture<Void> future = new CompletableFuture<>();
++        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
++            try {
++                readOnlyPrepare.run();
++                future.complete(null);
++            } catch (final Throwable throwable) {
++                future.completeExceptionally(throwable);
++            }
++        });
++        return future;
++    }
++
+     /**
+      * Region-hinted scheduling surface. On classic Paper this intentionally
+      * falls back to the primary thread; future region-threaded runtimes may
+diff -ruN agc-alpha10-baseline/agc-26.2/paper-api/src/main/java/io/agcmc/agc/api/compat/AGCCompatibility.java agc-alpha10/agc-26.2/paper-api/src/main/java/io/agcmc/agc/api/compat/AGCCompatibility.java
+--- agc-alpha10-baseline/agc-26.2/paper-api/src/main/java/io/agcmc/agc/api/compat/AGCCompatibility.java	1970-01-01 00:00:00.000000000 +0000
++++ agc-alpha10/agc-26.2/paper-api/src/main/java/io/agcmc/agc/api/compat/AGCCompatibility.java	2026-06-26 15:12:14.173835594 +0000
+@@ -0,0 +1,69 @@
++package io.agcmc.agc.api.compat;
++
++import io.agcmc.agc.api.AGC;
++import java.util.ArrayList;
++import java.util.Collection;
++import java.util.Collections;
++import java.util.EnumSet;
++import java.util.LinkedHashMap;
++import java.util.Map;
++import org.bukkit.NamespacedKey;
++import org.bukkit.plugin.Plugin;
++import org.jetbrains.annotations.NotNull;
++import org.jetbrains.annotations.Nullable;
++
++/**
++ * Public compatibility contract registry for plugins.
++ * <p>
++ * This is intentionally opt-in and conservative: declarations help AGC choose
++ * no-invasion lanes, but never allow off-thread Bukkit mutation or event-order
++ * changes.
++ */
++public final class AGCCompatibility {
++    public AGCCompatibility() {
++    }
++
++    private final Map<String, AGCCompatibilityDeclaration> declarations = new LinkedHashMap<>();
++
++    public synchronized @NotNull AGCCompatibilityDeclaration declare(
++        final @NotNull Plugin plugin,
++        final @NotNull AGCCompatibilityScope scope,
++        final @Nullable NamespacedKey key,
++        final @NotNull Collection<AGCCompatibilityContract> contracts
++    ) {
++        AGC.scheduler().ensurePrimaryThread("compatibility.declare");
++        final EnumSet<AGCCompatibilityContract> copy = contracts.isEmpty()
++            ? EnumSet.noneOf(AGCCompatibilityContract.class)
++            : EnumSet.copyOf(contracts);
++        final AGCCompatibilityDeclaration declaration = new AGCCompatibilityDeclaration(plugin, scope, key, copy);
++        this.declarations.put(id(plugin.getName(), scope, key), declaration);
++        return declaration;
++    }
++
++    public synchronized void revoke(final @NotNull Plugin plugin, final @NotNull AGCCompatibilityScope scope, final @Nullable NamespacedKey key) {
++        AGC.scheduler().ensurePrimaryThread("compatibility.revoke");
++        this.declarations.remove(id(plugin.getName(), scope, key));
++    }
++
++    public synchronized @NotNull Collection<AGCCompatibilityDeclaration> declarations() {
++        return Collections.unmodifiableCollection(new ArrayList<>(this.declarations.values()));
++    }
++
++    public synchronized boolean has(
++        final @NotNull Plugin plugin,
++        final @NotNull AGCCompatibilityScope scope,
++        final @Nullable NamespacedKey key,
++        final @NotNull AGCCompatibilityContract contract
++    ) {
++        final AGCCompatibilityDeclaration declaration = this.declarations.get(id(plugin.getName(), scope, key));
++        return declaration != null && declaration.has(contract);
++    }
++
++    public synchronized int declarationCount() {
++        return this.declarations.size();
++    }
++
++    private static String id(final String plugin, final AGCCompatibilityScope scope, final @Nullable NamespacedKey key) {
++        return plugin + '|' + scope.name() + '|' + (key == null ? "*" : key.asString());
++    }
++}
+diff -ruN agc-alpha10-baseline/agc-26.2/paper-api/src/main/java/io/agcmc/agc/api/compat/AGCCompatibilityContract.java agc-alpha10/agc-26.2/paper-api/src/main/java/io/agcmc/agc/api/compat/AGCCompatibilityContract.java
+--- agc-alpha10-baseline/agc-26.2/paper-api/src/main/java/io/agcmc/agc/api/compat/AGCCompatibilityContract.java	1970-01-01 00:00:00.000000000 +0000
++++ agc-alpha10/agc-26.2/paper-api/src/main/java/io/agcmc/agc/api/compat/AGCCompatibilityContract.java	2026-06-26 15:09:02.279885342 +0000
+@@ -0,0 +1,26 @@
++package io.agcmc.agc.api.compat;
++
++/**
++ * Compatibility contracts a plugin can declare to AGC.
++ * <p>
++ * These contracts never grant AGC permission to change Bukkit event order or run
++ * Bukkit mutations off the primary thread. They only let AGC safely move
++ * read-only preparation, packet grouping and arena-local bookkeeping into the
++ * correct no-invasion lane without guessing from plugin names.
++ */
++public enum AGCCompatibilityContract {
++    /** Plugin never synchronously mutates a different world while handling a world event. */
++    WORLD_LOCAL_EVENTS,
++    /** Plugin tolerates arena-local read-only preparation before ordered Bukkit commits. */
++    ARENA_READ_ONLY_PREPARE,
++    /** Plugin does not depend on cosmetic packet flushes occurring before the next tick deadline. */
++    DEADLINE_ORDERED_COSMETIC_PACKETS,
++    /** Plugin keeps chunk load/generate requests FIFO per player/arena. */
++    FIFO_CHUNK_INTENTS,
++    /** Plugin is safe with AGC hiding non-arena players through ordinary Bukkit visibility APIs. */
++    ARENA_VISIBILITY_ISOLATION,
++    /** Plugin only reads entity tracker snapshots produced by AGC; it does not mutate entity tick order. */
++    READ_ONLY_ENTITY_SNAPSHOTS,
++    /** Plugin declares that all unsafe work will be scheduled through AGC.scheduler(). */
++    PRIMARY_THREAD_COMMIT_DISCIPLINE
++}
+diff -ruN agc-alpha10-baseline/agc-26.2/paper-api/src/main/java/io/agcmc/agc/api/compat/AGCCompatibilityDeclaration.java agc-alpha10/agc-26.2/paper-api/src/main/java/io/agcmc/agc/api/compat/AGCCompatibilityDeclaration.java
+--- agc-alpha10-baseline/agc-26.2/paper-api/src/main/java/io/agcmc/agc/api/compat/AGCCompatibilityDeclaration.java	1970-01-01 00:00:00.000000000 +0000
++++ agc-alpha10/agc-26.2/paper-api/src/main/java/io/agcmc/agc/api/compat/AGCCompatibilityDeclaration.java	2026-06-26 15:09:02.291308952 +0000
+@@ -0,0 +1,55 @@
++package io.agcmc.agc.api.compat;
++
++import java.time.Instant;
++import java.util.Collections;
++import java.util.EnumSet;
++import java.util.Set;
++import org.bukkit.NamespacedKey;
++import org.bukkit.plugin.Plugin;
++import org.jetbrains.annotations.NotNull;
++import org.jetbrains.annotations.Nullable;
++
++/** Immutable compatibility declaration registered by a plugin. */
++public final class AGCCompatibilityDeclaration {
++    private final String pluginName;
++    private final AGCCompatibilityScope scope;
++    private final NamespacedKey key;
++    private final EnumSet<AGCCompatibilityContract> contracts;
++    private final Instant registeredAt;
++
++    AGCCompatibilityDeclaration(
++        final @NotNull Plugin plugin,
++        final @NotNull AGCCompatibilityScope scope,
++        final @Nullable NamespacedKey key,
++        final @NotNull Set<AGCCompatibilityContract> contracts
++    ) {
++        this.pluginName = plugin.getName();
++        this.scope = scope;
++        this.key = key;
++        this.contracts = contracts.isEmpty()
++            ? EnumSet.noneOf(AGCCompatibilityContract.class)
++            : EnumSet.copyOf(contracts);
++        this.registeredAt = Instant.now();
++    }
++
++    public @NotNull String pluginName() { return this.pluginName; }
++    public @NotNull AGCCompatibilityScope scope() { return this.scope; }
++    public @Nullable NamespacedKey key() { return this.key; }
++    public @NotNull Set<AGCCompatibilityContract> contracts() { return Collections.unmodifiableSet(this.contracts); }
++    public @NotNull Instant registeredAt() { return this.registeredAt; }
++
++    public boolean has(final @NotNull AGCCompatibilityContract contract) {
++        return this.contracts.contains(contract);
++    }
++
++    @Override
++    public String toString() {
++        return "AGCCompatibilityDeclaration{"
++            + "plugin='" + this.pluginName + '\''
++            + ", scope=" + this.scope
++            + ", key=" + this.key
++            + ", contracts=" + this.contracts
++            + ", registeredAt=" + this.registeredAt
++            + '}';
++    }
++}
+diff -ruN agc-alpha10-baseline/agc-26.2/paper-api/src/main/java/io/agcmc/agc/api/compat/AGCCompatibilityScope.java agc-alpha10/agc-26.2/paper-api/src/main/java/io/agcmc/agc/api/compat/AGCCompatibilityScope.java
+--- agc-alpha10-baseline/agc-26.2/paper-api/src/main/java/io/agcmc/agc/api/compat/AGCCompatibilityScope.java	1970-01-01 00:00:00.000000000 +0000
++++ agc-alpha10/agc-26.2/paper-api/src/main/java/io/agcmc/agc/api/compat/AGCCompatibilityScope.java	2026-06-26 15:09:02.285529021 +0000
+@@ -0,0 +1,12 @@
++package io.agcmc.agc.api.compat;
++
++/** Scope in which a compatibility contract applies. */
++public enum AGCCompatibilityScope {
++    GLOBAL,
++    WORLD,
++    ARENA,
++    PLAYER,
++    PACKET,
++    CHUNK,
++    ENTITY
++}
+diff -ruN agc-alpha10-baseline/agc-26.2/paper-api/src/main/java/io/agcmc/agc/api/minigame/AGCArenaOptions.java agc-alpha10/agc-26.2/paper-api/src/main/java/io/agcmc/agc/api/minigame/AGCArenaOptions.java
+--- agc-alpha10-baseline/agc-26.2/paper-api/src/main/java/io/agcmc/agc/api/minigame/AGCArenaOptions.java	2026-06-26 12:38:32.000000000 +0000
++++ agc-alpha10/agc-26.2/paper-api/src/main/java/io/agcmc/agc/api/minigame/AGCArenaOptions.java	2026-06-26 15:09:36.654995130 +0000
+@@ -20,6 +20,9 @@
+     private final boolean preferStableEntityTracking;
+     private final boolean hideNonArenaPlayers;
+     private final boolean resetOnEmpty;
++    private final int playersPerShard;
++    private final boolean deterministicReset;
++    private final boolean readOnlyPrewarm;
+ 
+     private AGCArenaOptions(final Builder builder) {
+         this.minPlayers = Math.max(0, builder.minPlayers);
+@@ -38,6 +41,9 @@
+         this.preferStableEntityTracking = builder.preferStableEntityTracking;
+         this.hideNonArenaPlayers = builder.hideNonArenaPlayers;
+         this.resetOnEmpty = builder.resetOnEmpty;
++        this.playersPerShard = Math.max(1, builder.playersPerShard);
++        this.deterministicReset = builder.deterministicReset;
++        this.readOnlyPrewarm = builder.readOnlyPrewarm;
+     }
+ 
+     public static @NotNull Builder builder() {
+@@ -60,6 +66,9 @@
+     public boolean preferStableEntityTracking() { return this.preferStableEntityTracking; }
+     public boolean hideNonArenaPlayers() { return this.hideNonArenaPlayers; }
+     public boolean resetOnEmpty() { return this.resetOnEmpty; }
++    public int playersPerShard() { return this.playersPerShard; }
++    public boolean deterministicReset() { return this.deterministicReset; }
++    public boolean readOnlyPrewarm() { return this.readOnlyPrewarm; }
+ 
+     public static final class Builder {
+         private int minPlayers = 2;
+@@ -78,6 +87,9 @@
+         private boolean preferStableEntityTracking = true;
+         private boolean hideNonArenaPlayers = false;
+         private boolean resetOnEmpty = true;
++        private int playersPerShard = 64;
++        private boolean deterministicReset = true;
++        private boolean readOnlyPrewarm = true;
+ 
+         private Builder() {
+         }
+@@ -97,6 +109,8 @@
+             this.maxPlayers = Math.max(this.maxPlayers, profile.recommendedMaxPlayers());
+             this.preloadChunkRadius = profile.recommendedPreloadRadius();
+             this.optimizeArenaPackets = profile.preferAggressiveNetworkBudget();
++            this.playersPerShard = Math.max(8, profile.recommendedMaxPlayers());
++            this.hideNonArenaPlayers = profile == AGCMinigameProfile.DUEL || profile == AGCMinigameProfile.BATTLE_ROYALE || profile == AGCMinigameProfile.INSTANCE_WORLD;
+             return this;
+         }
+         public @NotNull Builder preloadChunkRadius(final int preloadChunkRadius) { this.preloadChunkRadius = preloadChunkRadius; return this; }
+@@ -104,6 +118,9 @@
+         public @NotNull Builder preferStableEntityTracking(final boolean preferStableEntityTracking) { this.preferStableEntityTracking = preferStableEntityTracking; return this; }
+         public @NotNull Builder hideNonArenaPlayers(final boolean hideNonArenaPlayers) { this.hideNonArenaPlayers = hideNonArenaPlayers; return this; }
+         public @NotNull Builder resetOnEmpty(final boolean resetOnEmpty) { this.resetOnEmpty = resetOnEmpty; return this; }
++        public @NotNull Builder playersPerShard(final int playersPerShard) { this.playersPerShard = playersPerShard; return this; }
++        public @NotNull Builder deterministicReset(final boolean deterministicReset) { this.deterministicReset = deterministicReset; return this; }
++        public @NotNull Builder readOnlyPrewarm(final boolean readOnlyPrewarm) { this.readOnlyPrewarm = readOnlyPrewarm; return this; }
+         public @NotNull AGCArenaOptions build() { return new AGCArenaOptions(this); }
+     }
+ }
+diff -ruN agc-alpha10-baseline/agc-26.2/paper-api/src/main/java/io/agcmc/agc/api/minigame/AGCArenaScalingPlan.java agc-alpha10/agc-26.2/paper-api/src/main/java/io/agcmc/agc/api/minigame/AGCArenaScalingPlan.java
+--- agc-alpha10-baseline/agc-26.2/paper-api/src/main/java/io/agcmc/agc/api/minigame/AGCArenaScalingPlan.java	1970-01-01 00:00:00.000000000 +0000
++++ agc-alpha10/agc-26.2/paper-api/src/main/java/io/agcmc/agc/api/minigame/AGCArenaScalingPlan.java	2026-06-26 15:09:35.575233239 +0000
+@@ -0,0 +1,52 @@
++package io.agcmc.agc.api.minigame;
++
++import org.jetbrains.annotations.NotNull;
++
++/** Immutable arena scaling hint for large mini-game networks. */
++public final class AGCArenaScalingPlan {
++    private final AGCMinigameProfile profile;
++    private final int expectedPlayers;
++    private final int recommendedShards;
++    private final int playersPerShard;
++    private final int preloadChunkRadius;
++    private final boolean isolateVisibility;
++    private final boolean useReadOnlyPrepare;
++
++    public AGCArenaScalingPlan(
++        final @NotNull AGCMinigameProfile profile,
++        final int expectedPlayers,
++        final int playersPerShard,
++        final int preloadChunkRadius,
++        final boolean isolateVisibility,
++        final boolean useReadOnlyPrepare
++    ) {
++        this.profile = profile;
++        this.expectedPlayers = Math.max(0, expectedPlayers);
++        this.playersPerShard = Math.max(1, playersPerShard);
++        this.recommendedShards = Math.max(1, (this.expectedPlayers + this.playersPerShard - 1) / this.playersPerShard);
++        this.preloadChunkRadius = Math.max(0, preloadChunkRadius);
++        this.isolateVisibility = isolateVisibility;
++        this.useReadOnlyPrepare = useReadOnlyPrepare;
++    }
++
++    public @NotNull AGCMinigameProfile profile() { return this.profile; }
++    public int expectedPlayers() { return this.expectedPlayers; }
++    public int recommendedShards() { return this.recommendedShards; }
++    public int playersPerShard() { return this.playersPerShard; }
++    public int preloadChunkRadius() { return this.preloadChunkRadius; }
++    public boolean isolateVisibility() { return this.isolateVisibility; }
++    public boolean useReadOnlyPrepare() { return this.useReadOnlyPrepare; }
++
++    @Override
++    public String toString() {
++        return "AGCArenaScalingPlan{"
++            + "profile=" + this.profile
++            + ", expectedPlayers=" + this.expectedPlayers
++            + ", recommendedShards=" + this.recommendedShards
++            + ", playersPerShard=" + this.playersPerShard
++            + ", preloadChunkRadius=" + this.preloadChunkRadius
++            + ", isolateVisibility=" + this.isolateVisibility
++            + ", useReadOnlyPrepare=" + this.useReadOnlyPrepare
++            + '}';
++    }
++}
+diff -ruN agc-alpha10-baseline/agc-26.2/paper-api/src/main/java/io/agcmc/agc/api/minigame/AGCMinigames.java agc-alpha10/agc-26.2/paper-api/src/main/java/io/agcmc/agc/api/minigame/AGCMinigames.java
+--- agc-alpha10-baseline/agc-26.2/paper-api/src/main/java/io/agcmc/agc/api/minigame/AGCMinigames.java	2026-06-26 12:39:32.000000000 +0000
++++ agc-alpha10/agc-26.2/paper-api/src/main/java/io/agcmc/agc/api/minigame/AGCMinigames.java	2026-06-26 15:09:36.655282066 +0000
+@@ -70,6 +70,33 @@
+         return this.playerArenaIndex.size();
+     }
+ 
++    public @NotNull AGCArenaScalingPlan scalingPlan(final int expectedPlayers, final @NotNull AGCMinigameProfile profile) {
++        final int playersPerShard = Math.max(8, profile.recommendedMaxPlayers());
++        return new AGCArenaScalingPlan(
++            profile,
++            Math.max(0, expectedPlayers),
++            playersPerShard,
++            profile.recommendedPreloadRadius(),
++            profile == AGCMinigameProfile.DUEL || profile == AGCMinigameProfile.BATTLE_ROYALE || profile == AGCMinigameProfile.INSTANCE_WORLD,
++            true
++        );
++    }
++
++    public synchronized @NotNull Collection<AGCArena> arenasForShard(final int shardId) {
++        final int normalized = Math.max(0, shardId);
++        final ArrayList<AGCArena> matched = new ArrayList<>();
++        int index = 0;
++        for (final AGCArena arena : this.arenas.values()) {
++            final int perShard = Math.max(1, arena.options().playersPerShard());
++            final int arenaShard = index / perShard;
++            if (arenaShard == normalized) {
++                matched.add(arena);
++            }
++            index++;
++        }
++        return Collections.unmodifiableCollection(matched);
++    }
++
+     public synchronized boolean unregisterArena(final @NotNull NamespacedKey key) {
+         AGC.scheduler().ensurePrimaryThread("minigames.unregisterArena");
+         final AGCArena arena = this.arenas.remove(key);
+diff -ruN agc-alpha10-baseline/agc-26.2/paper-server/src/main/java/net/minecraft/server/AGCChunkAdmission.java agc-alpha10/agc-26.2/paper-server/src/main/java/net/minecraft/server/AGCChunkAdmission.java
+--- agc-alpha10-baseline/agc-26.2/paper-server/src/main/java/net/minecraft/server/AGCChunkAdmission.java	2026-06-26 14:01:36.000000000 +0000
++++ agc-alpha10/agc-26.2/paper-server/src/main/java/net/minecraft/server/AGCChunkAdmission.java	2026-06-26 15:10:42.960409574 +0000
+@@ -87,8 +87,15 @@
+             AGCSemanticInvariant.INSTANCE.record(AGCSemanticInvariant.Domain.CHUNK, AGCSemanticInvariant.Decision.MAIN_THREAD_ORDERED_COMMIT, "chunk operation ordered commit " + operation);
+             return true;
+         }
++        final AGCPlayerIntentScheduler.IntentType intentType = switch (operation) {
++            case LOAD -> AGCPlayerIntentScheduler.IntentType.CHUNK_LOAD;
++            case GENERATE -> AGCPlayerIntentScheduler.IntentType.CHUNK_GENERATE;
++            case SEND -> AGCPlayerIntentScheduler.IntentType.CHUNK_SEND;
++        };
++        final AGCPlayerIntentScheduler.Admission playerIntent = AGCPlayerIntentScheduler.INSTANCE.admit(player.getUUID(), intentType, 1);
+         final AGCNoInvasionOptimizer.Decision decision = AGCNoInvasionOptimizer.INSTANCE.admitChunkQueue(player.getUUID(), operation);
+-        final boolean admitted = decision == AGCNoInvasionOptimizer.Decision.ORDERED_COMMIT
++        final boolean admitted = playerIntent.admitted()
++            && decision == AGCNoInvasionOptimizer.Decision.ORDERED_COMMIT
+             && AGCChunkBudget.INSTANCE.admit(player.getUUID(), operation);
+         if (admitted) {
+             this.markAdmitted(operation);
+diff -ruN agc-alpha10-baseline/agc-26.2/paper-server/src/main/java/net/minecraft/server/AGCCommandReports.java agc-alpha10/agc-26.2/paper-server/src/main/java/net/minecraft/server/AGCCommandReports.java
+--- agc-alpha10-baseline/agc-26.2/paper-server/src/main/java/net/minecraft/server/AGCCommandReports.java	2026-06-26 14:05:50.000000000 +0000
++++ agc-alpha10/agc-26.2/paper-server/src/main/java/net/minecraft/server/AGCCommandReports.java	2026-06-26 15:11:20.152648836 +0000
+@@ -29,7 +29,13 @@
+             AGCDeterministicTaskPipeline.INSTANCE.statusLine(),
+             AGCChunkFairQueue.INSTANCE.statusLine(),
+             AGCEntityAdmission.INSTANCE.statusLine(),
++            AGCPlayerIntentScheduler.INSTANCE.statusLine(),
++            AGCShardPlanner.INSTANCE.statusLine(),
++            AGCPluginCompatibilityContracts.INSTANCE.statusLine(),
+             AGCEntitySnapshotPlanner.INSTANCE.statusLine(),
++            AGCPlayerIntentScheduler.INSTANCE.statusLine(),
++            AGCShardPlanner.INSTANCE.statusLine(),
++            AGCPluginCompatibilityContracts.INSTANCE.statusLine(),
+             AGCStabilityJournal.INSTANCE.statusLine(),
+             MeteusSpatialGrid.INSTANCE.generateMetricsReport()
+         );
+@@ -63,7 +69,10 @@
+             AGCCompatibilityBridge.compatibilityReport(),
+             AGCRuntimeHealth.INSTANCE.statusLine(),
+             AGCPerformanceGovernor.INSTANCE.statusLine(),
+-            AGCEntityAdmission.INSTANCE.statusLine()
++            AGCEntityAdmission.INSTANCE.statusLine(),
++            AGCPlayerIntentScheduler.INSTANCE.statusLine(),
++            AGCShardPlanner.INSTANCE.statusLine(),
++            AGCPluginCompatibilityContracts.INSTANCE.statusLine()
+         );
+     }
+ 
+@@ -74,11 +83,38 @@
+             AGCWorldWriteIntentGraph.INSTANCE.statusLine(),
+             AGCChunkFairQueue.INSTANCE.statusLine(),
+             AGCEntitySnapshotPlanner.INSTANCE.statusLine(),
++            AGCPlayerIntentScheduler.INSTANCE.statusLine(),
++            AGCShardPlanner.INSTANCE.statusLine(),
+             AGCNetworkAdmission.INSTANCE.statusLine(),
+             AGCSemanticInvariant.INSTANCE.statusLine()
+         );
+     }
+ 
++
++    public static String scale() {
++        final AGCShardPlanner.Plan plan = AGCShardPlanner.INSTANCE.plan(2000, 128, 512);
++        return String.join("\n",
++            "AGC scale planner:",
++            AGCShardPlanner.INSTANCE.statusLine(),
++            AGCPlayerIntentScheduler.INSTANCE.statusLine(),
++            "samplePlan players=" + plan.expectedPlayers()
++                + " worlds=" + plan.activeWorlds()
++                + " arenas=" + plan.activeArenas()
++                + " recommendedShards=" + plan.recommendedShards(),
++            AGCChunkFairQueue.INSTANCE.statusLine(),
++            AGCEntitySnapshotPlanner.INSTANCE.statusLine()
++        );
++    }
++
++    public static String contracts() {
++        return String.join("\n",
++            "AGC compatibility contracts:",
++            AGCPluginCompatibilityContracts.INSTANCE.statusLine(),
++            "apiDeclarations=" + io.agcmc.agc.api.AGC.compatibility().declarationCount(),
++            "contracts are conservative hints: they never permit off-thread Bukkit mutation or event-order changes"
++        );
++    }
++
+     public static String minigameApi() {
+         try {
+             final Object service = io.agcmc.agc.api.AGC.minigames();
+@@ -86,7 +122,8 @@
+             return "AGC Mini-game API: enabled service=" + service.getClass().getName()
+                 + " arenas=" + arenas
+                 + " events=join,leave,start,end,team-assign"
+-                + " helpers=arena,bounds,teams,loadout,snapshot,countdown,primary-thread-scheduler";
++                + " contracts=" + io.agcmc.agc.api.AGC.compatibility().declarationCount()
++                + " helpers=arena,bounds,teams,loadout,snapshot,countdown,scaling-plan,primary-thread-scheduler,read-only-prepare";
+         } catch (final Throwable throwable) {
+             return "AGC Mini-game API: unavailable: " + throwable.getClass().getSimpleName() + ": " + throwable.getMessage();
+         }
+diff -ruN agc-alpha10-baseline/agc-26.2/paper-server/src/main/java/net/minecraft/server/AGCEntitySnapshotPlanner.java agc-alpha10/agc-26.2/paper-server/src/main/java/net/minecraft/server/AGCEntitySnapshotPlanner.java
+--- agc-alpha10-baseline/agc-26.2/paper-server/src/main/java/net/minecraft/server/AGCEntitySnapshotPlanner.java	2026-06-26 14:00:29.000000000 +0000
++++ agc-alpha10/agc-26.2/paper-server/src/main/java/net/minecraft/server/AGCEntitySnapshotPlanner.java	2026-06-26 15:10:42.960829498 +0000
+@@ -43,8 +43,17 @@
+             this.admitted.incrementAndGet();
+             return new Admission(true, Integer.MAX_VALUE, "global read-only snapshot");
+         }
+-        final AtomicLong budget = this.tokens.computeIfAbsent(playerId, ignored -> new AtomicLong(this.perPlayerBudgetPerTick));
+         final long cost = Math.max(1L, estimatedEntities);
++        final AGCPlayerIntentScheduler.Admission playerIntent = AGCPlayerIntentScheduler.INSTANCE.admit(
++            playerId,
++            AGCPlayerIntentScheduler.IntentType.ENTITY_TRACKER_SNAPSHOT,
++            (int) Math.min(Integer.MAX_VALUE, cost)
++        );
++        if (!playerIntent.admitted() || playerIntent.lane() != AGCPlayerIntentScheduler.Lane.READ_ONLY_PREPARE) {
++            this.orderedInline.incrementAndGet();
++            return new Admission(false, 0L, "player intent ordered inline");
++        }
++        final AtomicLong budget = this.tokens.computeIfAbsent(playerId, ignored -> new AtomicLong(this.perPlayerBudgetPerTick));
+         while (true) {
+             final long current = budget.get();
+             if (current < cost) {
+diff -ruN agc-alpha10-baseline/agc-26.2/paper-server/src/main/java/net/minecraft/server/AGCNetworkAdmission.java agc-alpha10/agc-26.2/paper-server/src/main/java/net/minecraft/server/AGCNetworkAdmission.java
+--- agc-alpha10-baseline/agc-26.2/paper-server/src/main/java/net/minecraft/server/AGCNetworkAdmission.java	2026-06-26 14:06:04.000000000 +0000
++++ agc-alpha10/agc-26.2/paper-server/src/main/java/net/minecraft/server/AGCNetworkAdmission.java	2026-06-26 15:10:42.960095583 +0000
+@@ -90,6 +90,18 @@
+             return true;
+         }
+ 
++        final AGCPlayerIntentScheduler.Admission playerIntent = AGCPlayerIntentScheduler.INSTANCE.admit(
++            playerId,
++            AGCPlayerIntentScheduler.IntentType.NETWORK_COSMETIC,
++            Math.max(1, classification.estimatedBytes() / 256)
++        );
++        if (!playerIntent.admitted() || playerIntent.lane() != AGCPlayerIntentScheduler.Lane.DEADLINE_BATCH) {
++            this.deadlineImmediateFlushes.incrementAndGet();
++            this.preservedFlushes.incrementAndGet();
++            AGCSemanticInvariant.INSTANCE.record(AGCSemanticInvariant.Domain.NETWORK, AGCSemanticInvariant.Decision.IMMEDIATE_ORDER_PRESERVED, "player intent preserved deadline " + classification.packetName());
++            return true;
++        }
++
+         final AGCNoInvasionOptimizer.Decision decision = AGCNoInvasionOptimizer.INSTANCE.admitNetworkDeadlineBatch(
+             classification.packetName(),
+             false,
+@@ -194,6 +206,7 @@
+         AGCChunkFairQueue.INSTANCE.forget(player.getUUID());
+         AGCEntityAdmission.INSTANCE.forget(player.getUUID());
+         AGCEntitySnapshotPlanner.INSTANCE.forget(player.getUUID());
++        AGCPlayerIntentScheduler.INSTANCE.forget(player.getUUID());
+     }
+ 
+     public long pendingDeferredFlushConnections() {
+diff -ruN agc-alpha10-baseline/agc-26.2/paper-server/src/main/java/net/minecraft/server/AGCNoInvasionOptimizer.java agc-alpha10/agc-26.2/paper-server/src/main/java/net/minecraft/server/AGCNoInvasionOptimizer.java
+--- agc-alpha10-baseline/agc-26.2/paper-server/src/main/java/net/minecraft/server/AGCNoInvasionOptimizer.java	2026-06-26 14:06:56.000000000 +0000
++++ agc-alpha10/agc-26.2/paper-server/src/main/java/net/minecraft/server/AGCNoInvasionOptimizer.java	2026-06-26 15:10:42.959627237 +0000
+@@ -85,6 +85,7 @@
+         this.tickSequence = Math.max(0L, sequence);
+         AGCChunkFairQueue.INSTANCE.refillTick();
+         AGCEntitySnapshotPlanner.INSTANCE.beginTick(sequence);
++        AGCPlayerIntentScheduler.INSTANCE.beginTick(sequence);
+     }
+ 
+     public Decision admitNetworkDeadlineBatch(final String packetName, final boolean interactive, final long pendingDeferredFlushes) {
+diff -ruN agc-alpha10-baseline/agc-26.2/paper-server/src/main/java/net/minecraft/server/AGCPlayerIntentScheduler.java agc-alpha10/agc-26.2/paper-server/src/main/java/net/minecraft/server/AGCPlayerIntentScheduler.java
+--- agc-alpha10-baseline/agc-26.2/paper-server/src/main/java/net/minecraft/server/AGCPlayerIntentScheduler.java	1970-01-01 00:00:00.000000000 +0000
++++ agc-alpha10/agc-26.2/paper-server/src/main/java/net/minecraft/server/AGCPlayerIntentScheduler.java	2026-06-26 15:12:41.684367036 +0000
+@@ -0,0 +1,167 @@
++package net.minecraft.server;
++
++import java.util.EnumMap;
++import java.util.UUID;
++import java.util.concurrent.ConcurrentHashMap;
++import java.util.concurrent.atomic.AtomicLong;
++
++/**
++ * Per-player no-invasion intent scheduler.
++ * <p>
++ * It does not execute game logic. It hands out deterministic tickets and lane
++ * decisions so packet, chunk, entity and arena helpers can reduce allocation or
++ * batch low-value work without reordering a player's visible stream. Every
++ * player keeps FIFO order inside each intent type; expensive work waits for the
++ * next tick rather than jumping ahead.
++ */
++public final class AGCPlayerIntentScheduler {
++    public static final AGCPlayerIntentScheduler INSTANCE = new AGCPlayerIntentScheduler();
++
++    public enum IntentType {
++        NETWORK_INTERACTIVE,
++        NETWORK_COSMETIC,
++        CHUNK_SEND,
++        CHUNK_LOAD,
++        CHUNK_GENERATE,
++        ENTITY_TRACKER_SNAPSHOT,
++        ARENA_FLOW,
++        PLUGIN_COMMIT
++    }
++
++    public enum Lane {
++        ORDERED_NOW,
++        DEADLINE_BATCH,
++        FIFO_WAIT,
++        READ_ONLY_PREPARE,
++        ORDERED_COMMIT
++    }
++
++    private final ConcurrentHashMap<UUID, PlayerState> players = new ConcurrentHashMap<>();
++    private final AtomicLong globalTickets = new AtomicLong();
++    private final AtomicLong admitted = new AtomicLong();
++    private final AtomicLong waited = new AtomicLong();
++    private volatile boolean enabled = true;
++    private volatile int networkCosmeticBudget = 256;
++    private volatile int chunkBudget = 96;
++    private volatile int entitySnapshotBudget = 4096;
++    private volatile int arenaBudget = 512;
++    private volatile long tickSequence;
++
++    private AGCPlayerIntentScheduler() {
++    }
++
++    public void configure(final boolean enabled, final int networkCosmeticBudget, final int chunkBudget, final int entitySnapshotBudget, final int arenaBudget) {
++        this.enabled = enabled;
++        this.networkCosmeticBudget = Math.max(1, networkCosmeticBudget);
++        this.chunkBudget = Math.max(1, chunkBudget);
++        this.entitySnapshotBudget = Math.max(128, entitySnapshotBudget);
++        this.arenaBudget = Math.max(1, arenaBudget);
++    }
++
++    public void beginTick(final long tickSequence) {
++        this.tickSequence = Math.max(0L, tickSequence);
++        for (final PlayerState state : this.players.values()) {
++            state.refill(this.networkCosmeticBudget, this.chunkBudget, this.entitySnapshotBudget, this.arenaBudget);
++        }
++    }
++
++    public Admission admit(final UUID playerId, final IntentType type, final int cost) {
++        final long ticket = this.globalTickets.incrementAndGet();
++        if (!this.enabled || playerId == null || type == IntentType.NETWORK_INTERACTIVE || type == IntentType.PLUGIN_COMMIT) {
++            this.admitted.incrementAndGet();
++            return new Admission(true, Lane.ORDERED_NOW, ticket, Integer.MAX_VALUE, "ordered immediate");
++        }
++        final PlayerState state = this.players.computeIfAbsent(playerId, ignored -> new PlayerState());
++        final int normalizedCost = Math.max(1, cost);
++        final int remaining = state.tryConsume(type, normalizedCost);
++        if (remaining < 0) {
++            this.waited.incrementAndGet();
++            AGCSemanticInvariant.INSTANCE.record(
++                AGCSemanticInvariant.Domain.PLAYER,
++                AGCSemanticInvariant.Decision.CONFLICT_SERIALISED,
++                "intent-fifo-wait type=" + type + " ticket=" + ticket
++            );
++            return new Admission(false, Lane.FIFO_WAIT, ticket, 0, "per-player FIFO budget exhausted");
++        }
++        this.admitted.incrementAndGet();
++        final Lane lane = switch (type) {
++            case NETWORK_COSMETIC -> Lane.DEADLINE_BATCH;
++            case ENTITY_TRACKER_SNAPSHOT -> Lane.READ_ONLY_PREPARE;
++            case ARENA_FLOW -> Lane.ORDERED_COMMIT;
++            case CHUNK_SEND, CHUNK_LOAD, CHUNK_GENERATE -> Lane.ORDERED_COMMIT;
++            default -> Lane.ORDERED_NOW;
++        };
++        AGCSemanticInvariant.INSTANCE.record(
++            AGCSemanticInvariant.Domain.PLAYER,
++            lane == Lane.READ_ONLY_PREPARE ? AGCSemanticInvariant.Decision.READ_ONLY_PARALLEL_PREPARE : AGCSemanticInvariant.Decision.MAIN_THREAD_ORDERED_COMMIT,
++            "intent-admit type=" + type + " lane=" + lane + " ticket=" + ticket
++        );
++        return new Admission(true, lane, ticket, remaining, "admitted");
++    }
++
++    public void forget(final UUID playerId) {
++        if (playerId != null) {
++            this.players.remove(playerId);
++        }
++    }
++
++    public Snapshot snapshot() {
++        return new Snapshot(
++            this.enabled,
++            this.tickSequence,
++            this.players.size(),
++            this.globalTickets.get(),
++            this.admitted.get(),
++            this.waited.get(),
++            this.networkCosmeticBudget,
++            this.chunkBudget,
++            this.entitySnapshotBudget,
++            this.arenaBudget
++        );
++    }
++
++    public String statusLine() {
++        final Snapshot snapshot = this.snapshot();
++        return "AGCPlayerIntentScheduler{enabled=" + snapshot.enabled()
++            + ", tick=" + snapshot.tickSequence()
++            + ", players=" + snapshot.players()
++            + ", tickets=" + snapshot.tickets()
++            + ", admitted=" + snapshot.admitted()
++            + ", waited=" + snapshot.waited()
++            + ", budgets(network/chunk/entity/arena)=" + snapshot.networkCosmeticBudget() + '/' + snapshot.chunkBudget() + '/' + snapshot.entitySnapshotBudget() + '/' + snapshot.arenaBudget()
++            + '}';
++    }
++
++    private static final class PlayerState {
++        private final EnumMap<IntentType, Integer> tokens = new EnumMap<>(IntentType.class);
++
++        PlayerState() {
++            this.refill(256, 96, 4096, 512);
++        }
++
++        synchronized void refill(final int networkCosmeticBudget, final int chunkBudget, final int entitySnapshotBudget, final int arenaBudget) {
++            this.tokens.put(IntentType.NETWORK_COSMETIC, networkCosmeticBudget);
++            this.tokens.put(IntentType.CHUNK_SEND, chunkBudget);
++            this.tokens.put(IntentType.CHUNK_LOAD, chunkBudget);
++            this.tokens.put(IntentType.CHUNK_GENERATE, Math.max(1, chunkBudget / 3));
++            this.tokens.put(IntentType.ENTITY_TRACKER_SNAPSHOT, entitySnapshotBudget);
++            this.tokens.put(IntentType.ARENA_FLOW, arenaBudget);
++        }
++
++        synchronized int tryConsume(final IntentType type, final int cost) {
++            final int current = this.tokens.getOrDefault(type, Integer.MAX_VALUE);
++            if (current < cost) {
++                return -1;
++            }
++            final int remaining = current == Integer.MAX_VALUE ? Integer.MAX_VALUE : current - cost;
++            this.tokens.put(type, remaining);
++            return remaining;
++        }
++    }
++
++    public record Admission(boolean admitted, Lane lane, long ticket, int remainingBudget, String reason) {
++    }
++
++    public record Snapshot(boolean enabled, long tickSequence, int players, long tickets, long admitted, long waited, int networkCosmeticBudget, int chunkBudget, int entitySnapshotBudget, int arenaBudget) {
++    }
++}
+diff -ruN agc-alpha10-baseline/agc-26.2/paper-server/src/main/java/net/minecraft/server/AGCPluginCompatibilityContracts.java agc-alpha10/agc-26.2/paper-server/src/main/java/net/minecraft/server/AGCPluginCompatibilityContracts.java
+--- agc-alpha10-baseline/agc-26.2/paper-server/src/main/java/net/minecraft/server/AGCPluginCompatibilityContracts.java	1970-01-01 00:00:00.000000000 +0000
++++ agc-alpha10/agc-26.2/paper-server/src/main/java/net/minecraft/server/AGCPluginCompatibilityContracts.java	2026-06-26 15:12:41.684734843 +0000
+@@ -0,0 +1,73 @@
++package net.minecraft.server;
++
++import java.util.Collections;
++import java.util.EnumSet;
++import java.util.LinkedHashMap;
++import java.util.Map;
++import java.util.Set;
++
++/** Internal mirror of plugin-declared AGC compatibility contracts. */
++public final class AGCPluginCompatibilityContracts {
++    public static final AGCPluginCompatibilityContracts INSTANCE = new AGCPluginCompatibilityContracts();
++
++    public enum Contract {
++        WORLD_LOCAL_EVENTS,
++        ARENA_READ_ONLY_PREPARE,
++        DEADLINE_ORDERED_COSMETIC_PACKETS,
++        FIFO_CHUNK_INTENTS,
++        ARENA_VISIBILITY_ISOLATION,
++        READ_ONLY_ENTITY_SNAPSHOTS,
++        PRIMARY_THREAD_COMMIT_DISCIPLINE
++    }
++
++    private final Map<String, EnumSet<Contract>> declarations = Collections.synchronizedMap(new LinkedHashMap<>());
++    private volatile boolean enabled = true;
++
++    private AGCPluginCompatibilityContracts() {
++    }
++
++    public void configure(final boolean enabled) {
++        this.enabled = enabled;
++    }
++
++    public void declare(final String pluginName, final Set<Contract> contracts) {
++        if (pluginName == null || pluginName.isBlank()) {
++            return;
++        }
++        final EnumSet<Contract> copy = contracts == null || contracts.isEmpty()
++            ? EnumSet.noneOf(Contract.class)
++            : EnumSet.copyOf(contracts);
++        this.declarations.put(pluginName, copy);
++        AGCSemanticInvariant.INSTANCE.record(AGCSemanticInvariant.Domain.PLUGIN, AGCSemanticInvariant.Decision.MAIN_THREAD_ORDERED_COMMIT, "compat-contract plugin=" + pluginName + " contracts=" + copy);
++        AGCCompatibilityBridge.invalidatePluginScan();
++    }
++
++    public boolean has(final String pluginName, final Contract contract) {
++        if (!this.enabled || pluginName == null || contract == null) {
++            return false;
++        }
++        final EnumSet<Contract> set = this.declarations.get(pluginName);
++        return set != null && set.contains(contract);
++    }
++
++    public Snapshot snapshot() {
++        int total = 0;
++        synchronized (this.declarations) {
++            for (final EnumSet<Contract> set : this.declarations.values()) {
++                total += set.size();
++            }
++            return new Snapshot(this.enabled, this.declarations.size(), total);
++        }
++    }
++
++    public String statusLine() {
++        final Snapshot snapshot = this.snapshot();
++        return "AGCPluginCompatibilityContracts{enabled=" + snapshot.enabled()
++            + ", plugins=" + snapshot.plugins()
++            + ", contracts=" + snapshot.contracts()
++            + '}';
++    }
++
++    public record Snapshot(boolean enabled, int plugins, int contracts) {
++    }
++}
+diff -ruN agc-alpha10-baseline/agc-26.2/paper-server/src/main/java/net/minecraft/server/AGCRuntimeConfigurator.java agc-alpha10/agc-26.2/paper-server/src/main/java/net/minecraft/server/AGCRuntimeConfigurator.java
+--- agc-alpha10-baseline/agc-26.2/paper-server/src/main/java/net/minecraft/server/AGCRuntimeConfigurator.java	2026-06-26 14:00:49.000000000 +0000
++++ agc-alpha10/agc-26.2/paper-server/src/main/java/net/minecraft/server/AGCRuntimeConfigurator.java	2026-06-26 15:11:05.651197444 +0000
+@@ -69,5 +69,18 @@
+             config.agc.performance.worldPlannerPrimaryThreadPluginCallbacks,
+             config.agc.performance.parallelWorldTickMinWorlds
+         );
++        AGCPlayerIntentScheduler.INSTANCE.configure(
++            config.agc.performance.playerIntentScheduler,
++            config.agc.performance.playerIntentNetworkCosmeticBudget,
++            config.agc.performance.playerIntentChunkBudget,
++            config.agc.performance.entityTrackerFastPathBudgetPerTick,
++            config.agc.performance.playerIntentArenaBudget
++        );
++        AGCShardPlanner.INSTANCE.configure(
++            config.agc.performance.shardPlanner,
++            config.agc.performance.shardPlayersPerShard,
++            config.agc.performance.shardMaxShards
++        );
++        AGCPluginCompatibilityContracts.INSTANCE.configure(config.agc.performance.pluginCompatibilityContracts);
+     }
+ }
+diff -ruN agc-alpha10-baseline/agc-26.2/paper-server/src/main/java/net/minecraft/server/AGCShardPlanner.java agc-alpha10/agc-26.2/paper-server/src/main/java/net/minecraft/server/AGCShardPlanner.java
+--- agc-alpha10-baseline/agc-26.2/paper-server/src/main/java/net/minecraft/server/AGCShardPlanner.java	1970-01-01 00:00:00.000000000 +0000
++++ agc-alpha10/agc-26.2/paper-server/src/main/java/net/minecraft/server/AGCShardPlanner.java	2026-06-26 15:10:17.632959298 +0000
+@@ -0,0 +1,89 @@
++package net.minecraft.server;
++
++import java.util.ArrayList;
++import java.util.Collections;
++import java.util.LinkedHashMap;
++import java.util.List;
++import java.util.Map;
++import java.util.UUID;
++import java.util.concurrent.atomic.AtomicLong;
++
++/**
++ * Deterministic shard planner for very large multi-world and mini-game layouts.
++ * <p>
++ * A shard is only a planning/queueing label: it does not move worlds to another
++ * thread by itself and does not change Bukkit visibility or world state. It lets
++ * AGC distribute read-only preparation, chunk prewarm and player fanout in a
++ * stable order so thousands of players do not all compete for one global queue.
++ */
++public final class AGCShardPlanner {
++    public static final AGCShardPlanner INSTANCE = new AGCShardPlanner();
++
++    private final Map<String, Integer> explicitShards = Collections.synchronizedMap(new LinkedHashMap<>());
++    private final AtomicLong assignments = new AtomicLong();
++    private volatile boolean enabled = true;
++    private volatile int playersPerShard = 64;
++    private volatile int maxShards = 4096;
++
++    private AGCShardPlanner() {
++    }
++
++    public void configure(final boolean enabled, final int playersPerShard, final int maxShards) {
++        this.enabled = enabled;
++        this.playersPerShard = Math.max(1, playersPerShard);
++        this.maxShards = Math.max(1, maxShards);
++    }
++
++    public int shardForPlayer(final UUID playerId) {
++        if (!this.enabled || playerId == null) {
++            return 0;
++        }
++        final long mixed = playerId.getMostSignificantBits() ^ Long.rotateLeft(playerId.getLeastSignificantBits(), 17);
++        return Math.floorMod((int) (mixed ^ (mixed >>> 32)), this.maxShards);
++    }
++
++    public int shardForKey(final String key) {
++        if (!this.enabled || key == null || key.isBlank()) {
++            return 0;
++        }
++        synchronized (this.explicitShards) {
++            return this.explicitShards.computeIfAbsent(key, ignored -> {
++                this.assignments.incrementAndGet();
++                return Math.floorMod(key.hashCode(), this.maxShards);
++            });
++        }
++    }
++
++    public Plan plan(final int expectedPlayers, final int activeWorlds, final int activeArenas) {
++        final int players = Math.max(0, expectedPlayers);
++        final int shardsByPlayers = Math.max(1, (players + this.playersPerShard - 1) / this.playersPerShard);
++        final int shardsByWorlds = Math.max(1, activeWorlds);
++        final int shardsByArenas = Math.max(1, activeArenas);
++        final int recommended = Math.min(this.maxShards, Math.max(shardsByPlayers, Math.max(shardsByWorlds, shardsByArenas)));
++        final ArrayList<Integer> ids = new ArrayList<>(recommended);
++        for (int i = 0; i < recommended; i++) {
++            ids.add(i);
++        }
++        return new Plan(this.enabled, players, activeWorlds, activeArenas, recommended, Collections.unmodifiableList(ids));
++    }
++
++    public Snapshot snapshot() {
++        return new Snapshot(this.enabled, this.playersPerShard, this.maxShards, this.explicitShards.size(), this.assignments.get());
++    }
++
++    public String statusLine() {
++        final Snapshot snapshot = this.snapshot();
++        return "AGCShardPlanner{enabled=" + snapshot.enabled()
++            + ", playersPerShard=" + snapshot.playersPerShard()
++            + ", maxShards=" + snapshot.maxShards()
++            + ", explicitKeys=" + snapshot.explicitKeys()
++            + ", assignments=" + snapshot.assignments()
++            + '}';
++    }
++
++    public record Plan(boolean enabled, int expectedPlayers, int activeWorlds, int activeArenas, int recommendedShards, List<Integer> shardIds) {
++    }
++
++    public record Snapshot(boolean enabled, int playersPerShard, int maxShards, int explicitKeys, long assignments) {
++    }
++}
+--- agc-alpha10-baseline/agc-26.2/paper-server/src/main/java/io/papermc/paper/configuration/GlobalConfiguration.java	2026-06-26 14:05:31.000000000 +0000
++++ agc-alpha10/agc-26.2/paper-server/src/main/java/io/papermc/paper/configuration/GlobalConfiguration.java	2026-06-26 15:11:05.650882176 +0000
+@@ -517,6 +517,22 @@
+             public int noInvasionMaxTranslatorPending = 8192;
+             @Comment("Maximum token carry multiplier for the AGC per-player chunk FIFO fair queue. Higher values let returning players catch up without changing per-player chunk order.")
+             public int chunkFairQueueMaxCarryMultiplier = 4;
++            @Comment("Enables AGC alpha10 per-player intent scheduler. It gives every player deterministic FIFO tickets for cosmetic network, chunk, entity-snapshot and arena work so aggressive optimisation cannot reorder their visible stream.")
++            public boolean playerIntentScheduler = true;
++            @Comment("Per-player cosmetic-network intent budget per tick. Interactive packets are never charged to this budget.")
++            public int playerIntentNetworkCosmeticBudget = 256;
++            @Comment("Per-player chunk intent budget per tick across send/load/generate starts. Queue heads are not skipped when this budget is exhausted.")
++            public int playerIntentChunkBudget = 96;
++            @Comment("Per-player arena-flow intent budget per tick for mini-game helper bookkeeping and visibility work.")
++            public int playerIntentArenaBudget = 512;
++            @Comment("Enables AGC alpha10 deterministic shard planner for large multi-world and mini-game networks. Shards are planning labels, not semantic thread ownership changes.")
++            public boolean shardPlanner = true;
++            @Comment("Target player count per AGC planning shard. Smaller values increase parallel read-only preparation granularity without changing world tick order.")
++            public int shardPlayersPerShard = 64;
++            @Comment("Maximum AGC planning shards to track.")
++            public int shardMaxShards = 4096;
++            @Comment("Enables plugin-declared compatibility contracts. Contracts guide no-invasion lanes but never permit off-thread Bukkit mutations.")
++            public boolean pluginCompatibilityContracts = true;
+         }
+     }
+     static void set(final GlobalConfiguration instance) {
+--- agc-alpha10-baseline/agc-26.2/paper-server/src/minecraft/java/net/minecraft/server/commands/AGCCommand.java	2026-06-26 14:05:50.000000000 +0000
++++ agc-alpha10/agc-26.2/paper-server/src/minecraft/java/net/minecraft/server/commands/AGCCommand.java	2026-06-26 15:11:21.337229315 +0000
+@@ -27,6 +27,8 @@
+                 .then(Commands.literal("semantics").executes(context -> sendReport(context.getSource(), AGCCommandReports.safety())))
+                 .then(Commands.literal("noinvasion").executes(context -> sendReport(context.getSource(), AGCCommandReports.noInvasion())))
+                 .then(Commands.literal("api").executes(context -> sendReport(context.getSource(), AGCCommandReports.minigameApi())))
++                .then(Commands.literal("scale").executes(context -> sendReport(context.getSource(), AGCCommandReports.scale())))
++                .then(Commands.literal("contracts").executes(context -> sendReport(context.getSource(), AGCCommandReports.contracts())))
+                 .then(Commands.literal("rollback-profile").executes(context -> sendReport(context.getSource(), AGCCommandReports.rollbackProfile())))
+                 .then(Commands.literal("health").executes(context -> sendReport(context.getSource(), AGCRuntimeHealth.INSTANCE.statusLine())))
+                 .then(Commands.literal("reset-rollback")
+@@ -51,6 +53,8 @@
+             "  /agc semantics - semantic invariant ledger and world planner status",
+             "  /agc noinvasion - no-invasion optimiser lanes and queues",
+             "  /agc api - mini-game API status",
++            "  /agc scale - shard planner and per-player intent scheduler",
++            "  /agc contracts - plugin-declared compatibility contracts",
+             "  /agc rollback-profile - rollback counters",
+             "  /agc reset-rollback - clear AGC runtime rollback flags for this process"
+         );
+diff -ruN agc-alpha10-baseline/agc-26.2/test-plugin/src/main/java/io/papermc/testplugin/e2e/TestRegistry.java agc-alpha10/agc-26.2/test-plugin/src/main/java/io/papermc/testplugin/e2e/TestRegistry.java
+--- agc-alpha10-baseline/agc-26.2/test-plugin/src/main/java/io/papermc/testplugin/e2e/TestRegistry.java	2026-06-26 14:08:32.000000000 +0000
++++ agc-alpha10/agc-26.2/test-plugin/src/main/java/io/papermc/testplugin/e2e/TestRegistry.java	2026-06-26 15:12:00.036504001 +0000
+@@ -35,6 +35,7 @@
+         new FeatureR15Tests().register(this);
+         new FeatureR16Tests().register(this);
+         new FeatureR17Tests().register(this);
++        new FeatureR18Tests().register(this);
+         new Tier3Tests().register(this);
+         new Tier4Tests().register(this);
+     }
+diff -ruN agc-alpha10-baseline/agc-26.2/test-plugin/src/main/java/io/papermc/testplugin/e2e/tests/FeatureR18Tests.java agc-alpha10/agc-26.2/test-plugin/src/main/java/io/papermc/testplugin/e2e/tests/FeatureR18Tests.java
+--- agc-alpha10-baseline/agc-26.2/test-plugin/src/main/java/io/papermc/testplugin/e2e/tests/FeatureR18Tests.java	1970-01-01 00:00:00.000000000 +0000
++++ agc-alpha10/agc-26.2/test-plugin/src/main/java/io/papermc/testplugin/e2e/tests/FeatureR18Tests.java	2026-06-26 15:11:59.015033426 +0000
+@@ -0,0 +1,62 @@
++package io.papermc.testplugin.e2e.tests;
++
++import io.papermc.testplugin.e2e.E2ETest;
++import io.papermc.testplugin.e2e.TestContext;
++import io.papermc.testplugin.e2e.TestRegistry;
++
++public class FeatureR18Tests {
++    public void register(TestRegistry registry) {
++        registry.register(new E2ETest() {
++            @Override public String getId() { return "R18_T1_1"; }
++            @Override public String getName() { return "R18 Tier 1 - Player Intent Scheduler"; }
++            @Override public void run(TestContext context) throws Exception {
++                Class<?> scheduler = context.checkClassExists("net.minecraft.server.AGCPlayerIntentScheduler");
++                Object instance = scheduler.getDeclaredField("INSTANCE").get(null);
++                context.assertNotNull(scheduler.getDeclaredMethod("snapshot").invoke(instance), "Player intent scheduler snapshot must be callable.");
++                context.assertTrue(((String) scheduler.getDeclaredMethod("statusLine").invoke(instance)).contains("AGCPlayerIntentScheduler"), "Player intent scheduler status must identify itself.");
++            }
++        });
++        registry.register(new E2ETest() {
++            @Override public String getId() { return "R18_T1_2"; }
++            @Override public String getName() { return "R18 Tier 1 - Shard Planner"; }
++            @Override public void run(TestContext context) throws Exception {
++                Class<?> planner = context.checkClassExists("net.minecraft.server.AGCShardPlanner");
++                Object instance = planner.getDeclaredField("INSTANCE").get(null);
++                Object plan = planner.getDeclaredMethod("plan", int.class, int.class, int.class).invoke(instance, 2000, 128, 512);
++                context.assertNotNull(plan, "Shard planner plan must be callable.");
++                context.assertTrue(((String) planner.getDeclaredMethod("statusLine").invoke(instance)).contains("AGCShardPlanner"), "Shard planner status must identify itself.");
++            }
++        });
++        registry.register(new E2ETest() {
++            @Override public String getId() { return "R18_T1_3"; }
++            @Override public String getName() { return "R18 Tier 1 - Plugin Compatibility Contracts"; }
++            @Override public void run(TestContext context) throws Exception {
++                Class<?> contracts = context.checkClassExists("net.minecraft.server.AGCPluginCompatibilityContracts");
++                Object instance = contracts.getDeclaredField("INSTANCE").get(null);
++                context.assertNotNull(contracts.getDeclaredMethod("snapshot").invoke(instance), "Compatibility contracts snapshot must be callable.");
++                context.assertTrue(((String) contracts.getDeclaredMethod("statusLine").invoke(instance)).contains("AGCPluginCompatibilityContracts"), "Contracts status must identify itself.");
++            }
++        });
++        registry.register(new E2ETest() {
++            @Override public String getId() { return "R18_T1_4"; }
++            @Override public String getName() { return "R18 Tier 1 - AGC Public Compatibility API"; }
++            @Override public void run(TestContext context) throws Exception {
++                Class<?> api = context.checkClassExists("io.agcmc.agc.api.AGC");
++                Object compatibility = api.getDeclaredMethod("compatibility").invoke(null);
++                context.assertNotNull(compatibility, "AGC.compatibility() must return a service.");
++                context.assertTrue(compatibility.getClass().getName().contains("AGCCompatibility"), "Compatibility service must use AGC API package.");
++            }
++        });
++        registry.register(new E2ETest() {
++            @Override public String getId() { return "R18_T1_5"; }
++            @Override public String getName() { return "R18 Tier 1 - Scale and Contract Command Reports"; }
++            @Override public void run(TestContext context) throws Exception {
++                Class<?> reports = context.checkClassExists("net.minecraft.server.AGCCommandReports");
++                String scale = (String) reports.getDeclaredMethod("scale").invoke(null);
++                String contracts = (String) reports.getDeclaredMethod("contracts").invoke(null);
++                context.assertTrue(scale.contains("AGCShardPlanner"), "Scale report must include shard planner state.");
++                context.assertTrue(contracts.contains("compatibility contracts"), "Contracts report must describe compatibility contracts.");
++            }
++        });
++    }
++}

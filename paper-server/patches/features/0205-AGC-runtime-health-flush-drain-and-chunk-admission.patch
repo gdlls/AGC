@@ -1,0 +1,216 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: AGC Developer <developer@agc.com>
+Date: Fri, 26 Jun 2026 20:20:00 +0900
+Subject: [PATCH] AGC runtime health, bounded flush drain and chunk admission
+
+Adds another conservative runtime wiring pass for AGC alpha. Packet
+flush coalescing is now drained at end-of-tick, chunk load/generate
+admission delays only new work, and operator diagnostics are exposed via
+/agc.
+
+--- a/net/minecraft/network/Connection.java
++++ b/net/minecraft/network/Connection.java
+@@ -411,12 +411,18 @@
+             || (io.papermc.paper.util.MCUtil.isMainThread() && packet.isReady() && this.pendingActions.isEmpty()
+             && (packet.getExtraPackets() == null || packet.getExtraPackets().isEmpty())))) {
+             this.sendPacket(packet, listener, agc$flush);
++            if (flush && !agc$flush) {
++                net.minecraft.server.AGCNetworkAdmission.INSTANCE.noteDeferredFlush(this);
++            }
+         } else {
+             // Write the packets to the queue, then flush - antixray hooks there already
+             final java.util.List<Packet<?>> extraPackets = InnerUtil.buildExtraPackets(packet);
+             final boolean hasExtraPackets = extraPackets != null && !extraPackets.isEmpty();
+             if (!hasExtraPackets) {
+                 this.pendingActions.add(new PacketSendAction(packet, listener, agc$flush));
++                if (flush && !agc$flush) {
++                    net.minecraft.server.AGCNetworkAdmission.INSTANCE.noteDeferredFlush(this);
++                }
+             } else {
+                 final java.util.List<PacketSendAction> actions = new java.util.ArrayList<>(1 + extraPackets.size());
+                 actions.add(new PacketSendAction(packet, null, false)); // Delay the future listener until the end of the extra packets
+@@ -425,6 +431,9 @@
+                     final Packet<?> extraPacket = extraPackets.get(i);
+                     final boolean end = ++i == len;
+                     actions.add(new PacketSendAction(extraPacket, end ? listener : null, end && agc$flush)); // Append listener to the end; AGC may coalesce the final flush
++                }
++                if (flush && !agc$flush) {
++                    net.minecraft.server.AGCNetworkAdmission.INSTANCE.noteDeferredFlush(this);
+                 }
+ 
+                 this.pendingActions.addAll(actions);
+
+--- a/net/minecraft/server/MinecraftServer.java
++++ b/net/minecraft/server/MinecraftServer.java
+@@ -1807,6 +1807,7 @@
+         this.server.spark.tickEnd(((double)(endTime - this.currentTickStart) / 1000000D)); // Paper - spark
+         profiler.push("tallying");
+         long tickTime = Util.getNanos() - nano;
++        net.minecraft.server.AGCRuntimeHealth.INSTANCE.recordServerTick(tickTime); // AGC - runtime health, rollback and deferred flush drain
+         int tickIndex = this.tickCount % 100;
+         this.aggregatedTickTimesNanos = this.aggregatedTickTimesNanos - this.tickTimesNanos[tickIndex];
+         this.aggregatedTickTimesNanos += tickTime;
+
+--- a/ca/spottedleaf/moonrise/patches/chunk_system/player/RegionizedPlayerChunkLoader.java
++++ b/ca/spottedleaf/moonrise/patches/chunk_system/player/RegionizedPlayerChunkLoader.java
+@@ -702,7 +702,12 @@
+             final int maxLoadsThisTick = (int)this.chunkLoadTicketLimiter.takeAllocation(maxLoads);
+             if (maxLoadsThisTick > 0) {
+                 final LongArrayList chunks = new LongArrayList(maxLoadsThisTick);
++                int agc$loadsStarted = 0;
+                 for (int i = 0; i < maxLoadsThisTick; ++i) {
++                    if (!net.minecraft.server.AGCChunkAdmission.INSTANCE.admitOperation(this.player, net.minecraft.server.AGCChunkBudget.Operation.LOAD)) {
++                        break;
++                    }
++                    ++agc$loadsStarted;
+                     final long chunk = this.loadQueue.dequeueLong();
+                     final byte prev = this.chunkTicketStage.put(chunk, CHUNK_TICKET_STAGE_LOADING);
+                     if (prev != CHUNK_TICKET_STAGE_NONE) {
+@@ -716,29 +721,33 @@
+                     chunks.add(chunk);
+                     this.loadingQueue.enqueue(chunk);
+                 }
+-
+-                // here we need to flush tickets, as scheduleChunkLoad requires tickets to be propagated with addTicket = false
+-                this.flushDelayedTicketOps();
+-                // we only need to call scheduleChunkLoad because the loaded ticket level is not enough to start the chunk
+-                // load - only generate ticket levels start anything, but they start generation...
+-                // propagate levels
+-                // Note: this CAN call plugin logic, so it is VITAL that our bookkeeping logic is completely done by the time this is invoked
+-                ((ChunkSystemServerLevel)this.world).moonrise$getChunkTaskScheduler().chunkHolderManager.processTicketUpdates();
+-
+-                if (this.removed) {
+-                    // process ticket updates may invoke plugin logic, which may remove this player
+-                    return;
+-                }
+-
+-                for (int i = 0; i < maxLoadsThisTick; ++i) {
+-                    final long queuedLoadChunk = chunks.getLong(i);
+-                    final int queuedChunkX = CoordinateUtils.getChunkX(queuedLoadChunk);
+-                    final int queuedChunkZ = CoordinateUtils.getChunkZ(queuedLoadChunk);
+-                    ((ChunkSystemServerLevel)this.world).moonrise$getChunkTaskScheduler().scheduleChunkLoad(
+-                        queuedChunkX, queuedChunkZ, ChunkStatus.EMPTY, false, Priority.NORMAL, null
+-                    );
++                if (agc$loadsStarted < maxLoadsThisTick) {
++                    this.chunkLoadTicketLimiter.returnUnused(maxLoadsThisTick - agc$loadsStarted);
++                }
++                if (!chunks.isEmpty()) {
++                    // here we need to flush tickets, as scheduleChunkLoad requires tickets to be propagated with addTicket = false
++                    this.flushDelayedTicketOps();
++                    // we only need to call scheduleChunkLoad because the loaded ticket level is not enough to start the chunk
++                    // load - only generate ticket levels start anything, but they start generation...
++                    // propagate levels
++                    // Note: this CAN call plugin logic, so it is VITAL that our bookkeeping logic is completely done by the time this is invoked
++                    ((ChunkSystemServerLevel)this.world).moonrise$getChunkTaskScheduler().chunkHolderManager.processTicketUpdates();
++
+                     if (this.removed) {
++                        // process ticket updates may invoke plugin logic, which may remove this player
+                         return;
++                    }
++
++                    for (int i = 0, agc$len = chunks.size(); i < agc$len; ++i) {
++                        final long queuedLoadChunk = chunks.getLong(i);
++                        final int queuedChunkX = CoordinateUtils.getChunkX(queuedLoadChunk);
++                        final int queuedChunkZ = CoordinateUtils.getChunkZ(queuedLoadChunk);
++                        ((ChunkSystemServerLevel)this.world).moonrise$getChunkTaskScheduler().scheduleChunkLoad(
++                            queuedChunkX, queuedChunkZ, ChunkStatus.EMPTY, false, Priority.NORMAL, null
++                        );
++                        if (this.removed) {
++                            return;
++                        }
+                     }
+                 }
+             }
+@@ -786,6 +795,9 @@
+                     if ((ratedGensThisTick + 1L) > maxGensThisTick) {
+                         break;
+                     }
++                    if (!net.minecraft.server.AGCChunkAdmission.INSTANCE.admitOperation(this.player, net.minecraft.server.AGCChunkBudget.Operation.GENERATE)) {
++                        break;
++                    }
+                     ++ratedGensThisTick;
+                 }
+ 
+
+--- a/net/minecraft/commands/Commands.java
++++ b/net/minecraft/commands/Commands.java
+@@ -44,6 +44,7 @@
+ import net.minecraft.network.protocol.game.ClientboundCommandsPacket;
+ import net.minecraft.resources.Identifier;
+ import net.minecraft.resources.ResourceKey;
++import net.minecraft.server.commands.AGCCommand;
+ import net.minecraft.server.commands.AdvancementCommands;
+ import net.minecraft.server.commands.AttributeCommand;
+ import net.minecraft.server.commands.BanIpCommands;
+@@ -194,6 +195,7 @@
+     }
+     public Commands(final Commands.CommandSelection commandSelection, final CommandBuildContext context, final boolean modern) {
+     // Paper end - Brigadier API - modern minecraft overloads that do not use redirects but are copies instead
++        AGCCommand.register(this.dispatcher); // AGC - operator diagnostics
+         AdvancementCommands.register(this.dispatcher);
+         AttributeCommand.register(this.dispatcher, context);
+         ExecuteCommand.register(this.dispatcher, context);
+
+--- a/net/minecraft/server/commands/AGCCommand.java
++++ b/net/minecraft/server/commands/AGCCommand.java
+@@ -0,0 +1,60 @@
++package net.minecraft.server.commands;
++
++import com.mojang.brigadier.CommandDispatcher;
++import net.minecraft.commands.CommandSourceStack;
++import net.minecraft.commands.Commands;
++import net.minecraft.network.chat.Component;
++import net.minecraft.server.AGCCommandReports;
++import net.minecraft.server.AGCCompatibilityBridge;
++import net.minecraft.server.AGCPerformanceGovernor;
++import net.minecraft.server.AGCRuntimeHealth;
++
++/** Operator diagnostics for AGC runtime state. */
++public final class AGCCommand {
++    private AGCCommand() {
++    }
++
++    public static void register(final CommandDispatcher<CommandSourceStack> dispatcher) {
++        dispatcher.register(
++            Commands.literal("agc")
++                .requires(Commands.hasPermission(Commands.LEVEL_OWNERS))
++                .executes(context -> sendReport(context.getSource(), overview()))
++                .then(Commands.literal("perf").executes(context -> sendReport(context.getSource(), AGCCommandReports.perf())))
++                .then(Commands.literal("compat").executes(context -> sendReport(context.getSource(), AGCCommandReports.compat())))
++                .then(Commands.literal("rollback-profile").executes(context -> sendReport(context.getSource(), AGCCommandReports.rollbackProfile())))
++                .then(Commands.literal("health").executes(context -> sendReport(context.getSource(), AGCRuntimeHealth.INSTANCE.statusLine())))
++                .then(Commands.literal("reset-rollback")
++                    .executes(context -> {
++                        AGCPerformanceGovernor.INSTANCE.resetManualForTestingOnly();
++                        AGCCompatibilityBridge.invalidatePluginScan();
++                        return sendReport(context.getSource(), "AGC rollback state cleared for this process. Re-check /agc compat before enabling experimental features.");
++                    })
++                )
++        );
++    }
++
++    private static String overview() {
++        return String.join("\n",
++            "AGC diagnostics:",
++            "  /agc perf - runtime budgets, admissions and rollback governor",
++            "  /agc compat - plugin compatibility scan and parallel tick gate",
++            "  /agc health - last server tick health sample",
++            "  /agc rollback-profile - rollback counters",
++            "  /agc reset-rollback - clear AGC runtime rollback flags for this process"
++        );
++    }
++
++    private static int sendReport(final CommandSourceStack source, final String report) {
++        if (report == null || report.isBlank()) {
++            source.sendSuccess(() -> Component.literal("AGC: no report data"), false);
++            return 1;
++        }
++        final String[] lines = report.split("\\R", -1);
++        for (final String line : lines) {
++            if (!line.isBlank()) {
++                source.sendSuccess(() -> Component.literal(line), false);
++            }
++        }
++        return lines.length;
++    }
++}

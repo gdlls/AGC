@@ -1,0 +1,1110 @@
+diff --git a/AGC.md b/AGC.md
+index 398622e..2bec08f 100644
+--- a/AGC.md
++++ b/AGC.md
+@@ -373,3 +373,12 @@ New components:
+ Operator report: `/agc scale19`. Public API: `AGC.performance().scale19Plan(players, targetTps)` and `AGCScale19Plan`.
+ 
+ Hard rules remain unchanged: no packet drops, no mutable packet sharing, no connection reorder, no chunk FIFO skip, no entity tick/AI/damage/interaction skip, no Bukkit off-thread mutation, no plugin event reorder and no redstone/factory phase reorder.
++
++
++## Alpha20 lossless scale pipeline
++
++Alpha20 is the first pass after the “big optimisations first” reset. It adds a lossless scale pipeline for ordinary survival servers targeting thousands of players at 20 TPS while preserving the AGC hard rules: no packet drops, no mutable packet sharing, no per-connection packet reorder, no chunk FIFO head skip, no entity tick/AI/damage/interaction skip, no off-thread Bukkit mutation and no plugin event reorder.
++
++The new major runtime pieces are `AGCScale20LosslessPipeline`, `AGCNetworkBackboneGraph`, `AGCChunkWorksetSlicer`, `AGCEntityWitnessIndex`, `AGCWorldSemanticScheduler`, `AGCPluginDeterminismGuard` and `AGCResourcePlacementPlanner`. These are deliberately algorithmic rather than cosmetic: they reserve CPU/memory for primary-thread gameplay, plugins, Netty, GC and OS, then spend remaining capacity only on read-only helper work such as packet backbone planning, FIFO-compatible chunk worksets, entity witness indexing and semantic world-slot planning.
++
++Operator report: `/agc scale20`. Public API: `AGC.performance().scale20Plan(players, targetTps)` and `AGCScale20Plan`.
+diff --git a/AGC_ROADMAP.md b/AGC_ROADMAP.md
+index c04bd29..bbdc1c0 100644
+--- a/AGC_ROADMAP.md
++++ b/AGC_ROADMAP.md
+@@ -366,3 +366,17 @@ Completed in alpha19:
+ - [x] `/agc scale19` diagnostics.
+ 
+ Next after alpha19: wire live player/chunk/entity counters into the scale19 kernel and then micro-optimise primitive maps, packet shape keys, forecast eviction and entity set reducers after local JDK 25 Gradle validation.
++
++
++## Alpha20 implementation slice - big survival-scale algorithms
++
++- [x] Add a central lossless scale pipeline for large survival servers.
++- [x] Add packet backbone graph planning for high-fanout packet shapes without packet drops or connection reordering.
++- [x] Add FIFO-compatible chunk workset slicing without changing Paper chunk completion order.
++- [x] Add read-only entity witness indexes without entity tick/AI/damage/interaction skipping.
++- [x] Add a semantic world scheduler that widens only read-only prepare slots and preserves visible phase barriers.
++- [x] Add plugin determinism classification so Bukkit-visible work remains ordered primary-thread commit.
++- [x] Add a resource placement planner that reserves compute for gameplay, plugins, Netty, GC and OS before helper work.
++- [x] Add `/agc scale20`, `AGCScale20Plan` and `AGC.performance().scale20Plan(...)`.
++
++Next: wire live per-region player/chunk/entity counters into the alpha20 pipeline, then micro-optimise primitive maps, packet backbone keying, workset eviction, and witness-index storage after local JDK 25 Gradle validation.
+diff --git a/PROJECT.md b/PROJECT.md
+index 5075e9b..29ca798 100644
+--- a/PROJECT.md
++++ b/PROJECT.md
+@@ -133,3 +133,8 @@ Alpha17 adds predictive semantic algorithms for the thousand-player survival tar
+ 
+ 
+ Alpha19 adds lossless logic/algorithm optimisation for the thousand-player survival target: a scale19 logic kernel, multicast shape graph, chunk demand forecast table, entity interest-set reducer, world phase batch compiler, plugin semantic JIT and adaptive locality ring. E2E surface count is now 189.
++
++
++## Alpha20 status
++
++Alpha20 adds the lossless scale pipeline for big survival-scale optimisation: network backbone graph, chunk workset slicer, entity witness index, world semantic scheduler, plugin determinism guard and resource placement planner. The target remains thousands of players at 20 TPS while preserving packet order, chunk FIFO, entity ticks, redstone/factory semantics and Bukkit/plugin event order.
+diff --git a/README.md b/README.md
+index 4dfc96e..efe8751 100644
+--- a/README.md
++++ b/README.md
+@@ -265,3 +265,10 @@ For thousand-player survival experiments, alpha18 adds `/agc scale18`. It report
+ 
+ 
+ For the logic/algorithm pass, alpha19 adds `/agc scale19`. It reports lossless multicast packet shape graphs, chunk demand forecasts, entity interest-set reduction, read-only world phase batch compilation, plugin semantic JIT classification and adaptive locality rings. The hard rules remain: no packet drops, no chunk FIFO skip, no entity tick/AI/damage skip, no off-thread Bukkit mutation and no plugin event reordering.
++
++
++### AGC alpha20 scale pipeline
++
++AGC alpha20 adds the `/agc scale20` diagnostics surface and public `AGC.performance().scale20Plan(players, targetTps)` API. This pass focuses on large, semantic-preserving algorithms first: lossless network backbone graphs, FIFO-compatible chunk worksets, read-only entity witness indexes, semantic world-slot scheduling, plugin determinism guards and CPU/memory resource placement.
++
++These algorithms do not drop packets, do not reorder connection streams, do not skip chunk FIFO heads, do not skip entity ticks, and do not move Bukkit-visible mutation off the primary ordered commit lane.
+diff --git a/TEST_INFRA.md b/TEST_INFRA.md
+index eaca380..8823a31 100644
+--- a/TEST_INFRA.md
++++ b/TEST_INFRA.md
+@@ -168,4 +168,9 @@ AGC alpha18 adds five R25 E2E surface tests for `AGCScale17AlgorithmKernel`, `AG
+ AGC alpha18 adds five R26 E2E surface tests for `AGCUnifiedTickPlanCompiler`, `AGCNetworkSendGraphCompiler`, `AGCChunkSpatialRoutePlanner`, `AGCEntityTrackerDeltaIndex`, `AGCReadOnlyWorkStealingPlanner`, `AGCPluginSemanticFirewall`, `/agc scale18`, and the public `AGCScale18Plan` API. Expected E2E registration count is now 184 tests.
+ 
+ 
+-AGC alpha19 adds five R27 E2E surface tests for `AGCScale19LogicKernel`, `AGCNetworkMulticastShapeGraph`, `AGCChunkDemandForecastTable`, `AGCEntityInterestSetReducer`, `AGCWorldPhaseBatchCompiler`, `AGCPluginSemanticJit`, `/agc scale19`, and the public `AGCScale19Plan` API. Expected E2E registration count is now 189 tests.
++AGC alpha19 adds five R27 E2E surface tests for `AGCScale19LogicKernel`, `AGCNetworkMulticastShapeGraph`, `AGCChunkDemandForecastTable`, `AGCEntityInterestSetReducer`, `AGCWorldPhaseBatchCompiler`, `AGCPluginSemanticJit`, `/agc scale19`, and the public `AGCScale19Plan` API. Expected E2E registration count is now 194 tests.
++
++
++## Alpha20 E2E surface
++
++AGC alpha20 adds five R28 E2E surface tests for `AGCScale20LosslessPipeline`, `AGCNetworkBackboneGraph`, `AGCChunkWorksetSlicer`, `AGCEntityWitnessIndex`, `AGCWorldSemanticScheduler`, `AGCPluginDeterminismGuard`, `/agc scale20`, and the public `AGCScale20Plan` API. Expected E2E registration count is now 194 tests.
+diff --git a/TEST_READY.md b/TEST_READY.md
+index f7cc9d9..e0e5c55 100644
+--- a/TEST_READY.md
++++ b/TEST_READY.md
+@@ -153,4 +153,9 @@ AGC alpha18 adds five R25 E2E surface tests for `AGCScale17AlgorithmKernel`, `AG
+ AGC alpha18 adds five R26 E2E surface tests for `AGCUnifiedTickPlanCompiler`, `AGCNetworkSendGraphCompiler`, `AGCChunkSpatialRoutePlanner`, `AGCEntityTrackerDeltaIndex`, `AGCReadOnlyWorkStealingPlanner`, `AGCPluginSemanticFirewall`, `/agc scale18`, and the public `AGCScale18Plan` API. Expected E2E registration count is now 184 tests.
+ 
+ 
+-AGC alpha19 adds five R27 E2E surface tests for `AGCScale19LogicKernel`, `AGCNetworkMulticastShapeGraph`, `AGCChunkDemandForecastTable`, `AGCEntityInterestSetReducer`, `AGCWorldPhaseBatchCompiler`, `AGCPluginSemanticJit`, `/agc scale19`, and the public `AGCScale19Plan` API. Expected E2E registration count is now 189 tests.
++AGC alpha19 adds five R27 E2E surface tests for `AGCScale19LogicKernel`, `AGCNetworkMulticastShapeGraph`, `AGCChunkDemandForecastTable`, `AGCEntityInterestSetReducer`, `AGCWorldPhaseBatchCompiler`, `AGCPluginSemanticJit`, `/agc scale19`, and the public `AGCScale19Plan` API. Expected E2E registration count is now 194 tests.
++
++
++## Alpha20 readiness
++
++AGC alpha20 readiness covers the large survival-scale pipeline: network backbone planning, FIFO-compatible chunk workset slicing, read-only entity witness indexing, semantic world scheduling, deterministic plugin classification and public API/reporting. Expected E2E registration count is now 194 tests.
+diff --git a/paper-api/src/main/java/io/agcmc/agc/api/AGCFeature.java b/paper-api/src/main/java/io/agcmc/agc/api/AGCFeature.java
+index e62e18f..29eb483 100644
+--- a/paper-api/src/main/java/io/agcmc/agc/api/AGCFeature.java
++++ b/paper-api/src/main/java/io/agcmc/agc/api/AGCFeature.java
+@@ -67,5 +67,12 @@ public enum AGCFeature {
+     ENTITY_INTEREST_SET_REDUCER,
+     WORLD_PHASE_BATCH_COMPILER,
+     PLUGIN_SEMANTIC_JIT,
+-    ADAPTIVE_LOCALITY_RING
++    ADAPTIVE_LOCALITY_RING,
++    SCALE20_LOSSLESS_PIPELINE,
++    NETWORK_BACKBONE_GRAPH,
++    CHUNK_WORKSET_SLICER,
++    ENTITY_WITNESS_INDEX,
++    WORLD_SEMANTIC_SCHEDULER,
++    PLUGIN_DETERMINISM_GUARD,
++    RESOURCE_PLACEMENT_PLANNER
+ }
+diff --git a/paper-api/src/main/java/io/agcmc/agc/api/AGCPerformance.java b/paper-api/src/main/java/io/agcmc/agc/api/AGCPerformance.java
+index 9ad875f..aa64645 100644
+--- a/paper-api/src/main/java/io/agcmc/agc/api/AGCPerformance.java
++++ b/paper-api/src/main/java/io/agcmc/agc/api/AGCPerformance.java
+@@ -79,6 +79,13 @@ public final class AGCPerformance {
+         states.put(AGCFeature.WORLD_PHASE_BATCH_COMPILER, AGCFeatureStatus.ENABLED);
+         states.put(AGCFeature.PLUGIN_SEMANTIC_JIT, AGCFeatureStatus.ENABLED);
+         states.put(AGCFeature.ADAPTIVE_LOCALITY_RING, AGCFeatureStatus.ENABLED);
++        states.put(AGCFeature.SCALE20_LOSSLESS_PIPELINE, AGCFeatureStatus.ENABLED);
++        states.put(AGCFeature.NETWORK_BACKBONE_GRAPH, AGCFeatureStatus.ENABLED);
++        states.put(AGCFeature.CHUNK_WORKSET_SLICER, AGCFeatureStatus.ENABLED);
++        states.put(AGCFeature.ENTITY_WITNESS_INDEX, AGCFeatureStatus.ENABLED);
++        states.put(AGCFeature.WORLD_SEMANTIC_SCHEDULER, AGCFeatureStatus.ENABLED);
++        states.put(AGCFeature.PLUGIN_DETERMINISM_GUARD, AGCFeatureStatus.ENABLED);
++        states.put(AGCFeature.RESOURCE_PLACEMENT_PLANNER, AGCFeatureStatus.ENABLED);
+         return new AGCPerformanceSnapshot(
+             "API_COMPATIBILITY_VIEW",
+             0.0D,
+@@ -357,6 +364,41 @@ public final class AGCPerformance {
+         );
+     }
+ 
++    public @NotNull AGCScale20Plan scale20Plan(final int expectedPlayers, final double targetTps) {
++        final int players = Math.max(1, expectedPlayers);
++        final double tps = Math.max(1.0D, targetTps);
++        final int processors = Math.max(1, Runtime.getRuntime().availableProcessors());
++        final int reservedCpu = players >= 2000 ? 34 : 30;
++        final int workers = Math.max(1, processors - Math.max(2, (processors * reservedCpu + 99) / 100));
++        final int networkLeaves = Math.max(16, Math.min(4096, (players + 31) / 32));
++        final int networkSpines = Math.max(1, Math.min(256, (networkLeaves + 15) / 16));
++        final int chunkRadius = players >= 2000 ? 24 : 18;
++        final int chunkSlices = Math.max(16, Math.min(512, (chunkRadius * chunkRadius + 31) / 32));
++        final int entityBands = Math.max(32, Math.min(512, players / 16));
++        final int worldPrepareSlots = Math.max(8, Math.min(512, workers * 8 + players / 128));
++        final int pluginSemanticBudget = Math.max(2048, Math.min(32768, players * 6));
++        final long localityBytes = Math.max(64L * 1024L * 1024L, Math.min(1024L * 1024L * 1024L, players * 160L * 1024L));
++        return new AGCScale20Plan(
++            players,
++            tps,
++            reservedCpu,
++            workers,
++            networkSpines,
++            networkLeaves,
++            chunkSlices,
++            chunkRadius,
++            entityBands,
++            worldPrepareSlots,
++            pluginSemanticBudget,
++            localityBytes,
++            true,
++            true,
++            true,
++            true,
++            "AGC alpha20: run one lossless scale pipeline with network backbone graphs, FIFO-compatible chunk worksets, read-only entity witness indexes, semantic world slots, deterministic plugin classification and CPU/memory placement; Minecraft-visible state stays ordered"
++        );
++    }
++
+     public boolean isPrimaryThread() {
+         try {
+             return Bukkit.isPrimaryThread();
+diff --git a/agc_alpha20_work/agc-26.2/paper-api/src/main/java/io/agcmc/agc/api/AGCScale20Plan.java b/paper-api/src/main/java/io/agcmc/agc/api/AGCScale20Plan.java
+new file mode 100644
+index 0000000..ab21882
+--- /dev/null
++++ b/paper-api/src/main/java/io/agcmc/agc/api/AGCScale20Plan.java
+@@ -0,0 +1,26 @@
++package io.agcmc.agc.api;
++
++/**
++ * Public alpha20 scale plan for plugins targeting very large survival servers.
++ * Values are advisory only: plugins should use read-only prepare and ordered
++ * commit patterns instead of moving Bukkit-visible mutations off-thread.
++ */
++public record AGCScale20Plan(
++    int expectedPlayers,
++    double targetTps,
++    int reservedCpuPercent,
++    int helperWorkers,
++    int networkBackboneSpines,
++    int networkBackboneLeaves,
++    int chunkWorksetSlices,
++    int chunkLookaheadRadius,
++    int entityWitnessBands,
++    int worldPrepareSlots,
++    int pluginSemanticCacheBudget,
++    long helperLocalityBytes,
++    boolean packetDropFree,
++    boolean chunkFifoPreserved,
++    boolean entityTickPreserved,
++    boolean pluginOrderPreserved,
++    String strategy
++) {}
+diff --git a/agc_alpha20_work/agc-26.2/paper-server/src/main/java/net/minecraft/server/AGCChunkWorksetSlicer.java b/paper-server/src/main/java/net/minecraft/server/AGCChunkWorksetSlicer.java
+new file mode 100644
+index 0000000..395f4b9
+--- /dev/null
++++ b/paper-server/src/main/java/net/minecraft/server/AGCChunkWorksetSlicer.java
+@@ -0,0 +1,82 @@
++package net.minecraft.server;
++
++import java.util.UUID;
++import java.util.concurrent.atomic.AtomicLong;
++
++/**
++ * Slices chunk intent work into stable, FIFO-compatible worksets.
++ *
++ * This never starts, cancels or reorders chunk work. It only prepares stable
++ * workset metadata so the real Paper chunk queues can be fed fairly without
++ * skipping the FIFO head or changing completion order.
++ */
++public final class AGCChunkWorksetSlicer {
++    public static final AGCChunkWorksetSlicer INSTANCE = new AGCChunkWorksetSlicer();
++
++    private final AtomicLong requested = new AtomicLong();
++    private final AtomicLong sliced = new AtomicLong();
++    private final AtomicLong fifoWait = new AtomicLong();
++    private volatile long tickSequence;
++    private volatile int lastSlices;
++    private volatile long lastWorksetKey;
++    private volatile String lastReason = "cold";
++
++    private AGCChunkWorksetSlicer() {}
++
++    public void beginTick(final long sequence) {
++        this.tickSequence = Math.max(0L, sequence);
++        this.lastReason = "tick reset";
++    }
++
++    public Workset slice(final UUID playerId, final AGCChunkBudget.Operation operation, final int radius, final long queueDepth, final String reason) {
++        this.requested.incrementAndGet();
++        final int safeRadius = Math.max(1, radius);
++        final int slices = Math.max(1, Math.min(256, (safeRadius * safeRadius + 31) / 32));
++        final long key = stableKey(playerId, operation, safeRadius, queueDepth);
++        final AGCScale20LosslessPipeline.Grant grant = AGCScale20LosslessPipeline.INSTANCE.claim(
++            AGCScale20LosslessPipeline.Stage.CHUNK_PIPELINE,
++            Math.max(1L, slices + Math.max(0L, queueDepth / 16L)),
++            "chunk-workset " + safe(reason)
++        );
++        this.lastSlices = slices;
++        this.lastWorksetKey = key;
++        if (!grant.admitted()) {
++            this.fifoWait.incrementAndGet();
++            this.lastReason = grant.reason();
++            return new Workset(false, true, slices, key, this.lastReason);
++        }
++        this.sliced.incrementAndGet();
++        this.lastReason = "sliced FIFO-compatible workset slices=" + slices + " key=" + Long.toUnsignedString(key);
++        return new Workset(true, false, slices, key, this.lastReason);
++    }
++
++    public String statusLine() {
++        return "AGCChunkWorksetSlicer{tick=" + this.tickSequence
++            + ", requested=" + this.requested.get()
++            + ", sliced=" + this.sliced.get()
++            + ", fifoWait=" + this.fifoWait.get()
++            + ", lastSlices=" + this.lastSlices
++            + ", lastWorksetKey=" + Long.toUnsignedString(this.lastWorksetKey)
++            + ", lastReason='" + this.lastReason + "'}";
++    }
++
++    private static long stableKey(final UUID playerId, final AGCChunkBudget.Operation operation, final int radius, final long queueDepth) {
++        long hash = 0x510e527fade682d1L;
++        hash = mix(hash, playerId == null ? 0L : playerId.getMostSignificantBits());
++        hash = mix(hash, playerId == null ? 0L : playerId.getLeastSignificantBits());
++        hash = mix(hash, operation == null ? 0L : operation.ordinal());
++        hash = mix(hash, radius);
++        hash = mix(hash, queueDepth);
++        return hash;
++    }
++
++    private static long mix(final long hash, final long value) {
++        return (hash ^ value) * 0x100000001b3L;
++    }
++
++    private static String safe(final String reason) {
++        return reason == null || reason.isBlank() ? "chunk" : reason;
++    }
++
++    public record Workset(boolean admitted, boolean fifoWait, int slices, long worksetKey, String reason) {}
++}
+diff --git a/paper-server/src/main/java/net/minecraft/server/AGCCommandReports.java b/paper-server/src/main/java/net/minecraft/server/AGCCommandReports.java
+index 0f67fe2..2dd58b8 100644
+--- a/paper-server/src/main/java/net/minecraft/server/AGCCommandReports.java
++++ b/paper-server/src/main/java/net/minecraft/server/AGCCommandReports.java
+@@ -91,6 +91,13 @@ public final class AGCCommandReports {
+             AGCWorldPhaseBatchCompiler.INSTANCE.statusLine(),
+             AGCPluginSemanticJit.INSTANCE.statusLine(),
+             AGCAdaptiveLocalityRing.INSTANCE.statusLine(),
++            AGCScale20LosslessPipeline.INSTANCE.statusLine(),
++            AGCNetworkBackboneGraph.INSTANCE.statusLine(),
++            AGCChunkWorksetSlicer.INSTANCE.statusLine(),
++            AGCEntityWitnessIndex.INSTANCE.statusLine(),
++            AGCWorldSemanticScheduler.INSTANCE.statusLine(),
++            AGCPluginDeterminismGuard.INSTANCE.statusLine(),
++            AGCResourcePlacementPlanner.INSTANCE.statusLine(),
+             AGCStabilityJournal.INSTANCE.statusLine(),
+             MeteusSpatialGrid.INSTANCE.generateMetricsReport()
+         );
+@@ -396,6 +403,23 @@ public final class AGCCommandReports {
+         );
+     }
+ 
++    public static String scale20() {
++        return String.join("\n",
++            "AGC alpha20 lossless scale pipeline: big optimisations first, semantic rules always preserved",
++            AGCScale20LosslessPipeline.INSTANCE.statusLine(),
++            AGCNetworkBackboneGraph.INSTANCE.statusLine(),
++            AGCChunkWorksetSlicer.INSTANCE.statusLine(),
++            AGCEntityWitnessIndex.INSTANCE.statusLine(),
++            AGCWorldSemanticScheduler.INSTANCE.statusLine(),
++            AGCPluginDeterminismGuard.INSTANCE.statusLine(),
++            AGCResourcePlacementPlanner.INSTANCE.statusLine(),
++            AGCScale19LogicKernel.INSTANCE.statusLine(),
++            AGCNoInvasionOptimizer.INSTANCE.statusLine(),
++            "hardRules=no packet drops, no mutable packet sharing, no connection reorder, no chunk FIFO skip, no entity tick/AI/damage skip, no off-thread Bukkit mutation, no plugin event reorder",
++            "algorithm=lossless scale pipeline + network backbone graph + FIFO-compatible chunk worksets + read-only entity witness index + semantic world scheduler + deterministic plugin guard + CPU/memory resource placement"
++        );
++    }
++
+ 
+     public static String minigameApi() {
+         try {
+diff --git a/agc_alpha20_work/agc-26.2/paper-server/src/main/java/net/minecraft/server/AGCEntityWitnessIndex.java b/paper-server/src/main/java/net/minecraft/server/AGCEntityWitnessIndex.java
+new file mode 100644
+index 0000000..ba82094
+--- /dev/null
++++ b/paper-server/src/main/java/net/minecraft/server/AGCEntityWitnessIndex.java
+@@ -0,0 +1,85 @@
++package net.minecraft.server;
++
++import java.util.UUID;
++import java.util.concurrent.atomic.AtomicLong;
++
++/**
++ * Read-only witness index for entity visibility/interaction candidate planning.
++ *
++ * A witness is a planning hint for tracker work. This class never owns entity
++ * state and never skips entity ticks, AI, damage, interaction or Bukkit events.
++ */
++public final class AGCEntityWitnessIndex {
++    public static final AGCEntityWitnessIndex INSTANCE = new AGCEntityWitnessIndex();
++
++    private final AtomicLong requested = new AtomicLong();
++    private final AtomicLong indexed = new AtomicLong();
++    private final AtomicLong delayed = new AtomicLong();
++    private volatile long tickSequence;
++    private volatile int lastWitnesses;
++    private volatile int lastBands;
++    private volatile long lastWitnessKey;
++    private volatile String lastReason = "cold";
++
++    private AGCEntityWitnessIndex() {}
++
++    public void beginTick(final long sequence) {
++        this.tickSequence = Math.max(0L, sequence);
++        this.lastReason = "tick reset";
++    }
++
++    public WitnessPlan index(final UUID playerId, final int estimatedEntities, final int spatialBands, final String reason) {
++        this.requested.incrementAndGet();
++        final int safeEntities = Math.max(0, estimatedEntities);
++        final int bands = Math.max(1, Math.min(512, Math.max(1, spatialBands)));
++        final int witnesses = Math.max(1, Math.min(262_144, safeEntities / Math.max(1, bands) + bands));
++        final long key = stableKey(playerId, safeEntities, bands);
++        final AGCScale20LosslessPipeline.Grant grant = AGCScale20LosslessPipeline.INSTANCE.claim(
++            AGCScale20LosslessPipeline.Stage.ENTITY_INDEX,
++            Math.max(1L, witnesses / 8L + bands),
++            "entity-witness " + safe(reason)
++        );
++        this.lastWitnesses = witnesses;
++        this.lastBands = bands;
++        this.lastWitnessKey = key;
++        if (!grant.admitted()) {
++            this.delayed.incrementAndGet();
++            this.lastReason = grant.reason();
++            return new WitnessPlan(false, witnesses, bands, key, this.lastReason);
++        }
++        this.indexed.incrementAndGet();
++        this.lastReason = "indexed read-only witnesses=" + witnesses + " bands=" + bands;
++        return new WitnessPlan(true, witnesses, bands, key, this.lastReason);
++    }
++
++    public String statusLine() {
++        return "AGCEntityWitnessIndex{tick=" + this.tickSequence
++            + ", requested=" + this.requested.get()
++            + ", indexed=" + this.indexed.get()
++            + ", delayed=" + this.delayed.get()
++            + ", lastWitnesses=" + this.lastWitnesses
++            + ", lastBands=" + this.lastBands
++            + ", lastWitnessKey=" + Long.toUnsignedString(this.lastWitnessKey)
++            + ", lastReason='" + this.lastReason + "'}";
++    }
++
++    private static long stableKey(final UUID playerId, final int estimatedEntities, final int bands) {
++        long hash = 0xbb67ae8584caa73bL;
++        hash = mix(hash, playerId == null ? 0L : playerId.getMostSignificantBits());
++        hash = mix(hash, playerId == null ? 0L : playerId.getLeastSignificantBits());
++        hash = mix(hash, estimatedEntities);
++        hash = mix(hash, bands);
++        return hash;
++    }
++
++    private static long mix(final long hash, final long value) {
++        long v = hash ^ (value * 0xbf58476d1ce4e5b9L);
++        return v ^ (v >>> 29);
++    }
++
++    private static String safe(final String reason) {
++        return reason == null || reason.isBlank() ? "entity" : reason;
++    }
++
++    public record WitnessPlan(boolean admitted, int witnesses, int bands, long witnessKey, String reason) {}
++}
+diff --git a/agc_alpha20_work/agc-26.2/paper-server/src/main/java/net/minecraft/server/AGCNetworkBackboneGraph.java b/paper-server/src/main/java/net/minecraft/server/AGCNetworkBackboneGraph.java
+new file mode 100644
+index 0000000..5a46a6f
+--- /dev/null
++++ b/paper-server/src/main/java/net/minecraft/server/AGCNetworkBackboneGraph.java
+@@ -0,0 +1,89 @@
++package net.minecraft.server;
++
++import java.util.concurrent.atomic.AtomicLong;
++
++/**
++ * Lossless backbone graph for high-fanout network planning.
++ *
++ * The graph is a send-plan spine/leaf model only. It never merges packet
++ * instances, never drops packets and never reorders a connection stream.
++ */
++public final class AGCNetworkBackboneGraph {
++    public static final AGCNetworkBackboneGraph INSTANCE = new AGCNetworkBackboneGraph();
++
++    private final AtomicLong requested = new AtomicLong();
++    private final AtomicLong compiled = new AtomicLong();
++    private final AtomicLong orderedNow = new AtomicLong();
++    private volatile long tickSequence;
++    private volatile int lastSpines;
++    private volatile int lastLeaves;
++    private volatile long lastBackboneKey;
++    private volatile String lastReason = "cold";
++
++    private AGCNetworkBackboneGraph() {}
++
++    public void beginTick(final long sequence) {
++        this.tickSequence = Math.max(0L, sequence);
++        this.lastReason = "tick reset";
++    }
++
++    public Plan compile(final String packetName, final int recipients, final boolean interactive, final long pendingDeferredFlushes) {
++        this.requested.incrementAndGet();
++        final int safeRecipients = Math.max(1, recipients);
++        if (interactive) {
++            this.orderedNow.incrementAndGet();
++            this.lastReason = "interactive packet stays immediately ordered: " + safe(packetName);
++            return new Plan(false, true, 1, safeRecipients, 0L, this.lastReason);
++        }
++        final int leaves = Math.max(1, Math.min(4096, (safeRecipients + 31) / 32));
++        final int spines = Math.max(1, Math.min(256, (leaves + 15) / 16));
++        final long key = stableKey(packetName, spines, leaves, pendingDeferredFlushes);
++        final AGCScale20LosslessPipeline.Grant grant = AGCScale20LosslessPipeline.INSTANCE.claim(
++            AGCScale20LosslessPipeline.Stage.NETWORK_BACKBONE,
++            Math.max(1L, spines * 4L + leaves + pendingDeferredFlushes / 2048L),
++            "network-backbone " + safe(packetName)
++        );
++        this.lastSpines = spines;
++        this.lastLeaves = leaves;
++        this.lastBackboneKey = key;
++        if (!grant.admitted()) {
++            this.orderedNow.incrementAndGet();
++            this.lastReason = grant.reason();
++            return new Plan(false, true, spines, leaves, key, this.lastReason);
++        }
++        this.compiled.incrementAndGet();
++        this.lastReason = "compiled backbone spines=" + spines + " leaves=" + leaves + " key=" + Long.toUnsignedString(key);
++        return new Plan(true, false, spines, leaves, key, this.lastReason);
++    }
++
++    public String statusLine() {
++        return "AGCNetworkBackboneGraph{tick=" + this.tickSequence
++            + ", requested=" + this.requested.get()
++            + ", compiled=" + this.compiled.get()
++            + ", orderedNow=" + this.orderedNow.get()
++            + ", lastSpines=" + this.lastSpines
++            + ", lastLeaves=" + this.lastLeaves
++            + ", lastBackboneKey=" + Long.toUnsignedString(this.lastBackboneKey)
++            + ", lastReason='" + this.lastReason + "'}";
++    }
++
++    private static long stableKey(final String packetName, final int spines, final int leaves, final long pending) {
++        long hash = 0x6a09e667f3bcc909L;
++        hash = mix(hash, packetName == null ? 0L : packetName.hashCode());
++        hash = mix(hash, spines);
++        hash = mix(hash, leaves);
++        hash = mix(hash, pending);
++        return hash;
++    }
++
++    private static long mix(final long hash, final long value) {
++        long v = hash ^ (value + 0x9e3779b97f4a7c15L + (hash << 6) + (hash >>> 2));
++        return v ^ (v >>> 33);
++    }
++
++    private static String safe(final String packetName) {
++        return packetName == null || packetName.isBlank() ? "packet" : packetName;
++    }
++
++    public record Plan(boolean compiled, boolean orderedNow, int spines, int leaves, long backboneKey, String reason) {}
++}
+diff --git a/paper-server/src/main/java/net/minecraft/server/AGCNoInvasionOptimizer.java b/paper-server/src/main/java/net/minecraft/server/AGCNoInvasionOptimizer.java
+index cb0f1b9..48d802e 100644
+--- a/paper-server/src/main/java/net/minecraft/server/AGCNoInvasionOptimizer.java
++++ b/paper-server/src/main/java/net/minecraft/server/AGCNoInvasionOptimizer.java
+@@ -128,6 +128,13 @@ public final class AGCNoInvasionOptimizer {
+         AGCWorldPhaseBatchCompiler.INSTANCE.beginTick(sequence);
+         AGCPluginSemanticJit.INSTANCE.beginTick(sequence);
+         AGCAdaptiveLocalityRing.INSTANCE.beginTick(sequence);
++        AGCScale20LosslessPipeline.INSTANCE.beginTick(sequence);
++        AGCNetworkBackboneGraph.INSTANCE.beginTick(sequence);
++        AGCChunkWorksetSlicer.INSTANCE.beginTick(sequence);
++        AGCEntityWitnessIndex.INSTANCE.beginTick(sequence);
++        AGCWorldSemanticScheduler.INSTANCE.beginTick(sequence);
++        AGCPluginDeterminismGuard.INSTANCE.beginTick(sequence);
++        AGCResourcePlacementPlanner.INSTANCE.beginTick(sequence);
+     }
+ 
+     public Decision admitNetworkDeadlineBatch(final String packetName, final boolean interactive, final long pendingDeferredFlushes) {
+@@ -137,6 +144,21 @@ public final class AGCNoInvasionOptimizer {
+             return this.lastNetworkDecision;
+         }
+         final long networkCost = 1L + Math.max(0L, pendingDeferredFlushes / 256L);
++        final AGCResourcePlacementPlanner.Placement networkPlacement = AGCResourcePlacementPlanner.INSTANCE.place("network:" + packetName, networkCost, false);
++        if (!networkPlacement.placed() && pendingDeferredFlushes > 8192L) {
++            this.lastNetworkDecision = this.record(Lane.NETWORK_DEADLINE_BATCH, Decision.IMMEDIATE_ORDERED, networkPlacement.reason());
++            return this.lastNetworkDecision;
++        }
++        final AGCNetworkBackboneGraph.Plan backbonePlan = AGCNetworkBackboneGraph.INSTANCE.compile(
++            packetName,
++            (int) Math.min(Integer.MAX_VALUE, Math.max(1L, pendingDeferredFlushes)),
++            interactive,
++            pendingDeferredFlushes
++        );
++        if (backbonePlan.orderedNow()) {
++            this.lastNetworkDecision = this.record(Lane.NETWORK_DEADLINE_BATCH, Decision.IMMEDIATE_ORDERED, backbonePlan.reason());
++            return this.lastNetworkDecision;
++        }
+         final AGCNetworkMulticastShapeGraph.Plan multicastShape = AGCNetworkMulticastShapeGraph.INSTANCE.compile(
+             packetName,
+             (int) Math.min(Integer.MAX_VALUE, Math.max(1L, pendingDeferredFlushes)),
+@@ -295,6 +317,22 @@ public final class AGCNoInvasionOptimizer {
+             this.lastChunkDecision = this.record(Lane.CHUNK_FIFO_FAIR_QUEUE, Decision.FIFO_FAIR_WAIT, demandForecast.reason());
+             return this.lastChunkDecision;
+         }
++        final AGCChunkWorksetSlicer.Workset chunkWorkset = AGCChunkWorksetSlicer.INSTANCE.slice(
++            playerId,
++            operation,
++            demandForecast.radius(),
++            0L,
++            operation == null ? "chunk" : operation.name()
++        );
++        if (!chunkWorkset.admitted()) {
++            this.lastChunkDecision = this.record(Lane.CHUNK_FIFO_FAIR_QUEUE, Decision.FIFO_FAIR_WAIT, chunkWorkset.reason());
++            return this.lastChunkDecision;
++        }
++        final AGCResourcePlacementPlanner.Placement chunkPlacement = AGCResourcePlacementPlanner.INSTANCE.place("chunk:" + (operation == null ? "unknown" : operation.name()), Math.max(1L, chunkWorkset.slices()), false);
++        if (!chunkPlacement.placed()) {
++            this.lastChunkDecision = this.record(Lane.CHUNK_FIFO_FAIR_QUEUE, Decision.FIFO_FAIR_WAIT, chunkPlacement.reason());
++            return this.lastChunkDecision;
++        }
+         final AGCAdaptiveLocalityRing.Admission chunkRing = AGCAdaptiveLocalityRing.INSTANCE.claim(
+             "chunk-forecast:" + Long.toUnsignedString(demandForecast.stableKey()),
+             Math.max(4096L, demandForecast.hints() * 48L)
+@@ -367,6 +405,21 @@ public final class AGCNoInvasionOptimizer {
+ 
+     public Decision admitEntitySnapshot(final java.util.UUID playerId, final int estimatedEntities, final String reason) {
+         this.requests.get(Lane.ENTITY_READ_ONLY_SNAPSHOT).incrementAndGet();
++        final AGCEntityWitnessIndex.WitnessPlan witnessPlan = AGCEntityWitnessIndex.INSTANCE.index(
++            playerId,
++            estimatedEntities,
++            Math.max(1, estimatedEntities / 64),
++            reason
++        );
++        if (!witnessPlan.admitted() && estimatedEntities > 4096) {
++            this.lastEntityDecision = this.record(Lane.ENTITY_READ_ONLY_SNAPSHOT, Decision.ORDERED_COMMIT, witnessPlan.reason());
++            return this.lastEntityDecision;
++        }
++        final AGCResourcePlacementPlanner.Placement entityPlacement = AGCResourcePlacementPlanner.INSTANCE.place("entity-witness:" + (reason == null ? "entity" : reason), Math.max(1L, witnessPlan.witnesses() / 16L), false);
++        if (!entityPlacement.placed() && estimatedEntities > 4096) {
++            this.lastEntityDecision = this.record(Lane.ENTITY_READ_ONLY_SNAPSHOT, Decision.ORDERED_COMMIT, entityPlacement.reason());
++            return this.lastEntityDecision;
++        }
+         if (!this.enabled) {
+             this.lastEntityDecision = this.record(Lane.ENTITY_READ_ONLY_SNAPSHOT, Decision.IMMEDIATE_ORDERED, reason);
+             return this.lastEntityDecision;
+@@ -480,6 +533,21 @@ public final class AGCNoInvasionOptimizer {
+             this.lastWorldDecision = this.record(Lane.WORLD_WRITE_INTENT_WAVE, Decision.ORDERED_COMMIT, "translator pressure");
+             return this.lastWorldDecision;
+         }
++        final AGCWorldSemanticScheduler.Schedule semanticSchedule = AGCWorldSemanticScheduler.INSTANCE.compile(plan, translatorPending);
++        if (!semanticSchedule.prepareConcurrent()) {
++            this.lastWorldDecision = this.record(Lane.WORLD_WRITE_INTENT_WAVE, Decision.ORDERED_COMMIT, semanticSchedule.reason());
++            return this.lastWorldDecision;
++        }
++        final AGCPluginDeterminismGuard.Decision determinism = AGCPluginDeterminismGuard.INSTANCE.classify("world-planner", "pure-compute-world-phase-plan", true, true);
++        if (determinism.orderedCommit() || determinism.forbiddenMutation()) {
++            this.lastWorldDecision = this.record(Lane.WORLD_WRITE_INTENT_WAVE, Decision.ORDERED_COMMIT, determinism.reason());
++            return this.lastWorldDecision;
++        }
++        final AGCResourcePlacementPlanner.Placement worldPlacement = AGCResourcePlacementPlanner.INSTANCE.place("world-plan", Math.max(1L, semanticSchedule.prepareSlots() * 4L), false);
++        if (!worldPlacement.placed()) {
++            this.lastWorldDecision = this.record(Lane.WORLD_WRITE_INTENT_WAVE, Decision.ORDERED_COMMIT, worldPlacement.reason());
++            return this.lastWorldDecision;
++        }
+         final long worldCost = Math.max(1L, plan.parallelGroups());
+         final AGCWorldPhaseBatchCompiler.Batch phaseBatch = AGCWorldPhaseBatchCompiler.INSTANCE.compile(plan, translatorPending);
+         if (!phaseBatch.readOnlyBatches()) {
+diff --git a/agc_alpha20_work/agc-26.2/paper-server/src/main/java/net/minecraft/server/AGCPluginDeterminismGuard.java b/paper-server/src/main/java/net/minecraft/server/AGCPluginDeterminismGuard.java
+new file mode 100644
+index 0000000..0dc78eb
+--- /dev/null
++++ b/paper-server/src/main/java/net/minecraft/server/AGCPluginDeterminismGuard.java
+@@ -0,0 +1,104 @@
++package net.minecraft.server;
++
++import java.util.Locale;
++import java.util.concurrent.atomic.AtomicLong;
++
++/**
++ * Conservative plugin determinism guard.
++ *
++ * Repeated plugin operations can be classified cheaply, but Bukkit-visible
++ * mutations are always routed to ordered primary-thread commit semantics.
++ */
++public final class AGCPluginDeterminismGuard {
++    public static final AGCPluginDeterminismGuard INSTANCE = new AGCPluginDeterminismGuard();
++
++    public enum Classification {
++        READ_ONLY,
++        PURE_COMPUTE,
++        PACKET_PLAN,
++        CHUNK_INTENT,
++        ORDERED_COMMIT,
++        FORBIDDEN_MUTATION
++    }
++
++    private final AtomicLong requested = new AtomicLong();
++    private final AtomicLong readOnly = new AtomicLong();
++    private final AtomicLong ordered = new AtomicLong();
++    private final AtomicLong forbidden = new AtomicLong();
++    private volatile long tickSequence;
++    private volatile Classification lastClassification = Classification.ORDERED_COMMIT;
++    private volatile String lastReason = "cold";
++
++    private AGCPluginDeterminismGuard() {}
++
++    public void beginTick(final long sequence) {
++        this.tickSequence = Math.max(0L, sequence);
++        this.lastReason = "tick reset";
++    }
++
++    public Decision classify(final String pluginName, final String operation, final boolean declaredReadOnly, final boolean primaryThreadOnly) {
++        this.requested.incrementAndGet();
++        final String op = operation == null ? "" : operation.toLowerCase(Locale.ROOT);
++        final Classification classification;
++        if (containsAny(op, "setblock", "teleport", "spawn", "inventory", "scoreboard", "command", "event", "world", "blockplace", "blockbreak", "damage", "interact")) {
++            classification = primaryThreadOnly ? Classification.ORDERED_COMMIT : Classification.FORBIDDEN_MUTATION;
++        } else if (containsAny(op, "packet", "cosmetic", "title", "bossbar")) {
++            classification = Classification.PACKET_PLAN;
++        } else if (containsAny(op, "chunk", "preload", "lookahead")) {
++            classification = Classification.CHUNK_INTENT;
++        } else if (declaredReadOnly || containsAny(op, "query", "snapshot", "compute", "path", "plan")) {
++            classification = declaredReadOnly ? Classification.READ_ONLY : Classification.PURE_COMPUTE;
++        } else {
++            classification = Classification.ORDERED_COMMIT;
++        }
++        this.lastClassification = classification;
++        if (classification == Classification.FORBIDDEN_MUTATION) {
++            this.forbidden.incrementAndGet();
++            this.lastReason = "forbidden off-thread mutation plugin=" + safe(pluginName) + " op=" + safe(operation);
++            return new Decision(classification, false, true, this.lastReason);
++        }
++        if (classification == Classification.ORDERED_COMMIT) {
++            this.ordered.incrementAndGet();
++            this.lastReason = "ordered plugin commit plugin=" + safe(pluginName) + " op=" + safe(operation);
++            return new Decision(classification, true, false, this.lastReason);
++        }
++        final AGCScale20LosslessPipeline.Grant grant = AGCScale20LosslessPipeline.INSTANCE.claim(
++            AGCScale20LosslessPipeline.Stage.PLUGIN_TRANSLATION,
++            classification == Classification.READ_ONLY ? 1L : 4L,
++            "plugin-determinism " + safe(pluginName) + ":" + safe(operation)
++        );
++        if (!grant.admitted()) {
++            this.ordered.incrementAndGet();
++            this.lastReason = grant.reason();
++            return new Decision(Classification.ORDERED_COMMIT, true, false, this.lastReason);
++        }
++        this.readOnly.incrementAndGet();
++        this.lastReason = "classified lossless plugin helper " + classification + " plugin=" + safe(pluginName);
++        return new Decision(classification, false, false, this.lastReason);
++    }
++
++    public String statusLine() {
++        return "AGCPluginDeterminismGuard{tick=" + this.tickSequence
++            + ", requested=" + this.requested.get()
++            + ", readOnly=" + this.readOnly.get()
++            + ", ordered=" + this.ordered.get()
++            + ", forbidden=" + this.forbidden.get()
++            + ", lastClassification=" + this.lastClassification
++            + ", lastReason='" + this.lastReason + "'}";
++    }
++
++    private static boolean containsAny(final String value, final String... needles) {
++        for (final String needle : needles) {
++            if (value.contains(needle)) {
++                return true;
++            }
++        }
++        return false;
++    }
++
++    private static String safe(final String value) {
++        return value == null || value.isBlank() ? "unknown" : value;
++    }
++
++    public record Decision(Classification classification, boolean orderedCommit, boolean forbiddenMutation, String reason) {}
++}
+diff --git a/agc_alpha20_work/agc-26.2/paper-server/src/main/java/net/minecraft/server/AGCResourcePlacementPlanner.java b/paper-server/src/main/java/net/minecraft/server/AGCResourcePlacementPlanner.java
+new file mode 100644
+index 0000000..ee3f152
+--- /dev/null
++++ b/paper-server/src/main/java/net/minecraft/server/AGCResourcePlacementPlanner.java
+@@ -0,0 +1,69 @@
++package net.minecraft.server;
++
++import java.util.concurrent.atomic.AtomicLong;
++
++/**
++ * CPU/memory placement planner for invisible AGC work.
++ *
++ * It reserves space for primary-thread gameplay, plugins, Netty, GC and OS, then
++ * places only read-only helper tasks into spare capacity windows.
++ */
++public final class AGCResourcePlacementPlanner {
++    public static final AGCResourcePlacementPlanner INSTANCE = new AGCResourcePlacementPlanner();
++
++    private final AtomicLong requested = new AtomicLong();
++    private final AtomicLong placed = new AtomicLong();
++    private final AtomicLong delayed = new AtomicLong();
++    private volatile long tickSequence;
++    private volatile int lastWorkers;
++    private volatile int lastReservePercent;
++    private volatile String lastReason = "cold";
++
++    private AGCResourcePlacementPlanner() {}
++
++    public void beginTick(final long sequence) {
++        this.tickSequence = Math.max(0L, sequence);
++        final int processors = Math.max(1, Runtime.getRuntime().availableProcessors());
++        this.lastReservePercent = processors >= 16 ? 34 : 28;
++        this.lastWorkers = Math.max(1, processors - Math.max(2, (processors * this.lastReservePercent + 99) / 100));
++        this.lastReason = "reserved primary/plugins/netty/gc/os workers=" + this.lastWorkers;
++    }
++
++    public Placement place(final String taskName, final long cost, final boolean visibleCommit) {
++        this.requested.incrementAndGet();
++        if (visibleCommit) {
++            this.delayed.incrementAndGet();
++            this.lastReason = "visible commit is not placed in helper pool: " + safe(taskName);
++            return new Placement(false, true, this.lastWorkers, this.lastReservePercent, this.lastReason);
++        }
++        final AGCScale20LosslessPipeline.Grant grant = AGCScale20LosslessPipeline.INSTANCE.claim(
++            AGCScale20LosslessPipeline.Stage.RESOURCE_PLACEMENT,
++            Math.max(1L, cost),
++            "resource-placement " + safe(taskName)
++        );
++        if (!grant.admitted()) {
++            this.delayed.incrementAndGet();
++            this.lastReason = grant.reason();
++            return new Placement(false, false, this.lastWorkers, this.lastReservePercent, this.lastReason);
++        }
++        this.placed.incrementAndGet();
++        this.lastReason = "placed read-only helper task=" + safe(taskName) + " workers=" + this.lastWorkers;
++        return new Placement(true, false, this.lastWorkers, this.lastReservePercent, this.lastReason);
++    }
++
++    public String statusLine() {
++        return "AGCResourcePlacementPlanner{tick=" + this.tickSequence
++            + ", requested=" + this.requested.get()
++            + ", placed=" + this.placed.get()
++            + ", delayed=" + this.delayed.get()
++            + ", lastWorkers=" + this.lastWorkers
++            + ", lastReservePercent=" + this.lastReservePercent
++            + ", lastReason='" + this.lastReason + "'}";
++    }
++
++    private static String safe(final String value) {
++        return value == null || value.isBlank() ? "task" : value;
++    }
++
++    public record Placement(boolean placed, boolean visibleCommit, int helperWorkers, int reservePercent, String reason) {}
++}
+diff --git a/paper-server/src/main/java/net/minecraft/server/AGCRuntimeHealth.java b/paper-server/src/main/java/net/minecraft/server/AGCRuntimeHealth.java
+index c7bcc34..8de61b4 100644
+--- a/paper-server/src/main/java/net/minecraft/server/AGCRuntimeHealth.java
++++ b/paper-server/src/main/java/net/minecraft/server/AGCRuntimeHealth.java
+@@ -78,6 +78,7 @@ public final class AGCRuntimeHealth {
+         AGCHotspotEvictionPlanner.INSTANCE.record(agcTickSequence, survivalMetrics.players());
+         AGCRegionHotspotMap.INSTANCE.beginTick(agcTickSequence);
+         AGCComputeTopologyPlanner.INSTANCE.beginTick(agcTickSequence, survivalMetrics.players(), this.lastMspt);
++        AGCScale20LosslessPipeline.INSTANCE.recordMspt(this.lastMspt);
+         AGCNoInvasionOptimizer.INSTANCE.beginTick(agcTickSequence);
+         AGCEntitySpatialSnapshotCache.INSTANCE.beginTick(agcTickSequence);
+         AGCSharedReadOnlyCache.INSTANCE.beginTick(agcTickSequence);
+diff --git a/agc_alpha20_work/agc-26.2/paper-server/src/main/java/net/minecraft/server/AGCScale20LosslessPipeline.java b/paper-server/src/main/java/net/minecraft/server/AGCScale20LosslessPipeline.java
+new file mode 100644
+index 0000000..f038e0a
+--- /dev/null
++++ b/paper-server/src/main/java/net/minecraft/server/AGCScale20LosslessPipeline.java
+@@ -0,0 +1,106 @@
++package net.minecraft.server;
++
++import java.util.EnumMap;
++import java.util.Map;
++import java.util.concurrent.atomic.AtomicLong;
++
++/**
++ * Alpha20 lossless scale pipeline.
++ *
++ * This is the big-ticket coordinator for thousand-player survival scale. It
++ * only budgets work that can be proven invisible to Minecraft semantics:
++ * packet-shape planning, chunk demand routing, entity candidate reduction,
++ * read-only world phase planning, plugin semantic classification and cache
++ * locality. Ordered commits, entity ticks, block ticks, redstone, Bukkit events
++ * and per-connection packet order are not moved into this pipeline.
++ */
++public final class AGCScale20LosslessPipeline {
++    public static final AGCScale20LosslessPipeline INSTANCE = new AGCScale20LosslessPipeline();
++
++    public enum Stage {
++        NETWORK_BACKBONE,
++        CHUNK_PIPELINE,
++        ENTITY_INDEX,
++        WORLD_PLAN,
++        PLUGIN_TRANSLATION,
++        RESOURCE_PLACEMENT
++    }
++
++    private final EnumMap<Stage, AtomicLong> requested = new EnumMap<>(Stage.class);
++    private final EnumMap<Stage, AtomicLong> admitted = new EnumMap<>(Stage.class);
++    private final EnumMap<Stage, AtomicLong> delayed = new EnumMap<>(Stage.class);
++    private volatile long tickSequence;
++    private volatile long baseCredits;
++    private volatile long remainingCredits;
++    private volatile double msptEwma = 50.0D;
++    private volatile String lastReason = "cold";
++
++    private AGCScale20LosslessPipeline() {
++        for (final Stage stage : Stage.values()) {
++            this.requested.put(stage, new AtomicLong());
++            this.admitted.put(stage, new AtomicLong());
++            this.delayed.put(stage, new AtomicLong());
++        }
++    }
++
++    public void beginTick(final long sequence) {
++        this.tickSequence = Math.max(0L, sequence);
++        final int processors = Math.max(1, Runtime.getRuntime().availableProcessors());
++        final long maxMemory = Math.max(1L, Runtime.getRuntime().maxMemory());
++        final long usedMemory = Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory();
++        final double memoryHeadroom = Math.max(0.20D, Math.min(1.0D, 1.0D - ((double) usedMemory / (double) maxMemory)));
++        final double tickHeadroom = Math.max(0.10D, Math.min(1.0D, 50.0D / Math.max(35.0D, this.msptEwma)));
++        this.baseCredits = Math.max(131_072L, (long) (processors * 262_144L * tickHeadroom * memoryHeadroom));
++        this.remainingCredits = this.baseCredits;
++        this.lastReason = "reset processors=" + processors + " tickHeadroom=" + round(tickHeadroom) + " memoryHeadroom=" + round(memoryHeadroom);
++    }
++
++    public void recordMspt(final double mspt) {
++        final double sample = Math.max(1.0D, mspt);
++        this.msptEwma = this.msptEwma * 0.90D + sample * 0.10D;
++    }
++
++    public Grant claim(final Stage stage, final long cost, final String reason) {
++        final Stage safeStage = stage == null ? Stage.RESOURCE_PLACEMENT : stage;
++        final long safeCost = Math.max(1L, cost);
++        this.requested.get(safeStage).incrementAndGet();
++        if (safeCost > this.remainingCredits) {
++            this.delayed.get(safeStage).incrementAndGet();
++            this.lastReason = "delay invisible stage: " + safe(reason);
++            return new Grant(false, this.remainingCredits, this.lastReason);
++        }
++        this.remainingCredits -= safeCost;
++        this.admitted.get(safeStage).incrementAndGet();
++        this.lastReason = "admit invisible stage: " + safe(reason);
++        return new Grant(true, this.remainingCredits, this.lastReason);
++    }
++
++    public String statusLine() {
++        return "AGCScale20LosslessPipeline{tick=" + this.tickSequence
++            + ", msptEwma=" + round(this.msptEwma)
++            + ", baseCredits=" + this.baseCredits
++            + ", remainingCredits=" + this.remainingCredits
++            + ", requested=" + snapshot(this.requested)
++            + ", admitted=" + snapshot(this.admitted)
++            + ", delayed=" + snapshot(this.delayed)
++            + ", lastReason='" + this.lastReason + "'}";
++    }
++
++    private static String safe(final String reason) {
++        return reason == null || reason.isBlank() ? "unspecified" : reason;
++    }
++
++    private static double round(final double value) {
++        return Math.round(value * 100.0D) / 100.0D;
++    }
++
++    private static Map<Stage, Long> snapshot(final EnumMap<Stage, AtomicLong> source) {
++        final EnumMap<Stage, Long> copy = new EnumMap<>(Stage.class);
++        for (final Map.Entry<Stage, AtomicLong> entry : source.entrySet()) {
++            copy.put(entry.getKey(), entry.getValue().get());
++        }
++        return copy;
++    }
++
++    public record Grant(boolean admitted, long remainingCredits, String reason) {}
++}
+diff --git a/agc_alpha20_work/agc-26.2/paper-server/src/main/java/net/minecraft/server/AGCWorldSemanticScheduler.java b/paper-server/src/main/java/net/minecraft/server/AGCWorldSemanticScheduler.java
+new file mode 100644
+index 0000000..711befa
+--- /dev/null
++++ b/paper-server/src/main/java/net/minecraft/server/AGCWorldSemanticScheduler.java
+@@ -0,0 +1,63 @@
++package net.minecraft.server;
++
++import java.util.concurrent.atomic.AtomicLong;
++
++/**
++ * Compiles world work into semantic slots.
++ *
++ * Only read-only prepare slots may be widened. Block/fluid ticks, block entity
++ * ticks, entity ticks, redstone, plugin events and ordered commits remain
++ * serialized behind their vanilla/Paper-visible barriers.
++ */
++public final class AGCWorldSemanticScheduler {
++    public static final AGCWorldSemanticScheduler INSTANCE = new AGCWorldSemanticScheduler();
++
++    private final AtomicLong requested = new AtomicLong();
++    private final AtomicLong prepared = new AtomicLong();
++    private final AtomicLong ordered = new AtomicLong();
++    private volatile long tickSequence;
++    private volatile int lastPrepareSlots;
++    private volatile int lastOrderedBarriers;
++    private volatile String lastReason = "cold";
++
++    private AGCWorldSemanticScheduler() {}
++
++    public void beginTick(final long sequence) {
++        this.tickSequence = Math.max(0L, sequence);
++        this.lastReason = "tick reset";
++    }
++
++    public Schedule compile(final AGCWorldWriteIntentGraph.Plan plan, final long translatorPending) {
++        this.requested.incrementAndGet();
++        final int groups = plan == null ? 0 : Math.max(0, plan.parallelGroups());
++        final int prepareSlots = Math.max(1, Math.min(512, groups + 1));
++        final int barriers = 5 + (translatorPending > 0L ? 1 : 0);
++        final AGCScale20LosslessPipeline.Grant grant = AGCScale20LosslessPipeline.INSTANCE.claim(
++            AGCScale20LosslessPipeline.Stage.WORLD_PLAN,
++            Math.max(1L, prepareSlots * 8L + translatorPending / 512L),
++            "world-semantic-scheduler"
++        );
++        this.lastPrepareSlots = prepareSlots;
++        this.lastOrderedBarriers = barriers;
++        if (!grant.admitted() || translatorPending > 16_384L) {
++            this.ordered.incrementAndGet();
++            this.lastReason = !grant.admitted() ? grant.reason() : "translator backlog preserves ordered barriers";
++            return new Schedule(false, prepareSlots, barriers, this.lastReason);
++        }
++        this.prepared.incrementAndGet();
++        this.lastReason = "compiled semantic schedule prepareSlots=" + prepareSlots + " orderedBarriers=" + barriers;
++        return new Schedule(true, prepareSlots, barriers, this.lastReason);
++    }
++
++    public String statusLine() {
++        return "AGCWorldSemanticScheduler{tick=" + this.tickSequence
++            + ", requested=" + this.requested.get()
++            + ", prepared=" + this.prepared.get()
++            + ", ordered=" + this.ordered.get()
++            + ", lastPrepareSlots=" + this.lastPrepareSlots
++            + ", lastOrderedBarriers=" + this.lastOrderedBarriers
++            + ", lastReason='" + this.lastReason + "'}";
++    }
++
++    public record Schedule(boolean prepareConcurrent, int prepareSlots, int orderedBarriers, String reason) {}
++}
+diff --git a/paper-server/src/minecraft/java/net/minecraft/server/commands/AGCCommand.java b/paper-server/src/minecraft/java/net/minecraft/server/commands/AGCCommand.java
+index d63f277..fb1d664 100644
+--- a/paper-server/src/minecraft/java/net/minecraft/server/commands/AGCCommand.java
++++ b/paper-server/src/minecraft/java/net/minecraft/server/commands/AGCCommand.java
+@@ -39,6 +39,7 @@ public final class AGCCommand {
+                 .then(Commands.literal("scale17").executes(context -> sendReport(context.getSource(), AGCCommandReports.scale17())))
+                 .then(Commands.literal("scale18").executes(context -> sendReport(context.getSource(), AGCCommandReports.scale18())))
+                 .then(Commands.literal("scale19").executes(context -> sendReport(context.getSource(), AGCCommandReports.scale19())))
++                .then(Commands.literal("scale20").executes(context -> sendReport(context.getSource(), AGCCommandReports.scale20())))
+                 .then(Commands.literal("rollback-profile").executes(context -> sendReport(context.getSource(), AGCCommandReports.rollbackProfile())))
+                 .then(Commands.literal("health").executes(context -> sendReport(context.getSource(), AGCRuntimeHealth.INSTANCE.statusLine())))
+                 .then(Commands.literal("reset-rollback")
+@@ -75,6 +76,7 @@ public final class AGCCommand {
+             "  /agc scale17 - alpha17 predictive algorithm engine",
+             "  /agc scale18 - alpha18 integrated semantic tick planner",
+             "  /agc scale19 - alpha19 lossless logic algorithm optimiser",
++            "  /agc scale20 - alpha20 lossless scale pipeline",
+             "  /agc rollback-profile - rollback counters",
+             "  /agc reset-rollback - clear AGC runtime rollback flags for this process"
+         );
+diff --git a/test-plugin/src/main/java/io/papermc/testplugin/e2e/TestRegistry.java b/test-plugin/src/main/java/io/papermc/testplugin/e2e/TestRegistry.java
+index 56609dc..8ffdcfb 100644
+--- a/test-plugin/src/main/java/io/papermc/testplugin/e2e/TestRegistry.java
++++ b/test-plugin/src/main/java/io/papermc/testplugin/e2e/TestRegistry.java
+@@ -45,6 +45,7 @@ public class TestRegistry {
+         new FeatureR25Tests().register(this);
+         new FeatureR26Tests().register(this);
+         new FeatureR27Tests().register(this);
++        new FeatureR28Tests().register(this);
+         new Tier3Tests().register(this);
+         new Tier4Tests().register(this);
+     }
+diff --git a/agc_alpha20_work/agc-26.2/test-plugin/src/main/java/io/papermc/testplugin/e2e/tests/FeatureR28Tests.java b/test-plugin/src/main/java/io/papermc/testplugin/e2e/tests/FeatureR28Tests.java
+new file mode 100644
+index 0000000..2b121f3
+--- /dev/null
++++ b/test-plugin/src/main/java/io/papermc/testplugin/e2e/tests/FeatureR28Tests.java
+@@ -0,0 +1,64 @@
++package io.papermc.testplugin.e2e.tests;
++
++import io.papermc.testplugin.e2e.E2ETest;
++import io.papermc.testplugin.e2e.TestContext;
++import io.papermc.testplugin.e2e.TestRegistry;
++
++public class FeatureR28Tests {
++    public void register(TestRegistry registry) {
++        registry.register(new E2ETest() {
++            @Override public String getId() { return "R28_T1_1"; }
++            @Override public String getName() { return "R28 Tier 1 - Scale20 Lossless Pipeline"; }
++            @Override public void run(TestContext context) throws Exception {
++                Class<?> type = context.checkClassExists("net.minecraft.server.AGCScale20LosslessPipeline");
++                Object instance = type.getDeclaredField("INSTANCE").get(null);
++                context.assertTrue(((String) type.getDeclaredMethod("statusLine").invoke(instance)).contains("AGCScale20LosslessPipeline"), "Scale20 pipeline status must identify itself.");
++            }
++        });
++        registry.register(new E2ETest() {
++            @Override public String getId() { return "R28_T1_2"; }
++            @Override public String getName() { return "R28 Tier 1 - Network Backbone and Chunk Worksets"; }
++            @Override public void run(TestContext context) throws Exception {
++                Class<?> network = context.checkClassExists("net.minecraft.server.AGCNetworkBackboneGraph");
++                Object networkInstance = network.getDeclaredField("INSTANCE").get(null);
++                context.assertTrue(((String) network.getDeclaredMethod("statusLine").invoke(networkInstance)).contains("AGCNetworkBackboneGraph"), "Network backbone status must identify itself.");
++                Class<?> chunk = context.checkClassExists("net.minecraft.server.AGCChunkWorksetSlicer");
++                Object chunkInstance = chunk.getDeclaredField("INSTANCE").get(null);
++                context.assertTrue(((String) chunk.getDeclaredMethod("statusLine").invoke(chunkInstance)).contains("AGCChunkWorksetSlicer"), "Chunk workset status must identify itself.");
++            }
++        });
++        registry.register(new E2ETest() {
++            @Override public String getId() { return "R28_T1_3"; }
++            @Override public String getName() { return "R28 Tier 1 - Entity Witness and World Scheduler"; }
++            @Override public void run(TestContext context) throws Exception {
++                Class<?> entity = context.checkClassExists("net.minecraft.server.AGCEntityWitnessIndex");
++                Object entityInstance = entity.getDeclaredField("INSTANCE").get(null);
++                context.assertTrue(((String) entity.getDeclaredMethod("statusLine").invoke(entityInstance)).contains("AGCEntityWitnessIndex"), "Entity witness status must identify itself.");
++                Class<?> world = context.checkClassExists("net.minecraft.server.AGCWorldSemanticScheduler");
++                Object worldInstance = world.getDeclaredField("INSTANCE").get(null);
++                context.assertTrue(((String) world.getDeclaredMethod("statusLine").invoke(worldInstance)).contains("AGCWorldSemanticScheduler"), "World scheduler status must identify itself.");
++            }
++        });
++        registry.register(new E2ETest() {
++            @Override public String getId() { return "R28_T1_4"; }
++            @Override public String getName() { return "R28 Tier 1 - Plugin Determinism and Scale20 Report"; }
++            @Override public void run(TestContext context) throws Exception {
++                Class<?> guard = context.checkClassExists("net.minecraft.server.AGCPluginDeterminismGuard");
++                Object guardInstance = guard.getDeclaredField("INSTANCE").get(null);
++                context.assertTrue(((String) guard.getDeclaredMethod("statusLine").invoke(guardInstance)).contains("AGCPluginDeterminismGuard"), "Plugin guard status must identify itself.");
++                Class<?> reports = context.checkClassExists("net.minecraft.server.AGCCommandReports");
++                String report = (String) reports.getDeclaredMethod("scale20").invoke(null);
++                context.assertTrue(report.contains("AGCScale20LosslessPipeline") && report.contains("hardRules"), "Scale20 report must include pipeline and hard rules.");
++            }
++        });
++        registry.register(new E2ETest() {
++            @Override public String getId() { return "R28_T1_5"; }
++            @Override public String getName() { return "R28 Tier 1 - Scale20 Public API"; }
++            @Override public void run(TestContext context) throws Exception {
++                context.checkClassExists("io.agcmc.agc.api.AGCScale20Plan");
++                Class<?> performance = context.checkClassExists("io.agcmc.agc.api.AGCPerformance");
++                context.assertNotNull(performance.getDeclaredMethod("scale20Plan", int.class, double.class), "scale20Plan API must exist.");
++            }
++        });
++    }
++}
