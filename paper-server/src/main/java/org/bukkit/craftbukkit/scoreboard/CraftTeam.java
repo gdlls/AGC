@@ -70,18 +70,25 @@ final class CraftTeam extends CraftScoreboardComponent implements Team {
         this.team.setPlayerSuffix(io.papermc.paper.adventure.PaperAdventure.asVanilla(suffix));
     }
 
+    private static java.util.Optional<net.minecraft.world.scores.TeamColor> chatFormattingToTeamColor(net.minecraft.ChatFormatting format) {
+        if (format == null || format == net.minecraft.ChatFormatting.RESET) {
+            return java.util.Optional.empty();
+        }
+        return java.util.Optional.ofNullable(net.minecraft.world.scores.TeamColor.byName(format.name().toLowerCase(java.util.Locale.ROOT)));
+    }
+
     @Override
     public boolean hasColor() {
         this.checkState();
-        return this.team.getColor().getColor() != null;
+        return this.team.getColor().isPresent();
     }
 
     @Override
     public net.kyori.adventure.text.format.TextColor color() throws IllegalStateException {
-        Preconditions.checkState(this.team.getColor().getColor() != null, "Team colors must have hex values");
         this.checkState();
+        Preconditions.checkState(this.team.getColor().isPresent(), "Team colors must have hex values");
 
-        net.kyori.adventure.text.format.TextColor color = net.kyori.adventure.text.format.TextColor.color(this.team.getColor().getColor());
+        net.kyori.adventure.text.format.TextColor color = io.papermc.paper.adventure.PaperAdventure.asAdventure(this.team.getColor().get().textColor().format);
         if (!(color instanceof net.kyori.adventure.text.format.NamedTextColor)) {
             throw new IllegalStateException("Team doesn't have a NamedTextColor");
         }
@@ -91,7 +98,7 @@ final class CraftTeam extends CraftScoreboardComponent implements Team {
     @Override
     public void color(net.kyori.adventure.text.format.NamedTextColor color) {
         this.checkState();
-        this.team.setColor(color == null ? net.minecraft.ChatFormatting.RESET : io.papermc.paper.adventure.PaperAdventure.asVanilla(color));
+        this.team.setColor(color == null ? java.util.Optional.empty() : chatFormattingToTeamColor(io.papermc.paper.adventure.PaperAdventure.asVanilla(color)));
     }
 
     @Override
@@ -143,7 +150,12 @@ final class CraftTeam extends CraftScoreboardComponent implements Team {
     public ChatColor getColor() {
         this.checkState();
 
-        return CraftChatMessage.getColor(this.team.getColor());
+        java.util.Optional<net.minecraft.world.scores.TeamColor> color = this.team.getColor();
+        if (!color.isPresent()) {
+            return ChatColor.RESET;
+        }
+        net.minecraft.ChatFormatting format = color.get().textColor().format;
+        return format == null ? ChatColor.RESET : CraftChatMessage.getColor(format);
     }
 
     @Override
@@ -152,7 +164,7 @@ final class CraftTeam extends CraftScoreboardComponent implements Team {
         Preconditions.checkArgument(!color.isFormat(), "Color must be a color not a format");
         this.checkState();
 
-        this.team.setColor(CraftChatMessage.getColor(color));
+        this.team.setColor(color == null ? java.util.Optional.empty() : chatFormattingToTeamColor(CraftChatMessage.getColor(color)));
     }
 
     @Override

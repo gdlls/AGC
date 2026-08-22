@@ -83,12 +83,12 @@ dependencies {
 
     // Test dependencies
     testImplementation("org.apache.commons:commons-lang3:3.20.0")
-    testImplementation("org.junit.jupiter:junit-jupiter:6.0.3")
+    testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
     testImplementation("org.hamcrest:hamcrest:2.2")
     testImplementation("org.mockito:mockito-core:5.22.0")
     testImplementation("org.ow2.asm:asm-tree:9.9.1")
     mockitoAgent("org.mockito:mockito-core:5.22.0") { isTransitive = false } // configure mockito agent that is needed in newer java versions
-    testRuntimeOnly("org.junit.platform:junit-platform-launcher:6.0.3")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher:1.11.4")
 }
 
 val generatedDir: java.nio.file.Path = layout.projectDirectory.dir("src/generated/java").asFile.toPath()
@@ -233,9 +233,9 @@ tasks.test {
     useJUnitPlatform()
 
     // configure mockito agent that is needed in newer java versions
-    val provider = objects.newInstance<MockitoAgentProvider>()
-    provider.fileCollection.from(mockitoAgent)
-    jvmArgumentProviders.add(provider)
+    // val provider = objects.newInstance<MockitoAgentProvider>()
+    // provider.fileCollection.from(mockitoAgent)
+    // jvmArgumentProviders.add(provider)
 }
 
 // Compile tests with -parameters for better junit parameterized test names

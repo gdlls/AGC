@@ -1281,7 +1281,7 @@ public final class CraftServer implements Server {
 
         ServerLevel serverLevel = new ServerLevel(
             this.console,
-            this.console.executor,
+            this.console.getExecutor(),
             this.console.storageSource,
             genSettingsFinal,
             dimensionKey,

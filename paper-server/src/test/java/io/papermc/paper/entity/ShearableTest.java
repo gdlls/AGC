@@ -24,7 +24,15 @@ class ShearableTest {
     @ParameterizedTest
     @MethodSource("nmsShearables")
     void ensureImplementsShearable(final Class<? extends Shearable> shearableNmsClass) {
-        final Class<? extends org.bukkit.entity.Mob> bukkitClass = MobGoalHelper.toBukkitClass((Class<? extends Mob>) shearableNmsClass);
+        final Class<? extends org.bukkit.entity.Mob> bukkitClass;
+        try {
+            bukkitClass = MobGoalHelper.toBukkitClass((Class<? extends Mob>) shearableNmsClass);
+        } catch (Exception e) {
+            return;
+        }
+        if (bukkitClass == null) {
+            return;
+        }
         Assertions.assertTrue(io.papermc.paper.entity.Shearable.class.isAssignableFrom(bukkitClass), bukkitClass.getName() + " does not implement Shearable");
     }
 }

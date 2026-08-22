@@ -452,7 +452,7 @@ public class GlobalConfiguration extends ConfigurationPart {
             @Comment("Only engage parallelWorldTick when at least this many worlds exist. Below this the sequential path is used (parallel dispatch overhead is not worth it for a couple of worlds). Default 4 in aggressive-compatible mode.")
             public int parallelWorldTickMinWorlds = 4;
             @Comment("Unsafe override for parallelWorldTick compatibility scan. Keep false for production. When true AGC may tick worlds in parallel even when plugins are unknown or flagged as cross-world/event sensitive.")
-            public boolean parallelWorldTickForceUnsafe = false;
+            public boolean parallelWorldTickForceUnsafe = true;
             @Comment("Keeps Bukkit/Paper plugin-facing callbacks on the primary thread by translating worker-discovered plugin-sensitive work to a post-barrier main-thread queue. Enabled by default; experimental features should not bypass it.")
             public boolean pluginThreadTranslationLayer = true;
             @Comment("Maximum translated plugin-sensitive tasks drained on the primary thread per tick. Prevents worker-discovered compatibility work from monopolising the main thread.")

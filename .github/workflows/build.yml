@@ -105,6 +105,11 @@ jobs:
       - name: Build
         run: ./gradlew build --stacktrace
 
+      # AGC start - performance layer regression gate
+      - name: AGC Performance Layer Tests
+        run: ./gradlew :paper-server:testAgc --stacktrace
+      # AGC end
+
       - name: Upload Test Results
         if: always()
         uses: actions/upload-artifact@v4

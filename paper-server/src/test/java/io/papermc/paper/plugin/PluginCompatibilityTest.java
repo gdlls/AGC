@@ -40,6 +40,7 @@ public class PluginCompatibilityTest {
 
     @AfterEach
     public void tearDown() {
+        org.bukkit.event.HandlerList.unregisterAll(plugin);
         Bukkit.getPluginManager().clearPlugins();
     }
 
@@ -92,6 +93,11 @@ public class PluginCompatibilityTest {
             EventPriority.LOWEST, EventPriority.LOW, EventPriority.NORMAL,
             EventPriority.HIGH, EventPriority.HIGHEST, EventPriority.MONITOR
         ), damageByEntityListener.executionOrder);
+
+        org.bukkit.event.HandlerList.unregisterAll(breakListener);
+        org.bukkit.event.HandlerList.unregisterAll(placeListener);
+        org.bukkit.event.HandlerList.unregisterAll(damageListener);
+        org.bukkit.event.HandlerList.unregisterAll(damageByEntityListener);
     }
 
     // 2. Event Cancellation Test
@@ -104,6 +110,7 @@ public class PluginCompatibilityTest {
         Bukkit.getPluginManager().callEvent(breakEvent);
         assertTrue(breakEvent.isCancelled());
         assertEquals(List.of(false, true, true, true, true, true), breakListener.cancelledStates);
+        org.bukkit.event.HandlerList.unregisterAll(breakListener);
 
         // BlockPlaceEvent Cancellation
         BlockPlaceCancellationListener placeListener = new BlockPlaceCancellationListener();
@@ -115,6 +122,7 @@ public class PluginCompatibilityTest {
         Bukkit.getPluginManager().callEvent(placeEvent);
         assertTrue(placeEvent.isCancelled());
         assertEquals(List.of(false, true, true, true, true, true), placeListener.cancelledStates);
+        org.bukkit.event.HandlerList.unregisterAll(placeListener);
 
         // EntityDamageEvent Cancellation
         EntityDamageCancellationListener damageListener = new EntityDamageCancellationListener();
@@ -125,6 +133,7 @@ public class PluginCompatibilityTest {
         Bukkit.getPluginManager().callEvent(damageEvent);
         assertTrue(damageEvent.isCancelled());
         assertEquals(List.of(false, true, true, true, true, true), damageListener.cancelledStates);
+        org.bukkit.event.HandlerList.unregisterAll(damageListener);
 
         // EntityDamageByEntityEvent Cancellation
         EntityDamageByEntityCancellationListener damageByEntityListener = new EntityDamageByEntityCancellationListener();
@@ -135,6 +144,7 @@ public class PluginCompatibilityTest {
         Bukkit.getPluginManager().callEvent(damageByEntityEvent);
         assertTrue(damageByEntityEvent.isCancelled());
         assertEquals(List.of(false, true, true, true, true, true), damageByEntityListener.cancelledStates);
+        org.bukkit.event.HandlerList.unregisterAll(damageByEntityListener);
     }
 
     // 3. Execution Thread Test
@@ -162,6 +172,7 @@ public class PluginCompatibilityTest {
         Bukkit.getPluginManager().callEvent(breakEvent);
         assertFalse(breakEvent.isDropItems());
         assertEquals(List.of(true, false, false, false, false, false), breakListener.dropItemsValues);
+        org.bukkit.event.HandlerList.unregisterAll(breakListener);
 
         // BlockPlaceEvent mutability: setBuild
         BlockPlaceMutabilityListener placeListener = new BlockPlaceMutabilityListener();
@@ -173,6 +184,7 @@ public class PluginCompatibilityTest {
         Bukkit.getPluginManager().callEvent(placeEvent);
         assertFalse(placeEvent.canBuild());
         assertEquals(List.of(true, false, false, false, false, false), placeListener.canBuildValues);
+        org.bukkit.event.HandlerList.unregisterAll(placeListener);
 
         // EntityDamageEvent mutability: setDamage
         EntityDamageMutabilityListener damageListener = new EntityDamageMutabilityListener();
@@ -183,6 +195,7 @@ public class PluginCompatibilityTest {
         Bukkit.getPluginManager().callEvent(damageEvent);
         assertEquals(20.0, damageEvent.getDamage());
         assertEquals(List.of(10.0, 20.0, 20.0, 20.0, 20.0, 20.0), damageListener.damageValues);
+        org.bukkit.event.HandlerList.unregisterAll(damageListener);
 
         // EntityDamageByEntityEvent mutability: setDamage
         EntityDamageByEntityMutabilityListener damageByEntityListener = new EntityDamageByEntityMutabilityListener();
@@ -193,6 +206,7 @@ public class PluginCompatibilityTest {
         Bukkit.getPluginManager().callEvent(damageByEntityEvent);
         assertEquals(20.0, damageByEntityEvent.getDamage());
         assertEquals(List.of(10.0, 20.0, 20.0, 20.0, 20.0, 20.0), damageByEntityListener.damageValues);
+        org.bukkit.event.HandlerList.unregisterAll(damageByEntityListener);
     }
 
     // --- Order Listeners ---

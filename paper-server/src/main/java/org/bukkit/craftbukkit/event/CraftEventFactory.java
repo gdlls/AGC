@@ -966,6 +966,24 @@ public class CraftEventFactory {
         return CraftEventFactory.callEntityDeathEvent(victim, damageSource, drops, com.google.common.util.concurrent.Runnables.doNothing());
     }
 
+    public static EntityDeathEvent callEntityDeathEvent(net.minecraft.server.level.ServerLevel world, net.minecraft.world.entity.LivingEntity victim, DamageSource damageSource, List<net.minecraft.world.entity.Entity.DefaultDrop> drops, boolean isRevivable) {
+        return CraftEventFactory.callEntityDeathEvent(victim, damageSource, drops);
+    }
+
+    public static EntityDeathEvent callEntityDeathEvent(net.minecraft.server.level.ServerLevel world, net.minecraft.world.entity.LivingEntity victim, DamageSource damageSource) {
+        return CraftEventFactory.callEntityDeathEvent(victim, damageSource);
+    }
+
+    public static int callEntityIgniteEvent(net.minecraft.world.entity.Entity entity, int fuseTime) {
+        if (entity instanceof net.minecraft.world.entity.monster.cubemob.SulfurCube) {
+            com.destroystokyo.paper.event.entity.CreeperIgniteEvent event = new com.destroystokyo.paper.event.entity.CreeperIgniteEvent((org.bukkit.entity.Creeper) entity.getBukkitEntity(), true);
+            if (!event.callEvent()) {
+                return net.minecraft.world.entity.item.PrimedTnt.NO_FUSE;
+            }
+        }
+        return fuseTime;
+    }
+
     private static final java.util.function.Function<org.bukkit.inventory.ItemStack, Entity.DefaultDrop> FROM_FUNCTION = stack -> {
         if (stack == null) return null;
         return new Entity.DefaultDrop(CraftItemType.bukkitToMinecraft(stack.getType()), stack, null);
@@ -1918,6 +1936,18 @@ public class CraftEventFactory {
             action = EntityPotionEffectEvent.Action.REMOVED;
         }
 
+        return CraftEventFactory.callEntityPotionEffectChangeEvent(entity, oldEffect, newEffect, cause, action, willOverride);
+    }
+
+    public static EntityPotionEffectEvent callEntityPotionEffectChangeEvent(net.minecraft.world.entity.LivingEntity entity, @Nullable MobEffectInstance oldEffect, @Nullable MobEffectInstance newEffect, @Nullable net.minecraft.world.entity.Entity source, EntityPotionEffectEvent.Cause cause, @Nullable EntityPotionEffectEvent.Action action, boolean willOverride) {
+        if (action == null) {
+            action = EntityPotionEffectEvent.Action.CHANGED;
+            if (oldEffect == null) {
+                action = EntityPotionEffectEvent.Action.ADDED;
+            } else if (newEffect == null) {
+                action = EntityPotionEffectEvent.Action.REMOVED;
+            }
+        }
         return CraftEventFactory.callEntityPotionEffectChangeEvent(entity, oldEffect, newEffect, cause, action, willOverride);
     }
 

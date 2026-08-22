@@ -71,7 +71,7 @@ public class FeatureR23Tests {
             @Override public String getId() { return "R23_T1_6"; }
             @Override public String getName() { return "R23 Tier 1 - Scale15 Public API"; }
             @Override public void run(TestContext context) throws Exception {
-                context.checkClassExists("io.agcmc.agc.api.AGCScale15Plan");
+                context.checkClassExists("io.agcmc.agc.api.AGCScalePlan");
                 Class<?> performance = context.checkClassExists("io.agcmc.agc.api.AGCPerformance");
                 context.assertNotNull(performance.getDeclaredMethod("scale15Plan", int.class, double.class), "scale15Plan API must exist.");
                 Class<?> feature = context.checkClassExists("io.agcmc.agc.api.AGCFeature");

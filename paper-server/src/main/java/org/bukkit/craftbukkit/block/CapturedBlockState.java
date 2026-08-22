@@ -57,7 +57,7 @@ public final class CapturedBlockState extends CraftBlockState {
                 int numBees = 2 + random.nextInt(2);
 
                 for (int count = 0; count < numBees; count++) {
-                    beehive.storeBee(BeehiveBlockEntity.Occupant.create(random.nextInt(599)));
+                    ((net.minecraft.world.level.block.entity.BeehiveBlockEntity) beehive).storeBee(net.minecraft.world.level.block.entity.BeehiveBlockEntity.Occupant.create(random.nextInt(599)));
                 }
             });
         }

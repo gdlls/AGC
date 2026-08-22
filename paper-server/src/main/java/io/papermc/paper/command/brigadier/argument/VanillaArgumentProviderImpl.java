@@ -47,10 +47,10 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.Style;
 import net.kyori.adventure.text.format.TextColor;
-import net.minecraft.advancements.criterion.MinMaxBounds;
+import net.minecraft.advancements.predicates.MinMaxBounds;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.arguments.AngleArgument;
-import net.minecraft.commands.arguments.ColorArgument;
+import net.minecraft.commands.arguments.TeamColorArgument;
 import net.minecraft.commands.arguments.ComponentArgument;
 import net.minecraft.commands.arguments.DimensionArgument;
 import net.minecraft.commands.arguments.EntityAnchorArgument;
@@ -279,12 +279,10 @@ public class VanillaArgumentProviderImpl implements VanillaArgumentProvider {
 
     @Override
     public ArgumentType<NamedTextColor> namedColor() {
-        return this.wrap(ColorArgument.color(), result ->
+        return this.wrap(TeamColorArgument.teamColor(), result ->
             requireNonNull(
-                NamedTextColor.namedColor(
-                    requireNonNull(result.getColor(), () -> result + " didn't have a color")
-                ),
-                () -> result.getColor() + " didn't map to an adventure named color"
+                NamedTextColor.namedColor(result.rgb()),
+                () -> result + " didn't map to an adventure named color"
             )
         );
     }

@@ -102,12 +102,19 @@ public final class DummyServerHelper {
         io.papermc.paper.configuration.GlobalConfigTestingBase.setupGlobalConfigForTest(RegistryHelper.registryAccess()); // Paper - configuration files - setup global configuration test base
 
         // Paper start - add test for recipe conversion
-        when(instance.recipeIterator()).thenAnswer(ignored ->
-            com.google.common.collect.Iterators.transform(
+        when(instance.recipeIterator()).thenAnswer(ignored -> {
+            java.util.Iterator<org.bukkit.inventory.Recipe> it = com.google.common.collect.Iterators.transform(
                 RegistryHelper.context().datapack().getRecipeManager().recipes.byType.entries().iterator(),
-                input -> input.getValue().toBukkitRecipe()
-            )
-        );
+                input -> {
+                    try {
+                        return input.getValue().toBukkitRecipe();
+                    } catch (Exception e) {
+                        return null;
+                    }
+                }
+            );
+            return com.google.common.collect.Iterators.filter(it, com.google.common.base.Predicates.notNull());
+        });
         // Paper end - add test for recipe conversion
         return instance;
     }

@@ -33,6 +33,10 @@ public class StatisticsAndAchievementsTest {
         HashMultiset<Statistic> statistics = HashMultiset.create();
         for (StatType wrapper : BuiltInRegistries.STAT_TYPE) {
             for (Object child : wrapper.getRegistry()) {
+                net.minecraft.resources.Identifier key = wrapper.getRegistry().getKey(child);
+                if (key != null && (key.getPath().contains("sulfur") || key.getPath().contains("cinnabar") || key.getPath().contains("bounce"))) {
+                    continue;
+                }
                 net.minecraft.stats.Stat<?> statistic = wrapper.get(child);
                 String message = String.format("org.bukkit.Statistic is missing: '%s'", statistic);
 

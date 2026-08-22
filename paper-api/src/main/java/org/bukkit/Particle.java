@@ -177,6 +177,14 @@ public enum Particle implements Keyed {
     COPPER_FIRE_FLAME("copper_fire_flame"),
     PAUSE_MOB_GROWTH("pause_mob_growth"),
     RESET_MOB_GROWTH("reset_mob_growth"),
+    SULFUR_BUBBLES("sulfur_bubbles"),
+    NOXIOUS_GAS("noxious_gas"),
+    NOXIOUS_GAS_CLOUD("noxious_gas_cloud"),
+    GEYSER("geyser"),
+    GEYSER_BASE("geyser_base"),
+    GEYSER_POOF("geyser_poof"),
+    GEYSER_PLUME("geyser_plume"),
+    SULFUR_CUBE_GOO("sulfur_cube_goo"),
     ;
 
     private final NamespacedKey key;

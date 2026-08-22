@@ -230,7 +230,10 @@ tasks.jar {
 }
 
 tasks.test {
+    testClassesDirs = files(layout.buildDirectory.dir("classes/java/test"))
+    classpath = files(layout.buildDirectory.dir("classes/java/test"), layout.buildDirectory.dir("classes/java/main")) + sourceSets.test.get().runtimeClasspath
     include("**/**TestSuite.class")
+    include("**/*Test.class")
     workingDir = temporaryDir
     useJUnitPlatform {
         forkEvery = 1
@@ -241,6 +244,16 @@ tasks.test {
     val provider = objects.newInstance<MockitoAgentProvider>()
     provider.fileCollection.from(mockitoAgent)
     jvmArgumentProviders.add(provider)
+}
+
+val testAgc by tasks.registering(JavaExec::class) {
+    group = "verification"
+    description = "Executes the AGC performance layer unit test suite directly"
+    dependsOn(tasks.compileTestJava)
+    mainClass.set("io.papermc.paper.agc.AgcTestRunner")
+    classpath(sourceSets.test.get().output.classesDirs)
+    classpath(sourceSets.main.get().output.classesDirs)
+    classpath(sourceSets.test.get().runtimeClasspath)
 }
 
 val generatedDir: java.nio.file.Path = layout.projectDirectory.dir("src/generated/java").asFile.toPath()

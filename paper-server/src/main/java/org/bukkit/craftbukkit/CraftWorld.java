@@ -64,6 +64,7 @@ import net.minecraft.world.attribute.BedRule;
 import net.minecraft.world.attribute.EnvironmentAttributes;
 import net.minecraft.world.entity.EntitySpawnReason;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.entity.LightningBolt;
 import net.minecraft.world.entity.ai.village.poi.PoiManager;
 import net.minecraft.world.entity.ai.village.poi.PoiRecord;
@@ -260,7 +261,7 @@ public class CraftWorld extends CraftRegionAccessor implements World {
 
     @Override
     public BiomeProvider vanillaBiomeProvider() {
-        ServerChunkCache serverCache = this.getHandle().chunkSource;
+        ServerChunkCache serverCache = this.getHandle().getChunkSource();
 
         final net.minecraft.world.level.chunk.ChunkGenerator gen = serverCache.getGenerator();
         net.minecraft.world.level.biome.BiomeSource biomeSource;
@@ -433,7 +434,7 @@ public class CraftWorld extends CraftRegionAccessor implements World {
 
     @Override
     public Chunk[] getLoadedChunks() {
-        ServerChunkCache serverChunkCache = this.getHandle().chunkSource;
+        ServerChunkCache serverChunkCache = this.getHandle().getChunkSource();
         ReferenceList<Chunk> chunks = new ReferenceList<>(new Chunk[serverChunkCache.fullChunks.size()]);
 
         for (PrimitiveIterator.OfLong iterator = serverChunkCache.fullChunks.keyIterator(); iterator.hasNext();) {
@@ -571,7 +572,7 @@ public class CraftWorld extends CraftRegionAccessor implements World {
         Preconditions.checkArgument(plugin != null, "null plugin");
         Preconditions.checkArgument(plugin.isEnabled(), "plugin is not enabled");
 
-        final DistanceManager distanceManager = this.world.getChunkSource().chunkMap.distanceManager;
+        final DistanceManager distanceManager = this.world.getChunkSource().chunkMap.getDistanceManager();
         if (distanceManager.ticketStorage.addPluginRegionTicket(new ChunkPos(x, z), plugin)) {
             this.getChunkAt(x, z); // ensure it's loaded
             return true;
@@ -584,7 +585,7 @@ public class CraftWorld extends CraftRegionAccessor implements World {
     public boolean removePluginChunkTicket(int x, int z, Plugin plugin) {
         Preconditions.checkNotNull(plugin, "null plugin");
 
-        final DistanceManager distanceManager = this.world.getChunkSource().chunkMap.distanceManager;
+        final DistanceManager distanceManager = this.world.getChunkSource().chunkMap.getDistanceManager();
         return distanceManager.ticketStorage.removePluginRegionTicket(new ChunkPos(x, z), plugin);
     }
 
@@ -592,7 +593,7 @@ public class CraftWorld extends CraftRegionAccessor implements World {
     public void removePluginChunkTickets(Plugin plugin) {
         Preconditions.checkNotNull(plugin, "null plugin");
 
-        DistanceManager chunkDistanceManager = this.world.getChunkSource().chunkMap.distanceManager;
+        DistanceManager chunkDistanceManager = this.world.getChunkSource().chunkMap.getDistanceManager();
         chunkDistanceManager.ticketStorage.removeAllPluginRegionTickets(TicketType.PLUGIN_TICKET, ChunkMap.FORCED_TICKET_LEVEL, plugin);
     }
 
@@ -672,7 +673,7 @@ public class CraftWorld extends CraftRegionAccessor implements World {
         Preconditions.checkArgument(item != null, "ItemStack cannot be null");
 
         double xs = Mth.nextDouble(this.world.getRandom(), -0.25, 0.25);
-        double ys = Mth.nextDouble(this.world.getRandom(), -0.25, 0.25) - ((double) EntityType.ITEM.getHeight() / 2.0);
+        double ys = Mth.nextDouble(this.world.getRandom(), -0.25, 0.25) - ((double) EntityTypes.ITEM.getHeight() / 2.0);
         double zs = Mth.nextDouble(this.world.getRandom(), -0.25, 0.25);
         location = location.clone().add(xs, ys, zs);
         return this.dropItem(location, item, function);
@@ -686,14 +687,14 @@ public class CraftWorld extends CraftRegionAccessor implements World {
 
         net.minecraft.world.entity.projectile.arrow.AbstractArrow arrow;
         if (TippedArrow.class.isAssignableFrom(clazz)) {
-            arrow = EntityType.ARROW.create(this.world, EntitySpawnReason.COMMAND);
+            arrow = EntityTypes.ARROW.create(this.world, EntitySpawnReason.COMMAND);
             ((Arrow) arrow.getBukkitEntity()).setBasePotionType(PotionType.WATER);
         } else if (SpectralArrow.class.isAssignableFrom(clazz)) {
-            arrow = EntityType.SPECTRAL_ARROW.create(this.world, EntitySpawnReason.COMMAND);
+            arrow = EntityTypes.SPECTRAL_ARROW.create(this.world, EntitySpawnReason.COMMAND);
         } else if (Trident.class.isAssignableFrom(clazz)) {
-            arrow = EntityType.TRIDENT.create(this.world, EntitySpawnReason.COMMAND);
+            arrow = EntityTypes.TRIDENT.create(this.world, EntitySpawnReason.COMMAND);
         } else {
-            arrow = EntityType.ARROW.create(this.world, EntitySpawnReason.COMMAND);
+            arrow = EntityTypes.ARROW.create(this.world, EntitySpawnReason.COMMAND);
         }
 
         arrow.snapTo(location.getX(), location.getY(), location.getZ(), location.getYaw(), location.getPitch());
@@ -715,7 +716,7 @@ public class CraftWorld extends CraftRegionAccessor implements World {
     private LightningStrike strikeLightning0(Location loc, boolean isVisual) {
         Preconditions.checkArgument(loc != null, "Location cannot be null");
 
-        LightningBolt lightning = EntityType.LIGHTNING_BOLT.create(this.world, EntitySpawnReason.COMMAND);
+        LightningBolt lightning = EntityTypes.LIGHTNING_BOLT.create(this.world, EntitySpawnReason.COMMAND);
         lightning.snapTo(loc.getX(), loc.getY(), loc.getZ());
         lightning.isEffect = isVisual; // Paper - Properly handle lightning effects api
         this.world.strikeLightning(lightning, LightningStrikeEvent.Cause.CUSTOM);
@@ -833,7 +834,7 @@ public class CraftWorld extends CraftRegionAccessor implements World {
 
     @Override
     public long getGameTime() {
-        return this.world.levelData.getGameTime();
+        return this.world.getLevelData().getGameTime();
     }
 
     @Override
@@ -1857,7 +1858,7 @@ public class CraftWorld extends CraftRegionAccessor implements World {
 
     @Override
     public Collection<org.bukkit.Material> getInfiniburn() {
-        return com.google.common.collect.Sets.newHashSet(com.google.common.collect.Iterators.transform(net.minecraft.core.registries.BuiltInRegistries.BLOCK.getTagOrEmpty(this.getHandle().dimensionType().infiniburn()).iterator(), blockHolder -> CraftBlockType.minecraftToBukkit(blockHolder.value())));
+        return com.google.common.collect.Sets.newHashSet(com.google.common.collect.Iterators.transform(this.getHandle().dimensionType().infiniburn().iterator(), blockHolder -> CraftBlockType.minecraftToBukkit(blockHolder.value())));
     }
 
     @Override

@@ -116,7 +116,22 @@ public abstract class CraftParticle<D> implements Keyed {
         private static final BiFunction<NamespacedKey, net.minecraft.core.particles.ParticleType<?>, CraftParticle<?>> VOID_FUNCTION = (name, particle) -> new CraftParticle<>(name, particle, Void.class) {
             @Override
             public ParticleOptions createParticleParam(Void data) {
-                return (SimpleParticleType) this.getHandle();
+                if (this.getHandle() instanceof SimpleParticleType) {
+                    return (SimpleParticleType) this.getHandle();
+                }
+                if (this.getHandle() == net.minecraft.core.particles.ParticleTypes.GEYSER) {
+                    return new net.minecraft.core.particles.GeyserParticleOptions((net.minecraft.core.particles.ParticleType<net.minecraft.core.particles.GeyserParticleOptions>) this.getHandle(), 1);
+                }
+                if (this.getHandle() == net.minecraft.core.particles.ParticleTypes.GEYSER_PLUME) {
+                    return new net.minecraft.core.particles.GeyserParticleOptions((net.minecraft.core.particles.ParticleType<net.minecraft.core.particles.GeyserParticleOptions>) this.getHandle(), 1);
+                }
+                if (this.getHandle() == net.minecraft.core.particles.ParticleTypes.GEYSER_BASE) {
+                    return new net.minecraft.core.particles.GeyserBaseParticleOptions((net.minecraft.core.particles.ParticleType<net.minecraft.core.particles.GeyserBaseParticleOptions>) this.getHandle(), 1, 1.0F);
+                }
+                if (this.getHandle() == net.minecraft.core.particles.ParticleTypes.GEYSER_POOF) {
+                    return new net.minecraft.core.particles.GeyserBaseParticleOptions((net.minecraft.core.particles.ParticleType<net.minecraft.core.particles.GeyserBaseParticleOptions>) this.getHandle(), 1, 1.0F);
+                }
+                throw new IllegalArgumentException("Unknown void particle: " + this.getHandle());
             }
         };
 

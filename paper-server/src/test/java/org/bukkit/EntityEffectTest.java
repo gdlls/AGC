@@ -31,6 +31,7 @@ public class EntityEffectTest {
         events.remove(Byte.valueOf(EntityEvent.STOP_ATTACKING)); // not used on client anywhere
         events.remove(Byte.valueOf(EntityEvent.USE_ITEM_COMPLETE)); // not suitable for API (complete using item on Player)
         events.remove(Byte.valueOf(EntityEvent.FISHING_ROD_REEL_IN)); // not suitable for API (fishing rod reel in on FishingHook)
+        events.remove(Byte.valueOf(EntityEvent.TNT_PRIME)); // Paper - skip custom TNT_PRIME event
         events.add((byte) 0); // handled on Arrow (for some reason it's not in the EntityEvent nms file as a constant)
         return events;
     }

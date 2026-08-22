@@ -19,7 +19,7 @@ public record AGCWildScalePlan(
     boolean preservePluginEventOrder,
     boolean preserveChunkFifo,
     boolean preserveEntityTicks,
-    String policy
+    @org.jetbrains.annotations.NotNull String policy
 ) {
     public AGCWildScalePlan {
         expectedPlayers = Math.max(1, expectedPlayers);

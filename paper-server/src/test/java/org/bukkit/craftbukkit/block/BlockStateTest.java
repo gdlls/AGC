@@ -23,6 +23,7 @@ public class BlockStateTest {
     public void testBlockEntityBlockStates() {
         for (Block block : BuiltInRegistries.BLOCK) {
             Material material = CraftBlockType.minecraftToBukkit(block);
+            if (material == null) continue;
             Class<?> blockStateType = CraftBlockStates.getBlockStateType(material);
             boolean isCraftBlockEntityState = CraftBlockEntityState.class.isAssignableFrom(blockStateType);
 

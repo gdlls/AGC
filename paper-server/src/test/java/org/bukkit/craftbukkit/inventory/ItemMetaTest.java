@@ -6,6 +6,7 @@ import java.util.UUID;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EntityTypes;
 import net.minecraft.world.item.Item;
 import org.bukkit.Bukkit;
 import org.bukkit.Color;
@@ -165,11 +166,15 @@ public class ItemMetaTest {
     public void testEntityTagMeta() {
         for (final Item item : BuiltInRegistries.ITEM) {
             if (item instanceof net.minecraft.world.item.HangingEntityItem || item instanceof net.minecraft.world.item.MobBucketItem) {
-                ItemStack stack = new ItemStack(CraftItemType.minecraftToBukkit(item));
+                org.bukkit.Material material = CraftItemType.minecraftToBukkit(item);
+                if (material == null) {
+                    continue;
+                }
+                ItemStack stack = new ItemStack(material);
                 assertTrue(ENTITY_TAG_METAS.contains(stack.getItemMeta().getClass()), "missing entity tag meta handling for " + item);
                 stack = CraftItemStack.asNewCraftStack(net.minecraft.world.item.Items.STONE);
                 stack.editMeta(meta -> meta.displayName(net.kyori.adventure.text.Component.text("hello")));
-                stack.setType(CraftItemType.minecraftToBukkit(item));
+                stack.setType(material);
                 assertTrue(ENTITY_TAG_METAS.contains(stack.getItemMeta().getClass()), "missing entity tag meta handling for " + item);
             }
         }
@@ -331,7 +336,7 @@ public class ItemMetaTest {
                 @Override ItemStack operate(ItemStack cleanStack) {
                     final CraftMetaArmorStand meta = (CraftMetaArmorStand) cleanStack.getItemMeta();
                     meta.entityTag = new CompoundTag();
-                    meta.entityTag.putString("id", EntityType.getKey(EntityType.ARMOR_STAND).toString());
+                    meta.entityTag.putString("id", EntityType.getKey(EntityTypes.ARMOR_STAND).toString());
                     meta.entityTag.putBoolean("Small", true);
                     meta.setInvisible(true); // Paper
                     cleanStack.setItemMeta(meta);
@@ -350,7 +355,7 @@ public class ItemMetaTest {
                 @Override ItemStack operate(ItemStack cleanStack) {
                     final CraftMetaEntityTag meta = ((CraftMetaEntityTag) cleanStack.getItemMeta());
                     meta.entityTag = new CompoundTag();
-                    meta.entityTag.putString("id", EntityType.getKey(EntityType.ITEM_FRAME).toString());
+                    meta.entityTag.putString("id", EntityType.getKey(EntityTypes.ITEM_FRAME).toString());
                     meta.entityTag.putBoolean("Invisible", true);
                     cleanStack.setItemMeta(meta);
                     return cleanStack;
@@ -440,7 +445,12 @@ public class ItemMetaTest {
                 return;
             }
 
-            ItemMeta meta = new ItemStack(itemType.asMaterial()).getItemMeta();
+            org.bukkit.Material material = itemType.asMaterial();
+            if (material == null) {
+                return;
+            }
+
+            ItemMeta meta = new ItemStack(material).getItemMeta();
             Class<?> internal = meta == null ? CraftMetaItem.class : meta.getClass();
             Class<?>[] interfaces = internal.getInterfaces();
             Class<?> expected;

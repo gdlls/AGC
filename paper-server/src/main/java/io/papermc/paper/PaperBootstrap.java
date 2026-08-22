@@ -18,6 +18,25 @@ public final class PaperBootstrap {
 
         getStartupVersionMessages().forEach(LOGGER::info);
 
+        // AGC start - bootstrap
+        final List<String> tuningIssues = io.papermc.paper.agc.AgcPerformanceTuning.validate();
+        if (!tuningIssues.isEmpty()) {
+            LOGGER.error("AGC Performance Tuning validation failed with {} issue(s):", tuningIssues.size());
+            for (final String issue : tuningIssues) {
+                LOGGER.error("  - {}", issue);
+            }
+            throw new IllegalStateException("AGC Performance Tuning validation failed");
+        }
+        io.papermc.paper.agc.AgcFoliaTuning.bootstrap();
+        Runtime.getRuntime().addShutdownHook(new Thread(io.papermc.paper.agc.AgcFoliaTuning::shutdown, "AGC-Shutdown-Hook"));
+        io.papermc.paper.agc.AgcNetworkEnhancer.get().setEnabled(true);
+        io.papermc.paper.network.ChannelInitializeListenerHolder.addListener(
+            net.kyori.adventure.key.Key.key("agc", "network_enhancer"),
+            io.papermc.paper.agc.AgcNetworkEnhancer.get()
+        );
+        LOGGER.info("AGC Performance Layer initialized successfully (mode: {})", io.papermc.paper.agc.AgcCapabilityMatrix.getMode());
+        // AGC end
+
         Main.main(options);
     }
 

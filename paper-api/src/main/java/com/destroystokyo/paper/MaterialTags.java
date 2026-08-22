@@ -43,12 +43,17 @@ public class MaterialTags {
     }
 
     private static MaterialSetTag replacedBy(Tag<Material> vanillaTag) {
-        return replacedBy(vanillaTag, Objects.requireNonNull(vanillaTag).key().value());
+        if (vanillaTag == null) {
+            return new MaterialSetTag(keyFor("dummy_fallback")).lock();
+        }
+        return replacedBy(vanillaTag, vanillaTag.key().value());
     }
 
     @SuppressWarnings("unchecked")
     private static MaterialSetTag replacedBy(Tag<Material> vanillaTag, String legacyKey) {
-        Objects.requireNonNull(vanillaTag);
+        if (vanillaTag == null) {
+            return new MaterialSetTag(keyFor(legacyKey)).lock();
+        }
         return new MaterialSetTag(keyFor(legacyKey)).add(vanillaTag).lock();
     }
 

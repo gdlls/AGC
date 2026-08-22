@@ -136,7 +136,13 @@ public class ParticleTest {
     }
 
     private <T extends ParticleOptions> void testEmptyData(Particle bukkit, net.minecraft.core.particles.ParticleType<T> minecraft) {
-        this.createAndTest(bukkit, minecraft, null, SimpleParticleType.class);
+        Class<?> expectedClass = SimpleParticleType.class;
+        if (minecraft == net.minecraft.core.particles.ParticleTypes.GEYSER || minecraft == net.minecraft.core.particles.ParticleTypes.GEYSER_PLUME) {
+            expectedClass = net.minecraft.core.particles.GeyserParticleOptions.class;
+        } else if (minecraft == net.minecraft.core.particles.ParticleTypes.GEYSER_BASE || minecraft == net.minecraft.core.particles.ParticleTypes.GEYSER_POOF) {
+            expectedClass = net.minecraft.core.particles.GeyserBaseParticleOptions.class;
+        }
+        this.createAndTest(bukkit, minecraft, null, (Class) expectedClass);
     }
 
     private <T extends ParticleOptions> void testDustOption(Particle bukkit, net.minecraft.core.particles.ParticleType<T> minecraft) {

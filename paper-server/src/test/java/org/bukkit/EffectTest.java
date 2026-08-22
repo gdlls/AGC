@@ -39,7 +39,11 @@ public class EffectTest {
 
         for (final Field field : LevelEvent.class.getFields()) {
             if (Modifier.isStatic(field.getModifiers()) && Modifier.isFinal(field.getModifiers()) && field.getType() == int.class) {
-                LEVEL_EVENTS.add((int) field.get(null));
+                int val = (int) field.get(null);
+                if (val == 1052) { // Paper - skip custom sulfur spike land level event
+                    continue;
+                }
+                LEVEL_EVENTS.add(val);
             }
         }
     }

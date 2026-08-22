@@ -19,7 +19,7 @@ public record AGCComputeEfficiencyPlan(
     int entityVisibilityBatchSize,
     int orderedCommitBatchSize,
     int reservedCpuPercent,
-    String policy
+    @org.jetbrains.annotations.NotNull String policy
 ) {
     public AGCComputeEfficiencyPlan {
         expectedPlayers = Math.max(1, expectedPlayers);

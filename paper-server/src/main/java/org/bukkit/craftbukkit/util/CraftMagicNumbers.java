@@ -740,7 +740,7 @@ public final class CraftMagicNumbers implements UnsafeValues {
             nmsEntity = net.minecraft.world.entity.EntityType.create(
                 TagValueInput.create(problemReporter, world.registryAccess(), compound),
                 world,
-                net.minecraft.world.entity.EntitySpawnReason.LOAD
+                new net.minecraft.world.entity.EntitySpawnRequest(net.minecraft.world.entity.EntitySpawnReason.LOAD, false)
             ).orElseThrow(() -> new IllegalArgumentException("An ID was not found for the data. Did you downgrade?"));
         }
 
@@ -786,7 +786,7 @@ public final class CraftMagicNumbers implements UnsafeValues {
 
     @Override
     public int nextEntityId() {
-        return net.minecraft.world.entity.Entity.nextEntityId();
+        return net.minecraft.server.level.ServerLevel.nextEntityId();
     }
 
     @Override

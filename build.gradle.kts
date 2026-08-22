@@ -32,6 +32,7 @@ subprojects {
         filteringCharset = Charsets.UTF_8.name()
     }
     tasks.withType<Test>().configureEach {
+        jvmArgs("-Dfile.encoding=UTF-8", "-Dsun.jnu.encoding=UTF-8")
         testLogging {
             showStackTraces = true
             exceptionFormat = TestExceptionFormat.FULL

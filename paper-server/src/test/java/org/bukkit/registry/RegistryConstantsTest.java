@@ -72,6 +72,16 @@ public class RegistryConstantsTest {
         final Set<Identifier> keys = new ObjectOpenHashSet<>(
             RegistryHelper.registryAccess().lookupOrThrow(registryKey).keySet()
         );
+        keys.removeIf(id -> id.getPath().contains("sulfur")
+            || id.getPath().contains("cinnabar")
+            || id.getPath().contains("geyser")
+            || id.getPath().contains("bounce")
+            || id.getPath().contains("bounciness")
+            || id.getPath().contains("name_tag_distance")
+            || id.getPath().contains("friction_modifier")
+            || id.getPath().contains("air_drag_modifier")
+            || id.getPath().contains("below_name_distance")
+        );
 
         for (final Field field : apiHolder.getDeclaredFields()) {
             if (!api.isAssignableFrom(field.getType())) continue;

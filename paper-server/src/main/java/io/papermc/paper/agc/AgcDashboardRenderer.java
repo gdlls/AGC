@@ -1,0 +1,71 @@
+package io.papermc.paper.agc;
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * AGC — Real-Time Performance Dashboard Renderer.
+ *
+ * <p>Formats comprehensive AGC runtime metrics into structured multi-line reports
+ * suitable for in-game chat, console output, and diagnostic logs.</p>
+ */
+public final class AgcDashboardRenderer {
+
+    private static final AgcDashboardRenderer INSTANCE = new AgcDashboardRenderer();
+
+    public static AgcDashboardRenderer get() {
+        return INSTANCE;
+    }
+
+    private AgcDashboardRenderer() {}
+
+    /**
+     * Renders the complete ASCII dashboard.
+     *
+     * @return List of formatted lines
+     */
+    public List<String> renderDashboard() {
+        final List<String> lines = new ArrayList<>();
+        final String mode = AgcCapabilityMatrix.getMode().name();
+        final String govState = AgcPerformanceGovernor.get().getState().name();
+
+        final var world = AgcParallelWorldTickEngine.get().metrics();
+        final var hbr = AgcWorldHibernationEngine.get().metrics();
+        final var avd = AgcAdaptiveViewDistanceController.get().metrics();
+        final var netBcast = AgcPacketBroadcastDeduplicator.get().metrics();
+        final var netFlush = AgcFlushCoalescer.get().metrics();
+        final var ear = AgcHierarchicalActivationRange.get().metrics();
+        final var ai = AgcEntityAiBatchProcessor.get().metrics();
+        final var mem = AgcHotPathCache.recordSnapshot();
+        final var direct = AgcDirectBufferPool.get().metrics();
+
+        lines.add("==================== [AGC PERFORMANCE DASHBOARD] ====================");
+        lines.add(String.format("  Runtime: Mode: %s | Governor: %s | Workers: %d threads",
+            mode, govState, world.workers()));
+        lines.add(String.format("  Memory: %.1f MB / %.1f MB (%.1f%% used) | Direct Off-Heap: %.1f MB",
+            (mem.totalMemory() - mem.freeMemory()) / (1024.0 * 1024.0),
+            mem.maxMemory() / (1024.0 * 1024.0),
+            mem.usedMemoryRatio() * 100.0,
+            direct.totalAllocatedBytes() / (1024.0 * 1024.0)));
+        lines.add("---------------------------------------------------------------------");
+        lines.add(String.format("  [World Engine] Parallel Ticks: %,d | Waves: %,d (Avg: %.2fms) | Failures: %d",
+            world.parallelTicks(), world.totalWaves(), world.averageWaveMillis(), world.failures()));
+        lines.add(String.format("  [50+ Worlds] Active: %d | Hibernating: %d | Total Saved Ticks: %,d",
+            hbr.activeWorlds(), hbr.hibernatingWorlds(), hbr.worldTicksSaved()));
+        lines.add(String.format("  [View Distance] Current Target: %d chunks | Adjustments: %,d",
+            avd.currentTargetDistance(), avd.totalAdjustments()));
+        lines.add("---------------------------------------------------------------------");
+        lines.add(String.format("  [500+ Network] Broadcasts: %,d | Serializations Saved: %,d (Zero-Copy)",
+            netBcast.broadcasts(), netBcast.serializationsSaved()));
+        lines.add(String.format("  [Netty Flush] Coalesced Packets: %,d | Syscall Batches: %,d",
+            netFlush.packetsCoalesced(), netFlush.flushesExecuted()));
+        lines.add("---------------------------------------------------------------------");
+        lines.add(String.format("  [Entity EAR 2.0] Active: %,d | Reduced: %,d | Dormant Skipped: %,d (%.1f%%)",
+            ear.activeTicked(), ear.reducedTicked(), ear.dormantSkipped(), ear.skipRatio() * 100.0));
+        lines.add(String.format("  [Entity AI] Evaluated: %,d | Batched/Skipped: %,d (CPU Reduction: %.1f%%)",
+            ai.goalsEvaluated(), ai.goalsSkipped(), ai.cpuReductionRatio() * 100.0));
+        lines.add("=====================================================================");
+
+        return lines;
+    }
+}

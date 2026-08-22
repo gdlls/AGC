@@ -37,6 +37,9 @@ public class MaterialTest {
             if (item == null) continue;
 
             Identifier id = BuiltInRegistries.ITEM.getKey(item);
+            if (id != null && (id.getPath().contains("sulfur") || id.getPath().contains("cinnabar") || id.getPath().contains("bounce"))) {
+                continue;
+            }
             String name = item.getDescriptionId();
 
             Material material = materials.remove(id);

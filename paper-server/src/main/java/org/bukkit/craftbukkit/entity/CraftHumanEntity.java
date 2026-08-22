@@ -163,7 +163,7 @@ public class CraftHumanEntity extends CraftLivingEntity implements HumanEntity {
 
     @Override
     public int getSleepTicks() {
-        return this.getHandle().sleepCounter;
+        return this.getHandle().getSleepTimer();
     }
 
     @Override
@@ -665,8 +665,8 @@ public class CraftHumanEntity extends CraftLivingEntity implements HumanEntity {
             return 0;
         }
 
-        ItemCooldowns.CooldownInstance cooldown = this.getHandle().getCooldowns().cooldowns.get(group);
-        return (cooldown == null) ? 0 : Math.max(0, cooldown.endTime() - this.getHandle().getCooldowns().tickCount);
+        ItemCooldowns.CooldownInstance cooldown = this.getHandle().getCooldowns().getCooldowns().get(group);
+        return (cooldown == null) ? 0 : Math.max(0, cooldown.endTime() - this.getHandle().getCooldowns().getTickCount());
     }
 
     @Override
@@ -681,8 +681,8 @@ public class CraftHumanEntity extends CraftLivingEntity implements HumanEntity {
     public int getCooldown(Key key) {
         Preconditions.checkArgument(key != null, "Key cannot be null");
 
-        ItemCooldowns.CooldownInstance cooldown = this.getHandle().getCooldowns().cooldowns.get(PaperAdventure.asVanilla(key));
-        return (cooldown == null) ? 0 : Math.max(0, cooldown.endTime() - this.getHandle().getCooldowns().tickCount);
+        ItemCooldowns.CooldownInstance cooldown = this.getHandle().getCooldowns().getCooldowns().get(PaperAdventure.asVanilla(key));
+        return (cooldown == null) ? 0 : Math.max(0, cooldown.endTime() - this.getHandle().getCooldowns().getTickCount());
     }
 
     @Override
@@ -837,22 +837,22 @@ public class CraftHumanEntity extends CraftLivingEntity implements HumanEntity {
 
     @Override
     public float getSaturation() {
-        return this.getHandle().getFoodData().saturationLevel;
+        return this.getHandle().getFoodData().getSaturationLevelPublic();
     }
 
     @Override
     public void setSaturation(float value) {
-        this.getHandle().getFoodData().saturationLevel = value;
+        this.getHandle().getFoodData().setSaturationLevelPublic(value);
     }
 
     @Override
     public int getFoodLevel() {
-        return this.getHandle().getFoodData().foodLevel;
+        return this.getHandle().getFoodData().getFoodLevelPublic();
     }
 
     @Override
     public void setFoodLevel(int value) {
-        this.getHandle().getFoodData().foodLevel = value;
+        this.getHandle().getFoodData().setFoodLevelPublic(value);
     }
 
     @Override
