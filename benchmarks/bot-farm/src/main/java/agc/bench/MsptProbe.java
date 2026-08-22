@@ -21,8 +21,12 @@ import java.util.regex.Pattern;
  */
 public final class MsptProbe implements AutoCloseable {
 
+    private static final Pattern STRIP_COLOR_PATTERN =
+        Pattern.compile("(?i)[§\\u00A7\\uFFFD][0-9a-fk-or]");
     private static final Pattern METRIC_PATTERN =
-        Pattern.compile("(p50|p95|p99|avg)\\s*[:=]?\\s*([0-9]+(?:\\.[0-9]+)?)", Pattern.CASE_INSENSITIVE);
+        Pattern.compile("(p50|p95|p99|avg|min|max)\\s*[:=]?\\s*([0-9]+(?:\\.[0-9]+)?)", Pattern.CASE_INSENSITIVE);
+    private static final Pattern SLASH_PATTERN =
+        Pattern.compile("([0-9]+(?:\\.[0-9]+)?)\\s*/\\s*([0-9]+(?:\\.[0-9]+)?)\\s*/\\s*([0-9]+(?:\\.[0-9]+)?)");
 
     private final String host;
     private final int port;
@@ -67,11 +71,42 @@ public final class MsptProbe implements AutoCloseable {
 
     private void pollOnce() {
         try {
-            final String out = this.rcon.command("mspt");
+            final String raw = this.rcon.command("mspt");
+            final String out = STRIP_COLOR_PATTERN.matcher(raw).replaceAll("");
+            boolean matched = false;
+            final Matcher slashMatcher = SLASH_PATTERN.matcher(out);
+            int tripletIndex = 0;
+            while (slashMatcher.find()) {
+                final double avg = Double.parseDouble(slashMatcher.group(1));
+                final double min = Double.parseDouble(slashMatcher.group(2));
+                final double max = Double.parseDouble(slashMatcher.group(3));
+                final String prefix = switch (tripletIndex) {
+                    case 0 -> "5s";
+                    case 1 -> "10s";
+                    default -> "1m";
+                };
+                this.samples.computeIfAbsent(prefix + "_avg", k -> Collections.synchronizedList(new ArrayList<>())).add(avg);
+                this.samples.computeIfAbsent(prefix + "_min", k -> Collections.synchronizedList(new ArrayList<>())).add(min);
+                this.samples.computeIfAbsent(prefix + "_max", k -> Collections.synchronizedList(new ArrayList<>())).add(max);
+
+                // Use the 5s rolling window for instant aggregate metrics
+                if (tripletIndex == 0) {
+                    this.samples.computeIfAbsent("avg", k -> Collections.synchronizedList(new ArrayList<>())).add(avg);
+                    this.samples.computeIfAbsent("min", k -> Collections.synchronizedList(new ArrayList<>())).add(min);
+                    this.samples.computeIfAbsent("max", k -> Collections.synchronizedList(new ArrayList<>())).add(max);
+                    this.samples.computeIfAbsent("p99", k -> Collections.synchronizedList(new ArrayList<>())).add(max);
+                }
+                tripletIndex++;
+                matched = true;
+            }
             final Matcher m = METRIC_PATTERN.matcher(out);
             while (m.find()) {
-                this.samples.computeIfAbsent(m.group(1).toLowerCase(), k -> Collections.synchronizedList(new ArrayList<>()))
+                this.samples.computeIfAbsent(m.group(1).toLowerCase(java.util.Locale.ROOT), k -> Collections.synchronizedList(new ArrayList<>()))
                     .add(Double.parseDouble(m.group(2)));
+                matched = true;
+            }
+            if (!matched && !out.isBlank()) {
+                System.out.println("[bench] mspt raw response: " + raw.trim());
             }
         } catch (final Throwable t) {
             System.err.println("[bench] mspt poll failed: " + t.getMessage());

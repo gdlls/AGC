@@ -39,6 +39,9 @@ public final class AgcTestRunner {
         AgcPluginScannerTest.class,
         AgcMetricsExporterTest.class,
         AgcDashboardRendererTest.class,
+        AgcPaletteCowOptimizerTest.class,
+        AgcStorageIoGovernorTest.class,
+        AgcBehaviorParitySuiteTest.class,
         AgcMassiveStressBenchmarkTest.class
     };
 

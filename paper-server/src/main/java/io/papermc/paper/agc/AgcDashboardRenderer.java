@@ -38,20 +38,25 @@ public final class AgcDashboardRenderer {
         final var ai = AgcEntityAiBatchProcessor.get().metrics();
         final var mem = AgcHotPathCache.recordSnapshot();
         final var direct = AgcDirectBufferPool.get().metrics();
+        final var cow = AgcPaletteCowOptimizer.get().metrics();
+        final var io = AgcStorageIoGovernor.get().metrics();
 
         lines.add("==================== [AGC PERFORMANCE DASHBOARD] ====================");
         lines.add(String.format("  Runtime: Mode: %s | Governor: %s | Workers: %d threads",
             mode, govState, world.workers()));
-        lines.add(String.format("  Memory: %.1f MB / %.1f MB (%.1f%% used) | Direct Off-Heap: %.1f MB",
+        lines.add(String.format("  Memory: %.1f MB / %.1f MB (%.1f%% used) | Direct Off-Heap: %.1f MB | COW Saved: %.1f MB",
             (mem.totalMemory() - mem.freeMemory()) / (1024.0 * 1024.0),
             mem.maxMemory() / (1024.0 * 1024.0),
             mem.usedMemoryRatio() * 100.0,
-            direct.totalAllocatedBytes() / (1024.0 * 1024.0)));
+            direct.totalAllocatedBytes() / (1024.0 * 1024.0),
+            cow.estimatedBytesSaved() / (1024.0 * 1024.0)));
         lines.add("---------------------------------------------------------------------");
         lines.add(String.format("  [World Engine] Parallel Ticks: %,d | Waves: %,d (Avg: %.2fms) | Failures: %d",
             world.parallelTicks(), world.totalWaves(), world.averageWaveMillis(), world.failures()));
-        lines.add(String.format("  [50+ Worlds] Active: %d | Hibernating: %d | Total Saved Ticks: %,d",
-            hbr.activeWorlds(), hbr.hibernatingWorlds(), hbr.worldTicksSaved()));
+        lines.add(String.format("  [500+ Worlds 3-Tier] Active: %d | Warm (RAM): %d | Cold (Disk): %d | Saved: %,d",
+            hbr.activeWorlds(), hbr.warmHibernatingWorlds(), hbr.coldDormantWorlds(), hbr.worldTicksSaved()));
+        lines.add(String.format("  [Storage I/O] Available Tokens: %.0f | Saves Admitted: %,d | Throttled: %,d",
+            io.availableTokens(), io.savesAdmitted(), io.savesThrottled()));
         lines.add(String.format("  [View Distance] Current Target: %d chunks | Adjustments: %,d",
             avd.currentTargetDistance(), avd.totalAdjustments()));
         lines.add("---------------------------------------------------------------------");

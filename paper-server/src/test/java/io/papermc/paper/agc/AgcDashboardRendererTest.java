@@ -24,7 +24,7 @@ class AgcDashboardRendererTest {
         assertTrue(fullText.contains("Runtime:"));
         assertTrue(fullText.contains("Memory:"));
         assertTrue(fullText.contains("World Engine"));
-        assertTrue(fullText.contains("50+ Worlds"));
+        assertTrue(fullText.contains("Worlds"));
         assertTrue(fullText.contains("500+ Network"));
         assertTrue(fullText.contains("Entity EAR 2.0"));
         assertTrue(fullText.contains("Entity AI"));

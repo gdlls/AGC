@@ -27,28 +27,24 @@ public final class RconClient implements AutoCloseable {
         this.in = new DataInputStream(this.socket.getInputStream());
         this.out = new DataOutputStream(this.socket.getOutputStream());
 
+        final int currentReq = this.requestId;
         writePacket(TYPE_AUTH, password);
-        readPacket(); // auth response payload
-        final int authResult = readType();
-        if (authResult == -1) {
-            throw new IOException("rcon auth failed");
+        final RconPacket resp = readPacket();
+        if (resp.id == -1 || resp.id != currentReq) {
+            throw new IOException("rcon auth failed: id mismatch or rejected (id=" + resp.id + ", expected=" + currentReq + ")");
         }
     }
 
     /** Executes a console command and returns the server's text response. */
     public String command(final String cmd) throws IOException {
+        final int currentReq = this.requestId;
         writePacket(TYPE_COMMAND, cmd);
         final ByteArrayOutputStream payload = new ByteArrayOutputStream();
         while (true) {
-            final int len = this.in.readInt();
-            final int id = this.in.readInt();
-            final int type = this.in.readInt();
-            final byte[] body = new byte[Math.max(0, len - 10)];
-            this.in.readFully(body);
-            this.in.readFully(new byte[2]);
-            payload.write(body);
-            if (type == 0 && id != -1) {
-                break; // single-segment responses are typical for mspt-sized outputs
+            final RconPacket pkt = readPacket();
+            payload.write(pkt.body);
+            if (pkt.type == 0 && pkt.id == currentReq) {
+                break; // single-segment or final segment
             }
         }
         return payload.toString(StandardCharsets.UTF_8);
@@ -63,30 +59,45 @@ public final class RconClient implements AutoCloseable {
 
     private void writePacket(final int type, final String body) throws IOException {
         final byte[] bodyBytes = body.getBytes(StandardCharsets.UTF_8);
-        final int id = ++this.requestId;
-        this.out.writeInt(4 + 4 + bodyBytes.length + 2);
-        this.out.writeInt(id);
-        this.out.writeInt(type);
-        this.out.write(bodyBytes);
-        this.out.writeByte(0);
-        this.out.writeByte(0);
-        this.out.flush();
+        final int id = this.requestId++;
+        final int payloadLen = 4 + 4 + bodyBytes.length + 2;
+        final ByteArrayOutputStream baos = new ByteArrayOutputStream(4 + payloadLen);
+        final DataOutputStream dos = new DataOutputStream(baos);
+        dos.writeInt(Integer.reverseBytes(payloadLen));
+        dos.writeInt(Integer.reverseBytes(id));
+        dos.writeInt(Integer.reverseBytes(type));
+        dos.write(bodyBytes);
+        dos.writeByte(0);
+        dos.writeByte(0);
+        dos.flush();
+        this.socket.getOutputStream().write(baos.toByteArray());
+        this.socket.getOutputStream().flush();
     }
 
-    private void readPacket() throws IOException {
-        final int len = this.in.readInt();
-        this.in.readInt(); // id
-        final byte[] body = new byte[Math.max(0, len - 10)];
-        this.in.readFully(body);
-        this.in.readFully(new byte[2]);
+    private void writeIntLE(final int value) throws IOException {
+        this.out.writeInt(Integer.reverseBytes(value));
     }
 
-    private int readType() throws IOException {
-        final int len = this.in.readInt();
-        final int id = this.in.readInt();
-        final int type = this.in.readInt();
-        this.in.readFully(new byte[Math.max(0, len - 10)]);
-        this.in.readFully(new byte[2]);
-        return id == -1 ? -1 : type;
+    private int readIntLE() throws IOException {
+        return Integer.reverseBytes(this.in.readInt());
     }
+
+    private RconPacket readPacket() throws IOException {
+        final int len = readIntLE();
+        if (len < 10 || len > 1460 * 10) {
+            throw new IOException("Invalid RCON packet length: " + len);
+        }
+        final int id = readIntLE();
+        final int type = readIntLE();
+        final int bodyLen = len - 10;
+        final byte[] body = new byte[bodyLen];
+        if (bodyLen > 0) {
+            this.in.readFully(body);
+        }
+        final byte[] pad = new byte[2];
+        this.in.readFully(pad);
+        return new RconPacket(id, type, body);
+    }
+
+    private record RconPacket(int id, int type, byte[] body) {}
 }

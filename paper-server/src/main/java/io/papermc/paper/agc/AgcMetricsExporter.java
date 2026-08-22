@@ -82,19 +82,43 @@ public final class AgcMetricsExporter {
         final Map<String, Object> chunkMap = new LinkedHashMap<>();
         chunkMap.put("total_worlds", hbrMetrics.totalTrackedWorlds());
         chunkMap.put("active_worlds", hbrMetrics.activeWorlds());
-        chunkMap.put("hibernating_worlds", hbrMetrics.hibernatingWorlds());
+        chunkMap.put("warm_hibernating_worlds", hbrMetrics.warmHibernatingWorlds());
+        chunkMap.put("cold_dormant_worlds", hbrMetrics.coldDormantWorlds());
         chunkMap.put("world_ticks_saved", hbrMetrics.worldTicksSaved());
         chunkMap.put("target_view_distance", avdMetrics.currentTargetDistance());
         chunkMap.put("view_distance_adjustments", avdMetrics.totalAdjustments());
         root.put("chunk_worlds", chunkMap);
 
-        // 6. Memory & Off-Heap Buffers
+        // 6. Memory, Palette COW & Off-Heap Buffers
         final var directMetrics = AgcDirectBufferPool.get().metrics();
+        final var cowMetrics = AgcPaletteCowOptimizer.get().metrics();
         final Map<String, Object> memMap = new LinkedHashMap<>();
         memMap.put("direct_buffers_acquired", directMetrics.acquired());
         memMap.put("direct_buffers_released", directMetrics.released());
         memMap.put("direct_bytes_allocated", directMetrics.totalAllocatedBytes());
+        memMap.put("cow_sections_optimized", cowMetrics.sectionsOptimized());
+        memMap.put("cow_expansions", cowMetrics.cowExpansions());
+        memMap.put("cow_bytes_saved", cowMetrics.estimatedBytesSaved());
         root.put("memory", memMap);
+
+        // 7. Storage I/O Governor
+        final var ioMetrics = AgcStorageIoGovernor.get().metrics();
+        final Map<String, Object> ioMap = new LinkedHashMap<>();
+        ioMap.put("tokens_available", ioMetrics.availableTokens());
+        ioMap.put("pending_saves", ioMetrics.pendingQueueSize());
+        ioMap.put("saves_admitted", ioMetrics.savesAdmitted());
+        ioMap.put("saves_throttled", ioMetrics.savesThrottled());
+        root.put("storage_io", ioMap);
+
+        // 8. Behavioral Parity Verification
+        final var parityMetrics = AgcBehaviorParitySuite.get().metrics();
+        final Map<String, Object> parityMap = new LinkedHashMap<>();
+        parityMap.put("total_rules", parityMetrics.totalRules());
+        parityMap.put("checks_executed", parityMetrics.checksExecuted());
+        parityMap.put("deviations_allowed", parityMetrics.deviationsAllowed());
+        parityMap.put("violations_detected", parityMetrics.violationsDetected());
+        parityMap.put("is_compliant", parityMetrics.isFullyCompliant());
+        root.put("behavior_parity", parityMap);
 
         return root;
     }

@@ -69,4 +69,36 @@ class AgcWorldHibernationEngineTest {
         final var m = engine.metrics();
         assertEquals(1, m.wakeupsTriggered());
     }
+
+    @Test
+    void threeTierColdTransitionAndEviction() {
+        final var engine = AgcWorldHibernationEngine.get();
+        final java.util.concurrent.atomic.AtomicBoolean evicted = new java.util.concurrent.atomic.AtomicBoolean(false);
+
+        // Tick 0: 1 player -> HOT (ACTIVE)
+        engine.updateWorld("world_minigame", 1, 0, 10, 50, () -> evicted.set(true));
+        assertEquals(AgcWorldHibernationEngine.Tier.HOT, engine.getTier("world_minigame"));
+
+        // Tick 1: 0 players -> DRAINING
+        engine.updateWorld("world_minigame", 0, 1, 10, 50, () -> evicted.set(true));
+        assertEquals(AgcWorldHibernationEngine.Tier.HOT, engine.getTier("world_minigame"));
+
+        // Tick 15: WARM (HIBERNATING)
+        engine.updateWorld("world_minigame", 0, 15, 10, 50, () -> evicted.set(true));
+        assertEquals(AgcWorldHibernationEngine.Tier.WARM, engine.getTier("world_minigame"));
+        assertEquals(AgcWorldHibernationEngine.WorldState.HIBERNATING, engine.getState("world_minigame"));
+        assertFalse(evicted.get());
+
+        // Tick 60: COLD (DEEP DORMANCY) -> triggers eviction callback
+        engine.updateWorld("world_minigame", 0, 60, 10, 50, () -> evicted.set(true));
+        assertEquals(AgcWorldHibernationEngine.Tier.COLD, engine.getTier("world_minigame"));
+        assertEquals(AgcWorldHibernationEngine.WorldState.COLD, engine.getState("world_minigame"));
+        assertTrue(evicted.get());
+        assertFalse(engine.shouldTickWorld("world_minigame"));
+
+        // Player joins -> Wakes directly from COLD to ACTIVE
+        engine.updateWorld("world_minigame", 1, 65, 10, 50, null);
+        assertEquals(AgcWorldHibernationEngine.Tier.HOT, engine.getTier("world_minigame"));
+        assertEquals(AgcWorldHibernationEngine.WorldState.ACTIVE, engine.getState("world_minigame"));
+    }
 }

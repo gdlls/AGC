@@ -23,20 +23,29 @@ public final class AgcWorldHibernationEngine {
     private static final AgcWorldHibernationEngine INSTANCE = new AgcWorldHibernationEngine();
 
     public enum WorldState {
-        /** Actively ticking with players or recent activity */
+        /** Actively ticking with players or recent activity (HOT tier) */
         ACTIVE,
-        /** 0 players, in grace period countdown before freezing */
+        /** 0 players, in grace period countdown before freezing (Transition to WARM) */
         DRAINING,
-        /** Frozen: no entity/block ticks, memory preserved */
+        /** Frozen: no entity/block ticks, chunks preserved in RAM (WARM tier) */
         HIBERNATING,
+        /** Deep dormancy: prolonged 0 players, chunks evicted/saved to disk (COLD tier) */
+        COLD,
         /** Player entering: transitioning back to active */
         WAKING
+    }
+
+    public enum Tier {
+        HOT,
+        WARM,
+        COLD
     }
 
     private final ConcurrentHashMap<String, WorldTrackInfo> trackedWorlds = new ConcurrentHashMap<>();
 
     // Telemetry & metrics
     private final AtomicLong hibernationsTriggered = new AtomicLong();
+    private final AtomicLong coldEvictionsTriggered = new AtomicLong();
     private final AtomicLong wakeupsTriggered = new AtomicLong();
     private final AtomicLong ticksSaved = new AtomicLong();
 
@@ -47,19 +56,35 @@ public final class AgcWorldHibernationEngine {
     private AgcWorldHibernationEngine() {}
 
     /**
-     * Updates world tracking with current player count.
-     *
-     * @param worldKey    Unique identifier for the world
-     * @param playerCount Number of active players in the world
-     * @param currentTick Current server tick
-     * @param graceTicks  Number of empty ticks before entering hibernation
-     * @return Resolved {@link WorldState}
+     * Updates world tracking with current player count (2-tier legacy compatibility).
      */
     public WorldState updateWorld(
         final String worldKey,
         final int playerCount,
         final long currentTick,
         final long graceTicks
+    ) {
+        return updateWorld(worldKey, playerCount, currentTick, graceTicks, graceTicks * 60L, null);
+    }
+
+    /**
+     * Updates world tracking with 3-tier (HOT -> WARM -> COLD) lifecycle support.
+     *
+     * @param worldKey            Unique identifier for the world
+     * @param playerCount         Number of active players in the world
+     * @param currentTick         Current server tick
+     * @param warmGraceTicks      Ticks before entering WARM (HIBERNATING) state
+     * @param coldGraceTicks      Ticks of continuous dormancy before entering COLD state
+     * @param onColdEvictCallback Optional callback executed when entering COLD state (e.g. disk save/unload)
+     * @return Resolved {@link WorldState}
+     */
+    public WorldState updateWorld(
+        final String worldKey,
+        final int playerCount,
+        final long currentTick,
+        final long warmGraceTicks,
+        final long coldGraceTicks,
+        final Runnable onColdEvictCallback
     ) {
         if (worldKey == null) {
             return WorldState.ACTIVE;
@@ -72,7 +97,7 @@ public final class AgcWorldHibernationEngine {
 
         synchronized (info) {
             if (playerCount > 0) {
-                if (info.state == WorldState.HIBERNATING || info.state == WorldState.DRAINING) {
+                if (info.state == WorldState.HIBERNATING || info.state == WorldState.DRAINING || info.state == WorldState.COLD) {
                     info.state = WorldState.ACTIVE;
                     this.wakeupsTriggered.incrementAndGet();
                     LOGGER.info("AGC World Hibernation: World '{}' woke up ({} players)", worldKey, playerCount);
@@ -88,12 +113,13 @@ public final class AgcWorldHibernationEngine {
                 return WorldState.DRAINING;
             }
 
+            final long inactiveTicks = currentTick - info.lastActiveTick;
+
             if (info.state == WorldState.DRAINING) {
-                final long inactiveTicks = currentTick - info.lastActiveTick;
-                if (inactiveTicks >= Math.max(1, graceTicks)) {
+                if (inactiveTicks >= Math.max(1, warmGraceTicks)) {
                     info.state = WorldState.HIBERNATING;
                     this.hibernationsTriggered.incrementAndGet();
-                    LOGGER.info("AGC World Hibernation: World '{}' entered HIBERNATING state after {} idle ticks", worldKey, inactiveTicks);
+                    LOGGER.info("AGC World Hibernation: World '{}' entered WARM HIBERNATING state after {} idle ticks", worldKey, inactiveTicks);
                     return WorldState.HIBERNATING;
                 }
                 return WorldState.DRAINING;
@@ -101,7 +127,25 @@ public final class AgcWorldHibernationEngine {
 
             if (info.state == WorldState.HIBERNATING) {
                 this.ticksSaved.incrementAndGet();
+                if (coldGraceTicks > 0 && inactiveTicks >= coldGraceTicks) {
+                    info.state = WorldState.COLD;
+                    this.coldEvictionsTriggered.incrementAndGet();
+                    LOGGER.info("AGC World Hibernation: World '{}' entered COLD DEEP DORMANCY after {} idle ticks", worldKey, inactiveTicks);
+                    if (onColdEvictCallback != null) {
+                        try {
+                            onColdEvictCallback.run();
+                        } catch (final Throwable t) {
+                            LOGGER.warn("AGC World Hibernation: Cold eviction callback failed for world '{}': {}", worldKey, t.getMessage());
+                        }
+                    }
+                    return WorldState.COLD;
+                }
                 return WorldState.HIBERNATING;
+            }
+
+            if (info.state == WorldState.COLD) {
+                this.ticksSaved.incrementAndGet();
+                return WorldState.COLD;
             }
 
             return info.state;
@@ -112,7 +156,7 @@ public final class AgcWorldHibernationEngine {
      * Checks whether a given world should be ticked this cycle.
      *
      * @param worldKey Unique identifier for the world
-     * @return true if world is ACTIVE or DRAINING, false if HIBERNATING
+     * @return true if world is ACTIVE or DRAINING, false if HIBERNATING or COLD
      */
     public boolean shouldTickWorld(final String worldKey) {
         if (worldKey == null) {
@@ -122,7 +166,21 @@ public final class AgcWorldHibernationEngine {
         if (info == null) {
             return true;
         }
-        return info.state != WorldState.HIBERNATING;
+        return info.state != WorldState.HIBERNATING && info.state != WorldState.COLD;
+    }
+
+    /**
+     * Obtains the 3-tier classification of a world.
+     */
+    public Tier getTier(final String worldKey) {
+        if (worldKey == null) return Tier.HOT;
+        final WorldTrackInfo info = this.trackedWorlds.get(worldKey);
+        if (info == null) return Tier.HOT;
+        return switch (info.state) {
+            case ACTIVE, DRAINING, WAKING -> Tier.HOT;
+            case HIBERNATING -> Tier.WARM;
+            case COLD -> Tier.COLD;
+        };
     }
 
     /**
@@ -137,7 +195,7 @@ public final class AgcWorldHibernationEngine {
             k -> new WorldTrackInfo(k, WorldState.ACTIVE, currentTick)
         );
         synchronized (info) {
-            if (info.state == WorldState.HIBERNATING || info.state == WorldState.DRAINING) {
+            if (info.state == WorldState.HIBERNATING || info.state == WorldState.DRAINING || info.state == WorldState.COLD) {
                 info.state = WorldState.ACTIVE;
                 this.wakeupsTriggered.incrementAndGet();
             }
@@ -154,18 +212,21 @@ public final class AgcWorldHibernationEngine {
     public void resetMetrics() {
         this.trackedWorlds.clear();
         this.hibernationsTriggered.set(0);
+        this.coldEvictionsTriggered.set(0);
         this.wakeupsTriggered.set(0);
         this.ticksSaved.set(0);
     }
 
     public HibernationMetrics metrics() {
         int hibernatingCount = 0;
+        int coldCount = 0;
         int activeCount = 0;
         int drainingCount = 0;
 
         for (final WorldTrackInfo info : this.trackedWorlds.values()) {
             switch (info.state) {
                 case HIBERNATING -> hibernatingCount++;
+                case COLD -> coldCount++;
                 case ACTIVE -> activeCount++;
                 case DRAINING -> drainingCount++;
                 case WAKING -> activeCount++;
@@ -177,7 +238,9 @@ public final class AgcWorldHibernationEngine {
             activeCount,
             drainingCount,
             hibernatingCount,
+            coldCount,
             this.hibernationsTriggered.get(),
+            this.coldEvictionsTriggered.get(),
             this.wakeupsTriggered.get(),
             this.ticksSaved.get()
         );
@@ -199,10 +262,19 @@ public final class AgcWorldHibernationEngine {
         int totalTrackedWorlds,
         int activeWorlds,
         int drainingWorlds,
-        int hibernatingWorlds,
-        long hibernationsTriggered,
+        int warmHibernatingWorlds,
+        int coldDormantWorlds,
+        long warmHibernationsTriggered,
+        long coldEvictionsTriggered,
         long wakeupsTriggered,
         long worldTicksSaved
     ) {
+        public int hibernatingWorlds() {
+            return this.warmHibernatingWorlds + this.coldDormantWorlds;
+        }
+
+        public long hibernationsTriggered() {
+            return this.warmHibernationsTriggered;
+        }
     }
 }
