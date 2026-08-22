@@ -142,7 +142,8 @@ public final class AgcStorageIoGovernor {
     public synchronized void configure(final double capacity, final double refillRate) {
         this.tokenCapacity = Math.max(1.0, capacity);
         this.refillRatePerSec = Math.max(1.0, refillRate);
-        this.tokens = Math.min(this.tokens, this.tokenCapacity);
+        this.tokens = this.tokenCapacity;
+        this.lastRefillNanos = System.nanoTime();
     }
 
     public synchronized int pendingQueueSize() {
@@ -154,12 +155,12 @@ public final class AgcStorageIoGovernor {
         return this.tokens;
     }
 
-    public void reset() {
-        synchronized (this) {
-            this.pendingQueue.clear();
-            this.tokens = this.tokenCapacity;
-            this.lastRefillNanos = System.nanoTime();
-        }
+    public synchronized void reset() {
+        this.pendingQueue.clear();
+        this.tokenCapacity = 5000.0;
+        this.refillRatePerSec = 1000.0;
+        this.tokens = 5000.0;
+        this.lastRefillNanos = System.nanoTime();
         this.savesAdmitted.set(0);
         this.savesThrottled.set(0);
         this.bytesSavedEstimated.set(0);
