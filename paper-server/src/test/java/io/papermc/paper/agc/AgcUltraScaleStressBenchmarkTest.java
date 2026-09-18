@@ -29,6 +29,23 @@ public class AgcUltraScaleStressBenchmarkTest {
     }
 
     @Test
+    void testTriEngine5000CCU500WorldsSimulation() {
+        final AgcUltraScaleStressBenchmark.UltraConfig config =
+            AgcUltraScaleStressBenchmark.UltraConfig.createTarget5000CCU500Worlds();
+
+        final AgcUltraScaleStressBenchmark.TriEngineUltraReport triReport =
+            AgcUltraScaleStressBenchmark.runTriEngineSimulation(config);
+
+        System.out.println(triReport.formatSummaryTable());
+
+        assertNotNull(triReport);
+        assertNotNull(triReport.vanilla());
+        assertNotNull(triReport.paper());
+        assertNotNull(triReport.agc());
+        assertTrue(triReport.agc().targetSloMet());
+    }
+
+    @Test
     void test1000CCUDenseWildernessRoaming() {
         final AgcUltraScaleStressBenchmark.UltraConfig config =
             AgcUltraScaleStressBenchmark.UltraConfig.create1000CCUDenseWilderness();

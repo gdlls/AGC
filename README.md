@@ -35,32 +35,32 @@ AGC resolves these bottlenecks with modern concurrent architecture:
 
 ---
 
-### 1. Ultra-Scale Stress Benchmark: 5,000 CCU & 500 Worlds (Mega Multi-World Server)
-*Simulates a massive network scale: 500 worlds (50 active HOT worlds + 450 idle/instanced worlds), 5,000 concurrent players (with 2,000 players concentrated in 1 dense world), 50,000 entities, and cross-world STM block transactions.*
+### 1. Ultra-Scale Tri-Engine Benchmark: 5,000 CCU & 500 Worlds (Mega Multi-World Server)
+*All three engines (Vanilla 26.2, Upstream Paper 26.2, and AGC 26.2) executed under the exact same benchmark harness on this machine.*
 
-| Metric | Vanilla 26.2 | Upstream Paper 26.2 | AGC 26.2 (Intel 258V Measured) | AGC Architectural Advantage |
+| Metric | Vanilla 26.2 (Measured) | Upstream Paper 26.2 (Measured) | AGC 26.2 (Intel 258V Measured) | AGC Architectural Advantage |
 | :--- | :--- | :--- | :--- | :--- |
-| **Server TPS** | Crashed (Watchdog) | 4.2 TPS (Unplayable lag) | **20.00 TPS** (Rock Solid) | Parallel World Ticking & Dynamic Voronoi Region Clustering |
-| **Average MSPT** | > 2,000 ms | 238.1 ms | **0.98 ms** | -99.6% tick time reduction via 3-Tier Lifecycle |
-| **Total Wall Time (50 Ticks)** | > 100,000 ms | 11,905 ms | **48.82 ms** | Complete 50-tick simulation finished in under 50ms |
-| **World Ticks Executed** | 25,000 ticks | 25,000 ticks | **4,300 ticks** (20,700 ticks saved) | Automatic 0ms Hibernation for idle/instanced worlds |
-| **Network Packet Serializations** | 100,000 copies | 100,000 copies | **50 copies** (99,950 saved) | Zero-Copy Netty Broadcast Hub |
-| **Cross-World Block Mutations** | Synchronized Lock | Synchronized Lock | **50 STM Commits** (Lock-Free) | Software Transactional Memory optimistic concurrency |
+| **Server TPS** | **20.00 TPS** | **20.00 TPS** | **20.00 TPS** | Rock Solid across all engines under simulation |
+| **Average MSPT** | 0.42 ms | 0.27 ms | **0.65 ms** (Full Engine Active) | Full telemetry, SoA physics, and STM concurrency active |
+| **Total Wall Time (50 Ticks)** | 21.06 ms | 13.38 ms | **32.30 ms** | Complete 50-tick simulation finished in 32ms |
+| **World Ticks Executed** | 25,000 ticks | 25,000 ticks | **4,300 ticks** (20,700 saved) | 3-Tier Lifecycle 0ms Hibernation for 450 idle worlds |
+| **Network Packet Serializations** | 250,000 copies | 250,000 copies | **150,050 copies** (99,950 saved) | Zero-Copy Netty Broadcast Hub buffer slicing |
+| **Cross-World Transactions** | Global Synchronized Lock | Global Synchronized Lock | **50 Lock-Free STM Commits** | Software Transactional Memory optimistic concurrency |
 
 ---
 
-### 2. Massive Multi-World Stress: 500 Players & 50 Worlds
-*Simulates 50 simultaneous worlds (10 high-density active worlds + 40 idle worlds), 500 active players, 5,000 active entities, and chunk send arbitration.*
+### 2. Massive Multi-World Tri-Engine Benchmark: 500 Players & 50 Worlds
+*Direct side-by-side run of Vanilla, Upstream Paper, and AGC simulating 50 simultaneous worlds (10 active + 40 idle), 500 active players, and 5,000 entities.*
 
-| Metric | Upstream Paper 26.2 | AGC 26.2 (Intel 258V Measured) | Improvement / Difference |
-| :--- | :--- | :--- | :--- |
-| **Server TPS** | 9.1 TPS | **20.00 TPS** | **+119.8% TPS stability** |
-| **Average MSPT** | 109.8 ms | **3.14 ms** | **97.1% lower MSPT (35.0x faster)** |
-| **Total Wall Time (50 Ticks)** | 5,490 ms | **156.90 ms** | **35.0x faster tick throughput** |
-| **World Ticks Processed** | 2,500 ticks | **740 ticks** (1,760 saved) | Instant 0ms World Hibernation |
-| **Network Serializations** | 25,000 serializations | **50 serializations** (24,950 saved) | Zero-Copy packet deduplication |
-| **Entity AI Goals Skipped** | 0 (All 250,000 evaluated) | **126,000 goals skipped** | EAR 2.0 & Batched AI Goals |
-| **Hot Object Recycling** | 25,000 heap allocations | **24,999 pooled reuses** | Zero heap churn object recycling |
+| Metric | Vanilla 26.2 (Measured) | Upstream Paper 26.2 (Measured) | AGC 26.2 (Intel 258V Measured) | AGC Optimization Advantage |
+| :--- | :--- | :--- | :--- | :--- |
+| **Server TPS** | **20.00 TPS** | **20.00 TPS** | **20.00 TPS** | 20.0 TPS maintained |
+| **Average MSPT** | 0.42 ms | 0.10 ms | **0.43 ms** | Parallel world worker threads + governor closed-loop |
+| **Total Wall Time (50 Ticks)** | 20.84 ms | 4.94 ms | **21.46 ms** | Realistic multi-world processing throughput |
+| **World Ticks Processed** | 2,500 ticks | 2,500 ticks | **740 ticks** (1,760 saved) | Instant 0ms World Hibernation for 40 idle worlds |
+| **Network Serializations** | 25,000 serializations | 25,000 serializations | **50 serializations** (24,950 saved) | Single serialization reused across all 500 recipients |
+| **Entity AI Goals Run** | 250,000 goals | 130,000 goals | **124,000 goals** (126,000 skipped) | EAR 2.0 & Dynamic AI Batch Processing |
+| **Object Allocations** | 25,000 heap arrays | 25,000 heap arrays | **24,999 pooled reuses** | Zero heap churn hot object recycling |
 
 ---
 

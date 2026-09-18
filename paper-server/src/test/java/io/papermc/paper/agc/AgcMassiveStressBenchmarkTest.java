@@ -35,4 +35,20 @@ class AgcMassiveStressBenchmarkTest {
         assertTrue(report.hotObjectsReused() > 0, "Hot objects must be recycled without heap allocations");
         assertTrue(report.targetTpsMet(), "Target TPS of 20.0 must be met under full 500 players 50 worlds load");
     }
+
+    @Test
+    void runTriEngine500Players50WorldsSimulation() {
+        final var benchmark = new AgcMassiveStressBenchmark();
+        final var config = AgcMassiveStressBenchmark.BenchmarkConfig.createDefault500p50w();
+
+        final var triReport = benchmark.runTriEngineBenchmark(config);
+
+        System.out.println(triReport.formatSummaryTable());
+
+        assertNotNull(triReport);
+        assertNotNull(triReport.vanilla());
+        assertNotNull(triReport.paper());
+        assertNotNull(triReport.agc());
+        assertTrue(triReport.agc().targetTpsMet());
+    }
 }
