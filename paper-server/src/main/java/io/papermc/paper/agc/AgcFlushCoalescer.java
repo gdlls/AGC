@@ -98,11 +98,6 @@ public final class AgcFlushCoalescer {
         if (channel == null || ticket == null || !this.enabled.get() || !channel.isActive()) {
             return;
         }
-        // VANILLA mode promises untouched packet flushing: deferring flushes to tick end
-        // must never apply there, regardless of preset/config state.
-        if (AgcCapabilityMatrix.getMode() == AgcCapabilityMatrix.Mode.VANILLA) {
-            return;
-        }
         this.packetsCoalesced.increment();
         if (ticket.compareAndSet(false, true)) {
             this.pendingFlushChannels.put(channel, ticket);

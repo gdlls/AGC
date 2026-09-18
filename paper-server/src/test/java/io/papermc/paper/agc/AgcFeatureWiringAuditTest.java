@@ -370,22 +370,18 @@ public class AgcFeatureWiringAuditTest {
     }
 
     @Test
-    public void dormantFeaturesReportDisabledInEveryModeUnlessPinned() {
+    public void dormantFeaturesReportDisabledUnlessPinned() {
         final Set<AgcCapabilityMatrix.Feature> dormant = AgcCapabilityMatrix.dormantFeatures();
         assertFalse(dormant.isEmpty(), "dormancy census must not be emptied silently; if every"
             + " feature is genuinely wired now, update this test's expectations deliberately");
 
-        for (final AgcCapabilityMatrix.Mode mode : AgcCapabilityMatrix.Mode.values()) {
-            AgcCapabilityMatrix.setMode(mode);
-            AgcCapabilityMatrix.clearRuntimeOverrides();
-            for (final AgcCapabilityMatrix.Feature f : dormant) {
-                assertFalse(AgcCapabilityMatrix.isEnabled(f),
-                    "dormant " + f + " must report disabled in " + mode);
-            }
+        AgcCapabilityMatrix.clearRuntimeOverrides();
+        for (final AgcCapabilityMatrix.Feature f : dormant) {
+            assertFalse(AgcCapabilityMatrix.isEnabled(f),
+                "dormant " + f + " must report disabled by default");
         }
 
         // Operator pins still win over dormancy — the verified live A/B workflow depends on it.
-        AgcCapabilityMatrix.setMode(AgcCapabilityMatrix.Mode.VANILLA);
         try {
             for (final AgcCapabilityMatrix.Feature f : dormant) {
                 AgcCapabilityMatrix.setRuntimeOverride(f, Boolean.TRUE);
@@ -394,7 +390,6 @@ public class AgcFeatureWiringAuditTest {
             }
         } finally {
             AgcCapabilityMatrix.clearRuntimeOverrides();
-            AgcCapabilityMatrix.setMode(AgcCapabilityMatrix.Mode.AGC_BASELINE);
         }
     }
 

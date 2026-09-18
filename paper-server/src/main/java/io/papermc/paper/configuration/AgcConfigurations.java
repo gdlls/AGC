@@ -51,11 +51,9 @@ public final class AgcConfigurations {
                 validate(node, defaults);
             }
             node.mergeFrom(defaults);
-            final String mode = node.node("mode").getString(defaultInstance.mode).toLowerCase(Locale.ROOT);
-            try {
-                AgcCapabilityMatrix.Mode.valueOf(mode.toUpperCase(Locale.ROOT));
-            } catch (IllegalArgumentException exception) {
-                throw new SerializationException(node.node("mode"), String.class, "Expected vanilla, agc_baseline, or agc_aggressive", exception);
+            final String mode = node.node("mode").getString(defaultInstance.mode).toLowerCase(java.util.Locale.ROOT);
+            if (!mode.equals("agc_aggressive") && !mode.equals("unified") && !mode.equals("agc_baseline") && !mode.equals("vanilla")) {
+                throw new SerializationException(node.node("mode"), String.class, "Unknown AGC operating mode: " + mode);
             }
             node.node("mode").set(mode);
             final GlobalConfiguration.Agc configuration = node.require(GlobalConfiguration.Agc.class);

@@ -55,11 +55,7 @@ public final class PaperBootstrap {
             io.papermc.paper.agc.AgcFoliaTuning.shutdown();
             io.papermc.paper.agc.io.AgcRegionFileManager.get().clear();
         }, "AGC-Shutdown-Hook"));
-        // VANILLA mode promises untouched Netty channels; the enhancer's internal
-        // feature gates already cover per-feature behavior in the other modes.
-        io.papermc.paper.agc.AgcNetworkEnhancer.get().setEnabled(
-            io.papermc.paper.agc.AgcCapabilityMatrix.getMode() != io.papermc.paper.agc.AgcCapabilityMatrix.Mode.VANILLA
-        );
+        io.papermc.paper.agc.AgcNetworkEnhancer.get().setEnabled(true);
         io.papermc.paper.network.ChannelInitializeListenerHolder.addListener(
             net.kyori.adventure.key.Key.key("agc", "network_enhancer"),
             io.papermc.paper.agc.AgcNetworkEnhancer.get()
@@ -67,11 +63,10 @@ public final class PaperBootstrap {
         io.papermc.paper.agc.AgcStabilityJournal.get().record(
             io.papermc.paper.agc.AgcStabilityJournal.EventType.SYSTEM_INFO,
             "Bootstrap",
-            "Server Bootstrap Complete: Mode=" + io.papermc.paper.agc.AgcCapabilityMatrix.getMode()
-                + ", Cores=" + profile.logicalCores() + ", SIMD=" + profile.simd()
+            "Server Bootstrap Complete: Cores=" + profile.logicalCores() + ", SIMD=" + profile.simd()
         );
-        LOGGER.info("AGC Performance Layer initialized successfully (mode: {}, HW: {}/{} cores, SIMD: {})",
-            io.papermc.paper.agc.AgcCapabilityMatrix.getMode(), profile.arch(), profile.logicalCores(), profile.simd());
+        LOGGER.info("AGC Performance Layer initialized successfully (HW: {}/{} cores, SIMD: {})",
+            profile.arch(), profile.logicalCores(), profile.simd());
         // AGC end
 
         Main.main(options);

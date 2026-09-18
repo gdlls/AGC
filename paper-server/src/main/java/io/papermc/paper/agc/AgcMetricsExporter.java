@@ -30,7 +30,7 @@ public final class AgcMetricsExporter {
         final Map<String, Object> root = new LinkedHashMap<>();
 
         // 1. General Status & Mode
-        root.put("mode", AgcCapabilityMatrix.getMode().name());
+        root.put("mode", "ALL_OPTIMIZATIONS_ACTIVE");
         root.put("governor_state", AgcPerformanceGovernor.get().getState().name());
 
         // 2. Parallel World Tick Engine

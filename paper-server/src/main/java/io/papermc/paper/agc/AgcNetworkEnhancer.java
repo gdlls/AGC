@@ -67,10 +67,6 @@ public final class AgcNetworkEnhancer implements ChannelInitializeListener {
     }
 
     private static void applyWaterMark(final Channel channel) {
-        // VANILLA mode promises untouched Netty channels: never touch watermarks there.
-        if (AgcCapabilityMatrix.getMode() == AgcCapabilityMatrix.Mode.VANILLA) {
-            return;
-        }
         int low = AgcPerformanceTuning.CHANNEL_AUTO_READ_LOW_WATERMARK;
         int high = AgcPerformanceTuning.CHANNEL_AUTO_READ_HIGH_WATERMARK;
         try {

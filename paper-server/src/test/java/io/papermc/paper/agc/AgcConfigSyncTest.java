@@ -10,19 +10,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class AgcConfigSyncTest {
 
-    private AgcCapabilityMatrix.Mode savedMode;
-
     @BeforeEach
     public void setup() {
-        this.savedMode = AgcCapabilityMatrix.getMode();
-        AgcCapabilityMatrix.setMode(AgcCapabilityMatrix.Mode.AGC_BASELINE);
         AgcCapabilityMatrix.clearRuntimeOverrides();
         AgcConfigSync.get().resetForTests();
     }
 
     @AfterEach
     public void cleanup() {
-        AgcCapabilityMatrix.setMode(this.savedMode);
         AgcCapabilityMatrix.clearRuntimeOverrides();
         AgcConfigSync.get().resetForTests();
     }
@@ -84,24 +79,19 @@ public class AgcConfigSyncTest {
     }
 
     @Test
-    public void reloadUpdatesModeAndRuntimeGates() throws Exception {
+    public void reloadUpdatesConfigurationAndRuntimeGates() throws Exception {
         withDirectory(directory -> {
             final var legacy = org.spongepowered.configurate.BasicConfigurationNode.root();
             var config = io.papermc.paper.configuration.AgcConfigurations.load(directory, legacy);
             AgcConfigSync.get().syncLoadedConfiguration(config);
             assertTrue(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.PARALLEL_WORLD_TICK));
             assertFalse(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.SINGLEPLAYER_FEEL_COMBAT));
-            java.nio.file.Files.writeString(directory.resolve("agc.yml"), "mode: agc_baseline\nperformance:\n  fast-noise-engine: false\n  parallel-world-tick-min-worlds: 4\n");
+            java.nio.file.Files.writeString(directory.resolve("agc.yml"), "performance:\n  fast-noise-engine: false\n  parallel-world-tick: false\n  parallel-world-tick-min-worlds: 4\n");
             config = io.papermc.paper.configuration.AgcConfigurations.load(directory, legacy);
             AgcConfigSync.get().syncLoadedConfiguration(config);
             assertFalse(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.FAST_NOISE_ENGINE));
             assertFalse(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.PARALLEL_WORLD_TICK));
             org.junit.jupiter.api.Assertions.assertEquals(4, config.performance.parallelWorldTickMinWorlds);
-            config.mode = "vanilla";
-            AgcConfigSync.get().syncLoadedConfiguration(config);
-            for (final var feature : AgcCapabilityMatrix.Feature.values()) {
-                assertFalse(AgcCapabilityMatrix.isEnabled(feature));
-            }
         });
     }
 
@@ -146,17 +136,15 @@ public class AgcConfigSyncTest {
     }
 
     @Test
-    public void testVanillaClearsBatchOverrides() {
-        // Operator pins beat the mode (pre-existing matrix semantics): an explicit
-        // TRUE override stays visible even in VANILLA. AgcConfigSync's VANILLA branch
-        // removes such pins via setRuntimeOverride(feature, null) — verify that path.
-        AgcCapabilityMatrix.setRuntimeOverride(AgcCapabilityMatrix.Feature.LITHIUM_COLLISION_ENGINE, Boolean.TRUE);
-        AgcCapabilityMatrix.setMode(AgcCapabilityMatrix.Mode.VANILLA);
+    public void testRuntimeOverrideClearsToDefault() {
+        // In unified mode, LITHIUM_COLLISION_ENGINE is enabled by default.
         assertTrue(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.LITHIUM_COLLISION_ENGINE));
-        // Clearing the pin restores the mode default (disabled in VANILLA).
-        AgcCapabilityMatrix.setRuntimeOverride(AgcCapabilityMatrix.Feature.LITHIUM_COLLISION_ENGINE, null);
+        // Overriding to false disables it.
+        AgcCapabilityMatrix.setRuntimeOverride(AgcCapabilityMatrix.Feature.LITHIUM_COLLISION_ENGINE, Boolean.FALSE);
         assertFalse(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.LITHIUM_COLLISION_ENGINE));
-        assertFalse(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.JIGSAW_BOX_OCTREE));
+        // Clearing the pin restores the unified default (enabled).
+        AgcCapabilityMatrix.setRuntimeOverride(AgcCapabilityMatrix.Feature.LITHIUM_COLLISION_ENGINE, null);
+        assertTrue(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.LITHIUM_COLLISION_ENGINE));
     }
 
     @Test

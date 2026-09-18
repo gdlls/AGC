@@ -18,7 +18,6 @@ class AgcPluginSafetyGuardTest {
     @AfterEach
     void resetGuard() {
         AgcCapabilityMatrix.clearRuntimeOverrides();
-        AgcCapabilityMatrix.setMode(AgcCapabilityMatrix.Mode.AGC_BASELINE);
         AgcPluginSafetyGuard.get().resetMetrics();
         AgcPluginSafetyGuard.get().bindPrimaryThread(Thread.currentThread());
     }
@@ -187,7 +186,6 @@ class AgcPluginSafetyGuardTest {
         // Set up parallel ticking wave scenario with 2 worlds
         final Thread primaryThread = Thread.currentThread();
         AgcPluginSafetyGuard.get().bindPrimaryThread(primaryThread);
-        AgcCapabilityMatrix.setMode(AgcCapabilityMatrix.Mode.AGC_AGGRESSIVE);
 
         final java.util.concurrent.atomic.AtomicInteger concurrentExecutions = new java.util.concurrent.atomic.AtomicInteger(0);
         final java.util.concurrent.atomic.AtomicInteger maxConcurrency = new java.util.concurrent.atomic.AtomicInteger(0);
@@ -222,7 +220,6 @@ class AgcPluginSafetyGuardTest {
         } finally {
             AgcParallelWorldTickEngine.get().shutdown();
             AgcCapabilityMatrix.clearRuntimeOverrides();
-            AgcCapabilityMatrix.setMode(AgcCapabilityMatrix.Mode.AGC_BASELINE);
             AgcPluginSafetyGuard.get().bindPrimaryThread(Thread.currentThread());
         }
     }

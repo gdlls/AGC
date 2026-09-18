@@ -60,9 +60,6 @@ public final class AgcClassWarmup {
     }
 
     static void kickOff(final List<WarmStep> steps) {
-        if (AgcCapabilityMatrix.getMode() == AgcCapabilityMatrix.Mode.VANILLA) {
-            return; // VANILLA mode: untouched behavior, no warmup thread.
-        }
         if (!STARTED.compareAndSet(false, true)) {
             return;
         }

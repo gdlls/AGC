@@ -26,7 +26,7 @@ public final class AgcDashboardRenderer {
      */
     public List<String> renderDashboard() {
         final List<String> lines = new ArrayList<>();
-        final String mode = AgcCapabilityMatrix.getMode().name();
+        final String mode = "ALL_OPTIMIZATIONS_ACTIVE";
         final String govState = AgcPerformanceGovernor.get().getState().name();
 
         final var world = AgcParallelWorldTickEngine.get().metrics();

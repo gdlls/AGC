@@ -43,10 +43,7 @@ class AgcClassWarmupTest {
 
     @Test
     void kickOffRunsStepsExactlyOnceAndSignalsCompletion() throws Exception {
-        // kickOff is a process-global one-shot gated on the operating mode; earlier
-        // tests in this shared JVM may have consumed the latch or flipped the mode.
-        final AgcCapabilityMatrix.Mode originalMode = AgcCapabilityMatrix.getMode();
-        AgcCapabilityMatrix.setMode(AgcCapabilityMatrix.Mode.AGC_BASELINE);
+        // kickOff is a process-global one-shot; earlier tests in this shared JVM may have consumed the latch.
         AgcClassWarmup.resetForTest();
         try {
             final AtomicInteger runs = new AtomicInteger();
@@ -72,7 +69,6 @@ class AgcClassWarmupTest {
                 "warmup must publish its completion flag after the last step");
         } finally {
             AgcClassWarmup.resetForTest();
-            AgcCapabilityMatrix.setMode(originalMode);
         }
     }
 

@@ -89,14 +89,7 @@ public final class AgcCommand extends Command {
             return List.of("true", "false");
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("mode")) {
-            final String prefix = args[1].toLowerCase(Locale.ROOT);
-            final List<String> matches = new ArrayList<>();
-            for (final AgcCapabilityMatrix.Mode mode : AgcCapabilityMatrix.Mode.values()) {
-                if (mode.name().toLowerCase(Locale.ROOT).startsWith(prefix)) {
-                    matches.add(mode.name().toLowerCase(Locale.ROOT));
-                }
-            }
-            return matches;
+            return List.of();
         }
         if (args.length == 2 && args[0].equalsIgnoreCase("override")) {
             final String prefix = args[1].toUpperCase(Locale.ROOT);
@@ -175,7 +168,7 @@ public final class AgcCommand extends Command {
         sender.sendMessage(text("/agc entities [limit] ", YELLOW).append(text("- Live entity census with weighted CPU load ranking", GRAY)));
         sender.sendMessage(text("/agc hotspots [limit] ", YELLOW).append(text("- Dense entity chunk hotspot locator", GRAY)));
         sender.sendMessage(text("/agc governor [level] ", YELLOW).append(text("- 4-Stage adaptive performance governor status & override", GRAY)));
-        sender.sendMessage(text("/agc mode <mode> ", YELLOW).append(text("- Switch mode (VANILLA, AGC_BASELINE, AGC_AGGRESSIVE)", GRAY)));
+        sender.sendMessage(text("/agc mode ", YELLOW).append(text("- View optimization status (all optimizations unified and active)", GRAY)));
         sender.sendMessage(text("/agc preset <preset> ", YELLOW).append(text("- Set scale preset (compact, standard, massive, auto)", GRAY)));
         sender.sendMessage(text("/agc report ", YELLOW).append(text("- Per-world tick latency and load budget report", GRAY)));
         sender.sendMessage(text("/agc features ", YELLOW).append(text("- List all performance features and safety tags", GRAY)));
@@ -466,14 +459,13 @@ public final class AgcCommand extends Command {
     }
 
     private void sendStatus(final CommandSender sender) {
-        final AgcCapabilityMatrix.Mode mode = AgcCapabilityMatrix.getMode();
         final AgcFoliaTuning.PoolStatus pool = AgcFoliaTuning.status();
         final AgcHotPathCache.CacheSnapshot mem = AgcHotPathCache.recordSnapshot();
         final AgcNetworkEnhancer.Metrics net = AgcNetworkEnhancer.get().metrics();
         final long usedBytes = mem.totalMemory() - mem.freeMemory();
 
         sender.sendMessage(text("=== AGC Performance Engine Status ===", AQUA, TextDecoration.BOLD));
-        sender.sendMessage(text("Operating Mode: ", WHITE).append(text(mode.name(), mode == AgcCapabilityMatrix.Mode.AGC_AGGRESSIVE ? GREEN : YELLOW, TextDecoration.BOLD)));
+        sender.sendMessage(text("Optimization Engine: ", WHITE).append(text("ALL OPTIMIZATIONS ACTIVE (UNIFIED)", GREEN, TextDecoration.BOLD)));
         sender.sendMessage(text("Async Workload Pool: ", WHITE)
             .append(text(pool.started() ? "RUNNING" : "STOPPED", pool.started() ? GREEN : RED))
             .append(text(String.format(" (%d core threads, %d active, %d queued tasks)", pool.coreSize(), pool.activeThreads(), pool.queueSize()), GRAY)));
@@ -491,28 +483,9 @@ public final class AgcCommand extends Command {
     }
 
     private void handleMode(final CommandSender sender, final String[] args) {
-        if (args.length < 2) {
-            sender.sendMessage(text("Usage: /agc mode <VANILLA | AGC_BASELINE | AGC_AGGRESSIVE>", RED));
-            return;
-        }
-        final String input = args[1].toUpperCase(Locale.ROOT);
-        AgcCapabilityMatrix.Mode target = null;
-        for (final AgcCapabilityMatrix.Mode m : AgcCapabilityMatrix.Mode.values()) {
-            if (m.name().equals(input) || m.name().replace("AGC_", "").equals(input)) {
-                target = m;
-                break;
-            }
-        }
-        if (target == null) {
-            sender.sendMessage(text("Invalid mode '" + args[1] + "'. Available: VANILLA, AGC_BASELINE, AGC_AGGRESSIVE", RED));
-            return;
-        }
-        AgcCapabilityMatrix.setMode(target);
-        // AGC start - re-apply file config under the new mode, preserving operator pins
-        io.papermc.paper.agc.AgcConfigSync.get().sync(true);
-        // AGC end
-        sender.sendMessage(text("AGC Operating Mode successfully switched to: ", GREEN)
-            .append(text(target.name(), GOLD, TextDecoration.BOLD)));
+        sender.sendMessage(text("=== AGC Optimization Status ===", AQUA, TextDecoration.BOLD));
+        sender.sendMessage(text("AGC operates strictly with all optimizations unified and active.", GREEN, TextDecoration.BOLD));
+        sender.sendMessage(text("Operating mode distinctions have been removed: all features run at peak performance.", GRAY));
     }
 
     private void sendReport(final CommandSender sender) {

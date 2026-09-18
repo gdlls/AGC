@@ -85,18 +85,12 @@ public class AgcTeleportAndPaletteCompactTest {
     }
 
     @Test
-    public void testBaselineOptimizationsAreEnabledByDefault() {
-        final AgcCapabilityMatrix.Mode prev = AgcCapabilityMatrix.getMode();
-        try {
-            AgcCapabilityMatrix.setMode(AgcCapabilityMatrix.Mode.AGC_BASELINE);
-            assertTrue(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.CHUNK_PACKET_CACHE),
-                "CHUNK_PACKET_CACHE must be active in baseline");
-            assertTrue(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.SPAWNER_DENSITY_OPTIMIZER),
-                "SPAWNER_DENSITY_OPTIMIZER must be active in baseline");
-            assertTrue(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.PARALLEL_LIGHT_ENGINE),
-                "PARALLEL_LIGHT_ENGINE must be active in baseline");
-        } finally {
-            AgcCapabilityMatrix.setMode(prev);
-        }
+    public void testOptimizationsAreEnabledByDefault() {
+        assertTrue(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.CHUNK_PACKET_CACHE),
+            "CHUNK_PACKET_CACHE must be active by default");
+        assertTrue(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.SPAWNER_DENSITY_OPTIMIZER),
+            "SPAWNER_DENSITY_OPTIMIZER must be active by default");
+        assertTrue(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.PARALLEL_LIGHT_ENGINE),
+            "PARALLEL_LIGHT_ENGINE must be active by default");
     }
 }

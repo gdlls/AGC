@@ -53,22 +53,13 @@ public final class MoonriseCommon {
         int ioThreads = configIoThreads;
 
         // AGC start - scale worker and I/O threads dynamically across any CPU core count
-        if (io.papermc.paper.agc.AgcCapabilityMatrix.getMode() != io.papermc.paper.agc.AgcCapabilityMatrix.Mode.VANILLA) {
-            if (workerThreads <= 0) {
-                final int scaledWorkers = Math.max(1, (int) Math.round(totalCores * 0.6));
-                workerThreads = Integer.getInteger(PlatformHooks.get().getBrand() + ".WorkerThreadCount", scaledWorkers);
-            }
-            if (ioThreads <= 0) {
-                final int scaledIo = Math.max(1, Math.min(6, totalCores / 4));
-                ioThreads = Integer.getInteger(PlatformHooks.get().getBrand() + ".IoThreadCount", scaledIo);
-            }
-        } else {
-            if (workerThreads <= 0) {
-                workerThreads = defaultWorkerThreads;
-            }
-            if (ioThreads <= 0) {
-                ioThreads = 1;
-            }
+        if (workerThreads <= 0) {
+            final int scaledWorkers = Math.max(1, (int) Math.round(totalCores * 0.6));
+            workerThreads = Integer.getInteger(PlatformHooks.get().getBrand() + ".WorkerThreadCount", scaledWorkers);
+        }
+        if (ioThreads <= 0) {
+            final int scaledIo = Math.max(1, Math.min(6, totalCores / 4));
+            ioThreads = Integer.getInteger(PlatformHooks.get().getBrand() + ".IoThreadCount", scaledIo);
         }
         // AGC end
         ioThreads = Math.max(1, ioThreads);

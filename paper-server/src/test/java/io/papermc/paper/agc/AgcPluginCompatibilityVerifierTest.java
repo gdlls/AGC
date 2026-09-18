@@ -12,7 +12,6 @@ public class AgcPluginCompatibilityVerifierTest {
     @AfterEach
     void cleanState() {
         AgcCapabilityMatrix.clearRuntimeOverrides();
-        AgcCapabilityMatrix.setMode(AgcCapabilityMatrix.Mode.AGC_BASELINE);
         AgcPluginVirtualizer.get().resetMetrics();
         AgcOptimisticTransactionManager.get().clear();
         AgcCrossWorldQueue.get().resetMetrics();
@@ -95,7 +94,6 @@ public class AgcPluginCompatibilityVerifierTest {
         // Primary thread is current thread
         final Thread primary = Thread.currentThread();
         AgcPluginSafetyGuard.get().bindPrimaryThread(primary);
-        AgcCapabilityMatrix.setMode(AgcCapabilityMatrix.Mode.AGC_AGGRESSIVE);
         AgcParallelWorldTickEngine.get().bootstrap();
 
         try {
@@ -135,7 +133,6 @@ public class AgcPluginCompatibilityVerifierTest {
         } finally {
             AgcParallelWorldTickEngine.get().shutdown();
             AgcCapabilityMatrix.clearRuntimeOverrides();
-            AgcCapabilityMatrix.setMode(AgcCapabilityMatrix.Mode.AGC_BASELINE);
             AgcPluginSafetyGuard.get().bindPrimaryThread(Thread.currentThread());
         }
     }

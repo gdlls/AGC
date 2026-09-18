@@ -25,14 +25,12 @@ class AgcParallelWorldTickEngineTest {
         AgcCapabilityMatrix.clearRuntimeOverrides();
         AgcParallelWorldTickEngine.get().applyTuning(0, 0);
         AgcParallelWorldTickEngine.get().bootstrap();
-        AgcCapabilityMatrix.setMode(AgcCapabilityMatrix.Mode.AGC_BASELINE);
     }
 
     @AfterEach
     void tearDown() {
         AgcCapabilityMatrix.clearRuntimeOverrides();
         AgcParallelWorldTickEngine.get().applyTuning(0, 0);
-        AgcCapabilityMatrix.setMode(AgcCapabilityMatrix.Mode.AGC_BASELINE);
         AgcParallelWorldTickEngine.get().shutdown();
     }
 
@@ -104,25 +102,26 @@ class AgcParallelWorldTickEngineTest {
     }
 
     @Test
-    void baselineModeMustNeverEngageParallelTicking() {
-        // Regression test for the gate bug: executeWorldTicks used to consult MULTIWORLD_UNLOAD
-        // (BASELINE safety) instead of PARALLEL_WORLD_TICK (AGGRESSIVE_BUT_SAFE), so the default
-        // AGC_BASELINE mode silently ran multi-core parallel world ticking and fired Bukkit
-        // events off the primary thread.
-        final int worldCount = 12;
-        final List<String> worlds = new ArrayList<>();
-        for (int i = 0; i < worldCount; i++) {
-            worlds.add("world_baseline_" + i);
+    void disabledParallelWorldTickMustStaySequential() {
+        AgcCapabilityMatrix.setRuntimeOverride(AgcCapabilityMatrix.Feature.PARALLEL_WORLD_TICK, false);
+        try {
+            final int worldCount = 12;
+            final List<String> worlds = new ArrayList<>();
+            for (int i = 0; i < worldCount; i++) {
+                worlds.add("world_sequential_" + i);
+            }
+
+            final var summary = AgcParallelWorldTickEngine.get().executeWorldTicks(
+                worlds,
+                w -> {},
+                2 // above the minWorlds threshold — parallel would be tempting here
+            );
+
+            assertFalse(summary.parallel(), "Disabled PARALLEL_WORLD_TICK must stay sequential");
+            assertEquals(worldCount, summary.worldsTicked());
+        } finally {
+            AgcCapabilityMatrix.clearRuntimeOverrides();
         }
-
-        final var summary = AgcParallelWorldTickEngine.get().executeWorldTicks(
-            worlds,
-            w -> {},
-            2 // above the minWorlds threshold — parallel would be tempting here
-        );
-
-        assertFalse(summary.parallel(), "BASELINE mode must stay sequential to preserve plugin compatibility");
-        assertEquals(worldCount, summary.worldsTicked());
     }
 
     @Test

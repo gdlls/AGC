@@ -72,10 +72,8 @@ public final class AgcConfigSync {
     }
 
     synchronized void syncLoadedConfiguration(final GlobalConfiguration.Agc agc) {
-        final AgcCapabilityMatrix.Mode mode = AgcCapabilityMatrix.Mode.valueOf(agc.mode.toUpperCase(java.util.Locale.ROOT));
         AgcCapabilityMatrix.clearRuntimeOverrides();
         this.configAppliedFeatures.clear();
-        AgcCapabilityMatrix.setMode(mode);
         this.sync(agc, false);
         this.bootstrapSynced.set(true);
     }
@@ -95,7 +93,6 @@ public final class AgcConfigSync {
     }
 
     synchronized boolean sync(final GlobalConfiguration.Agc agc, final boolean respectExistingOverrides) {
-        final AgcCapabilityMatrix.Mode mode = AgcCapabilityMatrix.getMode();
         final Map<AgcCapabilityMatrix.Feature, Boolean> KEYS = new EnumMap<>(AgcCapabilityMatrix.Feature.class);
         final boolean master = agc.performance.maxOptimizationBatch;
         KEYS.put(AgcCapabilityMatrix.Feature.JIGSAW_BOX_OCTREE, master && agc.performance.jigsawBoxOctree);
@@ -132,22 +129,12 @@ public final class AgcConfigSync {
         KEYS.put(AgcCapabilityMatrix.Feature.MULTIWORLD_UNLOAD, agc.multiworldUnload);
 
         // Engine-level tuning keys (not matrix gates): the parallel world tick worker count and the
-        // minimum-worlds floor. Pushed on every sync — including VANILLA, where the gate is cleared but
-        // an operator pin can still switch the engine on — so the floor always reflects the config file.
+        // minimum-worlds floor. Pushed on every sync — so the floor always reflects the config file.
         // Both apply live (the pool is swapped, never fixed at bootstrap).
         AgcParallelWorldTickEngine.get().applyTuning(
             agc.performance.parallelWorldTickThreads,
             agc.performance.parallelWorldTickMinWorlds
         );
-
-        if (mode == AgcCapabilityMatrix.Mode.VANILLA) {
-            for (final AgcCapabilityMatrix.Feature feature : KEYS.keySet()) {
-                AgcCapabilityMatrix.setRuntimeOverride(feature, null);
-            }
-            this.configAppliedFeatures.clear();
-            LOGGER.info("AGC config sync: VANILLA mode — max-optimization batch cleared (pure vanilla)");
-            return true;
-        }
 
         int applied = 0;
         int preserved = 0;
@@ -157,15 +144,13 @@ public final class AgcConfigSync {
                 preserved++;
                 continue;
             }
-            final boolean modeAllows = mode == AgcCapabilityMatrix.Mode.AGC_AGGRESSIVE
-                ? feat.safety() != AgcPerformanceTuning.Safety.EXPERIMENTAL
-                : feat.safety() == AgcPerformanceTuning.Safety.VANILLA_SAFE || feat.safety() == AgcPerformanceTuning.Safety.BASELINE;
-            AgcCapabilityMatrix.setRuntimeOverride(feat, entry.getValue() && modeAllows && !AgcCapabilityMatrix.isDormant(feat));
+            final boolean featureAllowed = feat.safety() != AgcPerformanceTuning.Safety.EXPERIMENTAL;
+            AgcCapabilityMatrix.setRuntimeOverride(feat, entry.getValue() && featureAllowed && !AgcCapabilityMatrix.isDormant(feat));
             this.configAppliedFeatures.add(feat);
             applied++;
         }
-        LOGGER.info("AGC config sync: mode={} master={} applied={} preservedOperatorPins={}",
-            mode, master, applied, preserved);
+        LOGGER.info("AGC config sync: master={} applied={} preservedOperatorPins={}",
+            master, applied, preserved);
         return true;
     }
 

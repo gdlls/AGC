@@ -150,23 +150,11 @@ public final class AgcScalePresetManager {
     }
 
     private PresetConfig resolveConfig(final PresetType requested) {
-        if (requested != PresetType.AUTO) {
+        if (requested != null && requested != PresetType.AUTO) {
             return this.presets.getOrDefault(requested, this.presets.get(PresetType.STANDARD_SERVER));
         }
-
-        final var profile = AgcHardwareTopologyDetector.get().profile();
-        final int cores = profile.logicalCores();
-        final long memGb = profile.maxMemoryBytes() / (1024L * 1024L * 1024L);
-
-        if (cores <= 4 || memGb <= 8) {
-            return this.presets.get(PresetType.COMPACT_EDGE);
-        } else if (cores <= 12 || memGb <= 24) {
-            return this.presets.get(PresetType.STANDARD_SERVER);
-        } else if (cores <= 48 || memGb <= 96) {
-            return this.presets.get(PresetType.MASSIVE_ENTERPRISE);
-        } else {
-            return this.presets.get(PresetType.EXTREME_MEGA_SCALE);
-        }
+        // Unified optimal configuration with all optimizations enabled by default
+        return this.presets.get(PresetType.STANDARD_SERVER);
     }
 
     /**

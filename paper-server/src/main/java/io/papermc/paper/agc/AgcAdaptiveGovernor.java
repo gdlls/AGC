@@ -154,8 +154,7 @@ public final class AgcAdaptiveGovernor {
      * silently change gameplay in the default baseline mode.</p>
      */
     public boolean isPolicyEnabled() {
-        return this.manualOverrideActive
-            || AgcCapabilityMatrix.getMode() == AgcCapabilityMatrix.Mode.AGC_AGGRESSIVE;
+        return true;
     }
 
     /**

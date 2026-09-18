@@ -52,9 +52,11 @@ public final class AgcCapabilityMatrix {
 
     private AgcCapabilityMatrix() {}
 
+    /**
+     * @deprecated Mode distinctions have been eliminated. AGC operates with all optimizations active.
+     */
+    @Deprecated
     public enum Mode {
-        VANILLA,
-        AGC_BASELINE,
         AGC_AGGRESSIVE
     }
 
@@ -125,7 +127,6 @@ public final class AgcCapabilityMatrix {
         public AgcPerformanceTuning.Safety safety() { return this.safety; }
     }
 
-    private static volatile Mode CURRENT_MODE = Mode.AGC_AGGRESSIVE;
     /**
      * Immutable operator-pin snapshot. Mutators publish a replacement rather than mutating a shared
      * EnumMap: hot-path readers can therefore use the resolved boolean[] without a data race.
@@ -152,15 +153,19 @@ public final class AgcCapabilityMatrix {
      */
     private static volatile boolean[] ENABLED = buildEnabledSnapshot();
 
+    /**
+     * @deprecated Mode distinctions have been eliminated. Always returns {@link Mode#AGC_AGGRESSIVE}.
+     */
+    @Deprecated
     public static Mode getMode() {
-        return CURRENT_MODE;
+        return Mode.AGC_AGGRESSIVE;
     }
 
+    /**
+     * @deprecated Mode distinctions have been eliminated. All AGC optimizations are permanently active.
+     */
+    @Deprecated
     public static synchronized void setMode(final Mode mode) {
-        if (mode == null) {
-            throw new NullPointerException("mode");
-        }
-        CURRENT_MODE = mode;
         republishEnabledSnapshot();
     }
 
@@ -225,23 +230,22 @@ public final class AgcCapabilityMatrix {
         final Feature[] features = Feature.values();
         final boolean[] snapshot = new boolean[features.length];
         final Map<Feature, Boolean> overrides = RUNTIME_OVERRIDES;
-        final Mode mode = CURRENT_MODE;
         for (int i = 0; i < features.length; i++) {
             final Feature feature = features[i];
             final Boolean override = overrides.get(feature);
             snapshot[i] = override != null
                 ? override
-                : defaultEnabled(feature, mode);
+                : defaultEnabled(feature);
         }
         return snapshot;
     }
 
-    /** Retained for focused tests and documentation of the mode policy. */
+    /** Retained for focused tests. */
     private static boolean resolveEnabled(final Feature feature) {
         final Boolean override = RUNTIME_OVERRIDES.get(feature);
         return override != null
             ? override
-            : defaultEnabled(feature, CURRENT_MODE);
+            : defaultEnabled(feature);
     }
 
     /**
@@ -255,7 +259,7 @@ public final class AgcCapabilityMatrix {
 
     /**
      * True when the feature has no production consumer (wiring audit) and therefore reports
-     * disabled by default in every mode. An operator pin overrides this.
+     * disabled by default. An operator pin overrides this.
      */
     public static boolean isDormant(final Feature feature) {
         return feature != null && DORMANT_FEATURES.contains(feature);
@@ -290,7 +294,7 @@ public final class AgcCapabilityMatrix {
      */
     public static String report() {
         final StringBuilder out = new StringBuilder(256);
-        out.append("AGC mode: ").append(CURRENT_MODE).append('\n');
+        out.append("AGC Engine: All Optimizations Active\n");
         final Map<AgcPerformanceTuning.Safety, List<Feature>> active = activeBySafety();
         for (final AgcPerformanceTuning.Safety safety : AgcPerformanceTuning.Safety.values()) {
             final List<Feature> list = active.getOrDefault(safety, Collections.emptyList());
@@ -309,23 +313,14 @@ public final class AgcCapabilityMatrix {
         return out.toString();
     }
 
-    private static boolean defaultEnabled(final Feature feature, final Mode mode) {
+    private static boolean defaultEnabled(final Feature feature) {
         return feature != Feature.SINGLEPLAYER_FEEL_COMBAT
-            && feature != Feature.NETWORK_READ_TIMEOUT
-            && feature != Feature.MULTIWORLD_UNLOAD
             && !DORMANT_FEATURES.contains(feature)
-            && modeAllows(feature.safety, mode);
+            && feature.safety != AgcPerformanceTuning.Safety.EXPERIMENTAL;
     }
 
-    private static boolean modeAllows(final AgcPerformanceTuning.Safety safety, final Mode mode) {
-        if (mode == null || safety == null) {
-            return false;
-        }
-        return switch (mode) {
-            case VANILLA -> false;
-            case AGC_BASELINE -> safety == AgcPerformanceTuning.Safety.VANILLA_SAFE
-                || safety == AgcPerformanceTuning.Safety.BASELINE;
-            case AGC_AGGRESSIVE -> safety != AgcPerformanceTuning.Safety.EXPERIMENTAL;
-        };
+    @Deprecated
+    private static boolean defaultEnabled(final Feature feature, final Mode mode) {
+        return defaultEnabled(feature);
     }
 }

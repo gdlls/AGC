@@ -24,13 +24,9 @@ class AgcCommandTest {
     }
 
     @Test
-    void modeEnumContainsAllTargetModes() {
-        final AgcCapabilityMatrix.Mode vanilla = AgcCapabilityMatrix.Mode.valueOf("VANILLA");
-        final AgcCapabilityMatrix.Mode baseline = AgcCapabilityMatrix.Mode.valueOf("AGC_BASELINE");
+    void modeEnumContainsTargetMode() {
         final AgcCapabilityMatrix.Mode aggressive = AgcCapabilityMatrix.Mode.valueOf("AGC_AGGRESSIVE");
-
-        assertNotNull(vanilla);
-        assertNotNull(baseline);
         assertNotNull(aggressive);
+        assertEquals(AgcCapabilityMatrix.Mode.AGC_AGGRESSIVE, AgcCapabilityMatrix.getMode());
     }
 }

@@ -92,11 +92,13 @@ public class ImprovedNoiseGradientParityTest {
         AgcCapabilityMatrix.clearRuntimeOverrides();
         final ImprovedNoise noise = new ImprovedNoise(RandomSource.create(0xA6C0FFEEL));
 
-        AgcCapabilityMatrix.setMode(AgcCapabilityMatrix.Mode.VANILLA);
+        AgcCapabilityMatrix.setRuntimeOverride(AgcCapabilityMatrix.Feature.FAST_NOISE_GENERATOR, false);
+        AgcCapabilityMatrix.setRuntimeOverride(AgcCapabilityMatrix.Feature.FAST_NOISE_ENGINE, false);
         final double[] vanillaNoise = sampleNoise(noise);
         final double[] vanillaDerivative = sampleDerivative(noise);
 
-        AgcCapabilityMatrix.setMode(AgcCapabilityMatrix.Mode.AGC_BASELINE);
+        AgcCapabilityMatrix.setRuntimeOverride(AgcCapabilityMatrix.Feature.FAST_NOISE_GENERATOR, true);
+        AgcCapabilityMatrix.setRuntimeOverride(AgcCapabilityMatrix.Feature.FAST_NOISE_ENGINE, true);
         final double[] fastNoise = sampleNoise(noise);
         final double[] fastDerivative = sampleDerivative(noise);
 

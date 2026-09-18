@@ -9,18 +9,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class AgcUniverseNetEngineTest {
 
-    private io.papermc.paper.agc.AgcCapabilityMatrix.Mode previousMode;
-
     @BeforeEach
     public void setup() {
-        this.previousMode = io.papermc.paper.agc.AgcCapabilityMatrix.getMode();
-        io.papermc.paper.agc.AgcCapabilityMatrix.setMode(io.papermc.paper.agc.AgcCapabilityMatrix.Mode.AGC_AGGRESSIVE);
         AgcUniverseNetEngine.get().clearMetrics();
-    }
-
-    @AfterEach
-    public void tearDown() {
-        io.papermc.paper.agc.AgcCapabilityMatrix.setMode(this.previousMode);
     }
 
     @Test

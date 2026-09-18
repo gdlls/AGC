@@ -348,14 +348,8 @@ public class AgcHotPathRuntimeWireVerificationTest {
         }
         assertTrue(spawnerOpt.metrics().trackedChunks() <= 1024, "Spawner tracking must be bounded to 1024 chunks to prevent memory leaks");
 
-        // AgcCapabilityMatrix gating: BASELINE enables density suppression by default (24 mobs/chunk cap)
-        io.papermc.paper.agc.AgcCapabilityMatrix.setMode(io.papermc.paper.agc.AgcCapabilityMatrix.Mode.VANILLA);
-        assertFalse(io.papermc.paper.agc.AgcCapabilityMatrix.isEnabled(io.papermc.paper.agc.AgcCapabilityMatrix.Feature.SPAWNER_DENSITY_OPTIMIZER));
-        io.papermc.paper.agc.AgcCapabilityMatrix.setMode(io.papermc.paper.agc.AgcCapabilityMatrix.Mode.AGC_BASELINE);
+        // AgcCapabilityMatrix gating: SPAWNER_DENSITY_OPTIMIZER is active by default
         assertTrue(io.papermc.paper.agc.AgcCapabilityMatrix.isEnabled(io.papermc.paper.agc.AgcCapabilityMatrix.Feature.SPAWNER_DENSITY_OPTIMIZER));
-        io.papermc.paper.agc.AgcCapabilityMatrix.setMode(io.papermc.paper.agc.AgcCapabilityMatrix.Mode.AGC_AGGRESSIVE);
-        assertTrue(io.papermc.paper.agc.AgcCapabilityMatrix.isEnabled(io.papermc.paper.agc.AgcCapabilityMatrix.Feature.SPAWNER_DENSITY_OPTIMIZER));
-        io.papermc.paper.agc.AgcCapabilityMatrix.setMode(io.papermc.paper.agc.AgcCapabilityMatrix.Mode.AGC_BASELINE);
     }
 
     @Test
@@ -691,20 +685,18 @@ public class AgcHotPathRuntimeWireVerificationTest {
     }
 
     @Test
-    public void testCapabilityMatrixModeGating() {
-        // In VANILLA mode, all performance optimizations must be disabled:
-        io.papermc.paper.agc.AgcCapabilityMatrix.setMode(io.papermc.paper.agc.AgcCapabilityMatrix.Mode.VANILLA);
-        assertFalse(io.papermc.paper.agc.AgcCapabilityMatrix.isEnabled(io.papermc.paper.agc.AgcCapabilityMatrix.Feature.FAST_NOISE_GENERATOR));
-        assertFalse(io.papermc.paper.agc.AgcCapabilityMatrix.isEnabled(io.papermc.paper.agc.AgcCapabilityMatrix.Feature.STRUCTURE_LAYOUT_OPTIMIZER));
-        assertFalse(io.papermc.paper.agc.AgcCapabilityMatrix.isEnabled(io.papermc.paper.agc.AgcCapabilityMatrix.Feature.LITHIUM_CHUNK_REGISTER));
-        assertFalse(io.papermc.paper.agc.AgcCapabilityMatrix.isEnabled(io.papermc.paper.agc.AgcCapabilityMatrix.Feature.HOPPER_OPTIMIZER));
-
-        // In AGC_BASELINE, baseline optimizations must be active:
-        io.papermc.paper.agc.AgcCapabilityMatrix.setMode(io.papermc.paper.agc.AgcCapabilityMatrix.Mode.AGC_BASELINE);
+    public void testCapabilityMatrixUnifiedGatingAndOverrides() {
+        // In unified mode, performance optimizations must be active by default:
         assertTrue(io.papermc.paper.agc.AgcCapabilityMatrix.isEnabled(io.papermc.paper.agc.AgcCapabilityMatrix.Feature.FAST_NOISE_GENERATOR));
         assertTrue(io.papermc.paper.agc.AgcCapabilityMatrix.isEnabled(io.papermc.paper.agc.AgcCapabilityMatrix.Feature.STRUCTURE_LAYOUT_OPTIMIZER));
         assertTrue(io.papermc.paper.agc.AgcCapabilityMatrix.isEnabled(io.papermc.paper.agc.AgcCapabilityMatrix.Feature.LITHIUM_CHUNK_REGISTER));
         assertTrue(io.papermc.paper.agc.AgcCapabilityMatrix.isEnabled(io.papermc.paper.agc.AgcCapabilityMatrix.Feature.HOPPER_OPTIMIZER));
+
+        // Runtime override allows selectively disabling:
+        io.papermc.paper.agc.AgcCapabilityMatrix.setRuntimeOverride(io.papermc.paper.agc.AgcCapabilityMatrix.Feature.FAST_NOISE_GENERATOR, Boolean.FALSE);
+        assertFalse(io.papermc.paper.agc.AgcCapabilityMatrix.isEnabled(io.papermc.paper.agc.AgcCapabilityMatrix.Feature.FAST_NOISE_GENERATOR));
+        io.papermc.paper.agc.AgcCapabilityMatrix.setRuntimeOverride(io.papermc.paper.agc.AgcCapabilityMatrix.Feature.FAST_NOISE_GENERATOR, null);
+        assertTrue(io.papermc.paper.agc.AgcCapabilityMatrix.isEnabled(io.papermc.paper.agc.AgcCapabilityMatrix.Feature.FAST_NOISE_GENERATOR));
     }
 
     @Test
@@ -724,7 +716,7 @@ public class AgcHotPathRuntimeWireVerificationTest {
     public void testParallelLightEngineSubmitTaskContract() throws Exception {
         final io.papermc.paper.agc.light.AgcParallelLightEngine engine = io.papermc.paper.agc.light.AgcParallelLightEngine.get();
         engine.shutdown();
-        io.papermc.paper.agc.AgcCapabilityMatrix.setMode(io.papermc.paper.agc.AgcCapabilityMatrix.Mode.AGC_BASELINE);
+        io.papermc.paper.agc.AgcCapabilityMatrix.setRuntimeOverride(io.papermc.paper.agc.AgcCapabilityMatrix.Feature.PARALLEL_LIGHT_ENGINE, Boolean.FALSE);
         final java.util.concurrent.atomic.AtomicBoolean ran = new java.util.concurrent.atomic.AtomicBoolean(false);
 
         // When not bootstrapped or feature disabled, submitTask must execute inline fallback synchronously
@@ -734,7 +726,7 @@ public class AgcHotPathRuntimeWireVerificationTest {
         assertTrue(ran.get(), "Task must run immediately on inline fallback");
 
         // When bootstrapped and feature enabled
-        io.papermc.paper.agc.AgcCapabilityMatrix.setMode(io.papermc.paper.agc.AgcCapabilityMatrix.Mode.AGC_AGGRESSIVE);
+        io.papermc.paper.agc.AgcCapabilityMatrix.setRuntimeOverride(io.papermc.paper.agc.AgcCapabilityMatrix.Feature.PARALLEL_LIGHT_ENGINE, null);
         engine.bootstrap();
         try {
             final java.util.concurrent.atomic.AtomicBoolean ranParallel = new java.util.concurrent.atomic.AtomicBoolean(false);
@@ -744,7 +736,7 @@ public class AgcHotPathRuntimeWireVerificationTest {
             assertTrue(ranParallel.get(), "Task must run on parallel pool");
         } finally {
             engine.shutdown();
-            io.papermc.paper.agc.AgcCapabilityMatrix.setMode(io.papermc.paper.agc.AgcCapabilityMatrix.Mode.AGC_BASELINE);
+            io.papermc.paper.agc.AgcCapabilityMatrix.clearRuntimeOverrides();
         }
     }
 

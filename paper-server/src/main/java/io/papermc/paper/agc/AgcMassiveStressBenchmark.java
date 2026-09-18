@@ -100,12 +100,6 @@ public final class AgcMassiveStressBenchmark {
         AgcPerformanceGovernor.get().resetMetrics();
         AgcStabilityJournal.get().clear();
 
-        // AGC fix: this benchmark models the AGGRESSIVE large-server profile (multi-core parallel
-        // world ticking). Since the PARALLEL_WORLD_TICK gate fix, parallel waves only engage in
-        // AGC_AGGRESSIVE mode, so set it explicitly here and restore the caller's mode on return.
-        // (The gate used to wrongly consult MULTIWORLD_UNLOAD, a BASELINE-safety feature.)
-        final AgcCapabilityMatrix.Mode previousMode = AgcCapabilityMatrix.getMode();
-        AgcCapabilityMatrix.setMode(AgcCapabilityMatrix.Mode.AGC_AGGRESSIVE);
 
         // 1. Prepare 50 worlds
         final List<String> worldNames = new ArrayList<>(config.totalWorlds());
@@ -209,7 +203,6 @@ public final class AgcMassiveStressBenchmark {
             poolMetrics.acquires() - poolMetrics.creations(),
             targetTpsMet
         );
-        AgcCapabilityMatrix.setMode(previousMode);
         return report;
     }
 }
