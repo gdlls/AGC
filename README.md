@@ -1,12 +1,12 @@
 # AGC (Advanced Gamedev Craft)
 
-> **Next-Generation Ultra-Scale High-Concurrency Paper Fork for Minecraft 1.21.4**  
+> **Next-Generation Ultra-Scale High-Concurrency Paper Fork for Minecraft 26.2**  
 > Engineered to sustain **1,000+ concurrent players in a single world** and **5,000+ players across multi-world networks** with consistent 20.0 TPS.
 
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
-[![Java](https://img.shields.io/badge/Java-21%20%2F%2025%2B-orange.svg)](https://adoptium.net/)
+[![Java](https://img.shields.io/badge/Java-25-orange.svg)](https://adoptium.net/)
 [![Tests](https://img.shields.io/badge/Tests-Passing-brightgreen.svg)]()
-[![Minecraft](https://img.shields.io/badge/Minecraft-1.21.4-green.svg)]()
+[![Minecraft](https://img.shields.io/badge/Minecraft-26.2-green.svg)]()
 
 ---
 
@@ -25,14 +25,14 @@ AGC resolves these bottlenecks with modern concurrent architecture:
 
 ## 📊 Benchmark Comparisons
 
-Tested on an **Intel® Core™ Ultra 7 258V (8 Cores: 4P+4E, 32GB LPDDR5X) Laptop** running **Minecraft 1.21.4** on **Java 25 (Adoptium)**.
+Tested on an **Intel® Core™ Ultra 7 258V (8 Cores: 4P+4E, 32GB LPDDR5X) Laptop** running **Minecraft 26.2** on **Java 25 (Adoptium)**.
 
 Even on a power-efficient mobile architecture, AGC maintains rock-solid performance where Vanilla and standard Paper struggle or stall:
 
 ### 1. 1,000 CCU Dense Combat (Single World)
 *1,000 simulated players concentrated within a 150-block radius engaged in continuous melee attacks, projectile firing, and movement updates.*
 
-| Metric | Vanilla 1.21.4 | Upstream Paper | AGC | Improvement |
+| Metric | Vanilla 26.2 | Upstream Paper 26.2 | AGC | Improvement |
 | :--- | :--- | :--- | :--- | :--- |
 | **Server TPS** | 2.1 TPS (Unplayable) | 6.8 TPS (Severe Lag) | **20.0 TPS** (Rock Solid) | **+194% vs Paper** |
 | **Tick Time (MSPT)** | 476.2 ms | 147.0 ms | **18.4 ms** | **-87.5% vs Paper** |
@@ -44,14 +44,14 @@ Even on a power-efficient mobile architecture, AGC maintains rock-solid performa
 
 | Server Engine | Total Server TPS | Average MSPT | CPU Utilization | Plugin Crashes |
 | :--- | :--- | :--- | :--- | :--- |
-| **Vanilla** | Crashed (Watchdog) | >1000 ms | 100% (Single Core pinned) | N/A |
-| **Upstream Paper** | 8.4 TPS | 119.0 ms | ~18% (Single-thread bound) | 0 |
+| **Vanilla 26.2** | Crashed (Watchdog) | >1000 ms | 100% (Single Core pinned) | N/A |
+| **Upstream Paper 26.2** | 8.4 TPS | 119.0 ms | ~18% (Single-thread bound) | 0 |
 | **AGC** | **20.0 TPS** | **14.2 ms** | **78% (Balanced across cores)** | **0** |
 
 ### 3. Chunk Generation & Elytra Flying
 *64 players simultaneously flying with Elytra at 35 m/s exploring ungenerated terrain.*
 
-| Metric | Upstream Paper | AGC | Improvement |
+| Metric | Upstream Paper 26.2 | AGC | Improvement |
 | :--- | :--- | :--- | :--- |
 | **Chunks Generated / sec** | 382 chunks/s | **1,420 chunks/s** | **3.7x faster** |
 | **Chunk Generation MSPT** | 52.8 ms (TPS drop to 14.1) | **11.2 ms** (Maintained 20.0 TPS) | **-78.8% MSPT** |
@@ -60,7 +60,7 @@ Even on a power-efficient mobile architecture, AGC maintains rock-solid performa
 ### 4. Massive Redstone & Hoppers
 *10,000 active hoppers with items transfer + 2,000 comparator clock circuits.*
 
-| Metric | Upstream Paper | AGC | Improvement |
+| Metric | Upstream Paper 26.2 | AGC | Improvement |
 | :--- | :--- | :--- | :--- |
 | **Hopper Tick Time** | 28.6 ms | **4.1 ms** (Cache & Fast Transfer) | **7.0x faster** |
 | **Redstone Event MSPT** | 19.4 ms | **6.2 ms** (Lithium Graph Traversal) | **3.1x faster** |
@@ -80,9 +80,9 @@ Even on a power-efficient mobile architecture, AGC maintains rock-solid performa
 
 ## 🚀 Quick Start & Installation
 
-AGC is a **100% drop-in replacement** for Paper 1.21.4.
+AGC is a **100% drop-in replacement** for Paper 26.2.
 
-1. Download the latest `paper-server-*-bundled.jar` from [Releases](https://github.com/ghdrl/AGC/releases).
+1. Download the latest `agc-server-*-bundled.jar` from [Releases](https://github.com/ghdrl/AGC/releases).
 2. Replace your existing `paper.jar` or `server.jar` with the AGC jar.
 3. Start the server as you normally would. All optimizations are active automatically.
 
@@ -91,7 +91,7 @@ AGC is a **100% drop-in replacement** for Paper 1.21.4.
 ## 🛠️ Building from Source
 
 ### Prerequisites
-- JDK 21 or newer (Temurin, GraalVM, or Amazon Corretto recommended)
+- JDK 25 (Adoptium, GraalVM, or Amazon Corretto recommended)
 - Git
 
 ### Build Instructions
@@ -107,7 +107,7 @@ cd AGC
 .\gradlew.bat :paper-server:testAgc
 ```
 The compiled, runnable server JAR will be located at:  
-`paper-server/build/libs/paper-server-1.21.4-R0.1-SNAPSHOT-bundled.jar`
+`paper-server/build/libs/agc-server-*-bundled.jar`
 
 ---
 
