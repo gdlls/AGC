@@ -9,40 +9,19 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 
 /**
- * AGC — 핫 오브젝트 풀 + 청크 직렬화 캐시.
- *
- * <p>이 클래스는 GC 압박을 줄이고 hot path에서 객체 할당을 최소화하기 위한
- * 경량 캐시/카운터 컬렉션입니다. 외부 의존성 없음.</p>
- *
- * <h2>설계 원칙</h2>
- * <ul>
- *   <li><b>lock-free fast path:</b> 단순 counter는 {@link AtomicLong} CAS만 사용.</li>
- *   <li><b>sampling 기반 eviction:</b> 진짜 LRU 대신 작은 sample에서 가장 오래된
- *       후보 N개를 골라 evict. Redis maxmemory-sample과 같은 원리. O(1) amortized.</li>
- *   <li><b>바이트 사이즈 cap:</b> chunk packet 캐시는 개수 + 총 바이트 둘 다 추적.</li>
- *   <li><b>graceful degradation:</b> 캐시 사이즈 0 = 비활성. NPE나 음수 size는 0으로 보정.</li>
- * </ul>
+ * AGC — Hot object pools and serialized chunk packet cache.
  */
 public final class AgcHotPathCache {
 
     private AgcHotPathCache() {}
 
-    // =====================================================================
-    // Tick-rate budget tracking (per-thread)
-    // =====================================================================
 
     /**
-     * 한 틱 안에 사용된 budget 추적.
-     * {@link AgcPerformanceTuning#MAX_CHUNKS_SENT_PER_TICK} 와 함께 사용.
-     *
-     * <p>스레드-안전. CAS 기반 lock-free fast path. 고경합 시 fail-soft (false 반환).</p>
+     * Thread-safe CAS-based tick budget tracker.
      */
     public static final class TickBudget {
         private final AtomicLong used = new AtomicLong();
 
-        /**
-         * @return 성공하면 true, budget 소진 시 false.
-         */
         public boolean tryAcquire(final int maxPerTick) {
             if (maxPerTick <= 0) {
                 return true;
@@ -54,9 +33,6 @@ public final class AgcHotPathCache {
             return this.used.compareAndSet(cur, cur + 1);
         }
 
-        /**
-         * {@code cost}만큼 사용량 증가. 단일 acquire와 동일하게 CAS.
-         */
         public boolean tryAcquire(final int maxPerTick, final int cost) {
             if (maxPerTick <= 0 || cost <= 0) {
                 return true;
@@ -69,7 +45,6 @@ public final class AgcHotPathCache {
                 if (this.used.compareAndSet(cur, cur + cost)) {
                     return true;
                 }
-                // CAS 실패 → 재시도. 충돌 빈도는 budget 폭주 시에만 발생.
             }
         }
 
@@ -89,19 +64,9 @@ public final class AgcHotPathCache {
         }
     }
 
-    // =====================================================================
-    // Bounded chunk packet cache (entry-count + byte-size, sampling eviction)
-    // =====================================================================
 
     /**
-     * 청크 → 직렬화된 패킷 캐시.
-     *
-     * <p>개수 cap과 바이트 cap을 동시에 적용. 둘 중 먼저 도달하는 쪽이
-     * eviction을 트리거. eviction은 sample-and-discard 전략: 캐시에서
-     * 작은 sample을 뽑아 가장 오래된 것부터 일정 비율을 잘라낸다.</p>
-     *
-     * <p>eviction은 짧은 {@code synchronized} 블록에서 수행되지만 read path
-     * ({@link #get}, {@link #invalidate})는 lock-free.</p>
+     * Serialized chunk packet cache with dual entry-count and byte-size caps.
      */
     public static final class ChunkPacketCache {
         private final ConcurrentHashMap<Long, Entry> cache = new ConcurrentHashMap<>();
@@ -132,7 +97,7 @@ public final class AgcHotPathCache {
             if (entry == null) {
                 return null;
             }
-            // access-time 갱신은 lock-free. eviction에서 사용.
+            // Lock-free access-time update for sampling eviction.
             entry.lastAccessTick = this.tickCounter.incrementAndGet();
             return entry.data;
         }
@@ -207,13 +172,6 @@ public final class AgcHotPathCache {
             }
         }
 
-        /**
-         * sample-and-discard: 캐시에서 {@link AgcPerformanceTuning#CHUNK_PACKET_CACHE_EVICT_SAMPLE_SIZE}개
-         * entry를 뽑고 그 중 가장 오래된 {@link AgcPerformanceTuning#CHUNK_PACKET_CACHE_EVICT_BATCH_RATIO}
-         * 비율만큼 제거.
-         *
-         * @return 더 evict할 게 있으면 true. 없으면 false.
-         */
         private boolean evictOneBatchLocked() {
             final int sampleSize = Math.min(AgcPerformanceTuning.CHUNK_PACKET_CACHE_EVICT_SAMPLE_SIZE, this.cache.size());
             if (sampleSize <= 0) {
@@ -259,14 +217,8 @@ public final class AgcHotPathCache {
         }
     }
 
-    // =====================================================================
-    // Network packet counters (debug / spark)
-    // =====================================================================
 
-    /**
-     * 패킷 처리 카운터 (atomic long, lock-free).
-     * Spark / Timings에서 사용 가능.
-     */
+    /** Lock-free packet processing counters for telemetry. */
     public static final class PacketCounter {
         private final AtomicLong processed = new AtomicLong();
         private final AtomicLong dropped = new AtomicLong();
@@ -294,9 +246,6 @@ public final class AgcHotPathCache {
         }
     }
 
-    // =====================================================================
-    // Thread-local tick budget holder
-    // =====================================================================
 
     private static final ThreadLocal<TickBudget> TICK_BUDGET = ThreadLocal.withInitial(TickBudget::new);
 
@@ -304,30 +253,19 @@ public final class AgcHotPathCache {
         return TICK_BUDGET.get();
     }
 
-    // =====================================================================
-    // Pool sizing helpers
-    // =====================================================================
 
-    /**
-     * 현재 환경에서 사용할 글로벌 region thread pool 크기 추정.
-     */
+    /** Estimated worker count for global region thread pool. */
     public static int suggestedGlobalRegionThreads() {
         final int cores = Math.max(1, Runtime.getRuntime().availableProcessors());
         return Math.max(2, (int) Math.floor(cores * AgcPerformanceTuning.GLOBAL_REGION_THREAD_POOL_RATIO));
     }
 
-    /**
-     * world-thread pool size = max(1, available cores - 1).
-     * 메인 스레드와 다른 글로벌 워크로드용 코어 1개는 남겨둠.
-     */
+    /** Estimated worker count for world-parallel thread pool. */
     public static int suggestedWorldThreads() {
         return Math.max(1, Runtime.getRuntime().availableProcessors() - 1);
     }
 
-    /**
-     * 현재 환경의 total worker pool 크기.
-     * region + world 합산. 단, max(2, totalCores/2) 이상은 넘지 않음.
-     */
+    /** Total worker pool thread count across region and world tasks. */
     public static int suggestedTotalWorkerThreads() {
         final int region = suggestedGlobalRegionThreads();
         final int world = suggestedWorldThreads();
@@ -343,16 +281,10 @@ public final class AgcHotPathCache {
         return System::nanoTime;
     }
 
-    // =====================================================================
-    // Aggregated snapshot accessor (spark / Timings)
-    // =====================================================================
 
     private static final AtomicReference<CacheSnapshot> LAST_SNAPSHOT = new AtomicReference<>(CacheSnapshot.EMPTY);
 
-    /**
-     * @return 마지막으로 {@link #recordSnapshot()}가 호출된 시점의 캐시 스냅샷.
-     *         한 번도 호출되지 않았으면 {@link CacheSnapshot#EMPTY}.
-     */
+    /** Returns the most recently captured cache snapshot, or EMPTY. */
     public static CacheSnapshot lastSnapshot() {
         return LAST_SNAPSHOT.get();
     }
@@ -361,12 +293,7 @@ public final class AgcHotPathCache {
         LAST_SNAPSHOT.set(CacheSnapshot.EMPTY);
     }
 
-    /**
-     * 현재의 캐시/카운터 상태를 스냅샷으로 저장. spark / Timings 폴링이 호출.
-     *
-     * <p>스냅샷은 {@code volatile} copy-on-write 식으로 갱신되며 호출자는
-     * 일관된 값을 본다.</p>
-     */
+    /** Captures and publishes a fresh snapshot of JVM metrics. */
     public static CacheSnapshot recordSnapshot() {
         final CacheSnapshot snap = new CacheSnapshot(
             System.nanoTime(),
@@ -379,9 +306,7 @@ public final class AgcHotPathCache {
         return snap;
     }
 
-    /**
-     * 환경 + 메모리 + 풀 사이즈의 불변 스냅샷. Timings / spark에서 사용.
-     */
+    /** Immutable snapshot of JVM memory and runtime topology. */
     public record CacheSnapshot(
         long nanoTime,
         int availableProcessors,

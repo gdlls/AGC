@@ -1,0 +1,80 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: AGC Developer <developer@agc.com>
+Date: Sun, 06 Sep 2026 12:00:00 +0900
+Subject: [PATCH] AGC Jigsaw BoxOctree negative filter
+
+Ports the Structure Layout Optimizer BoxOctree into JigsawPlacement.Placer:
+each VoxelShape free volume gets a sidecar octree of already-placed piece
+boxes in that lineage. A candidate whose deflated box strictly overlaps a
+placed piece is certainly rejected by vanilla's joinIsNotEmpty check, so it
+skips the O(vertices) VoxelShape join; every other candidate falls through
+to the authoritative vanilla check. Deflated fractions (.25/.75) never sit
+exactly on integer piece faces, so decisions are bit-identical to vanilla.
+Gated by AgcCapabilityMatrix JIGSAW_BOX_OCTREE (baseline-safe).
+
+diff --git a/net/minecraft/world/level/levelgen/structure/pools/JigsawPlacement.java b/net/minecraft/world/level/levelgen/structure/pools/JigsawPlacement.java
+--- a/net/minecraft/world/level/levelgen/structure/pools/JigsawPlacement.java
++++ b/net/minecraft/world/level/levelgen/structure/pools/JigsawPlacement.java
+@@ -273,6 +273,27 @@ public class JigsawPlacement {
+         private final List<? super PoolElementStructurePiece> pieces;
+         private final RandomSource random;
+         private final SequencedPriorityIterator<JigsawPlacement.PieceState> placing = new SequencedPriorityIterator<>();
++        // AGC start - Jigsaw BoxOctree per-free-volume negative filter (Structure Layout Optimizer port).
++        // Each VoxelShape free volume gets its own octree of already-placed piece boxes in that lineage.
++        // An octree HIT is a certain reject (candidate overlaps a placed piece => vanilla would reject);
++        // a MISS always falls through to the authoritative vanilla VoxelShape check. Placement decisions
++        // are therefore bit-identical to vanilla; only certain rejects skip the expensive join.
++        private java.util.IdentityHashMap<MutableObject<VoxelShape>, io.papermc.paper.agc.worldgen.AgcJigsawBoxOctree> agc$octrees;
++
++        private io.papermc.paper.agc.worldgen.AgcJigsawBoxOctree agc$octreeFor(final MutableObject<VoxelShape> free) {
++            java.util.IdentityHashMap<MutableObject<VoxelShape>, io.papermc.paper.agc.worldgen.AgcJigsawBoxOctree> map = this.agc$octrees;
++            if (map == null) {
++                map = new java.util.IdentityHashMap<>(4);
++                this.agc$octrees = map;
++            }
++            io.papermc.paper.agc.worldgen.AgcJigsawBoxOctree octree = map.get(free);
++            if (octree == null) {
++                octree = new io.papermc.paper.agc.worldgen.AgcJigsawBoxOctree();
++                map.put(free, octree);
++            }
++            return octree;
++        }
++        // AGC end - Jigsaw BoxOctree
+ 
+         private Placer(
+             final Registry<StructureTemplatePool> pools,
+@@ -463,12 +484,33 @@ public class JigsawPlacement {
+                                             }
+                                             // AGC end
+ 
++                                            // AGC start - Jigsaw BoxOctree negative filter: certain overlap => skip VoxelShape join
++                                            if (io.papermc.paper.agc.AgcCapabilityMatrix.isEnabled(io.papermc.paper.agc.AgcCapabilityMatrix.Feature.JIGSAW_BOX_OCTREE)) {
++                                                final AABB agc$deflated = AABB.of(targetBB).deflate(0.25);
++                                                if (!this.agc$octreeFor(childrenFree).fits(
++                                                    agc$deflated.minX, agc$deflated.minY, agc$deflated.minZ,
++                                                    agc$deflated.maxX, agc$deflated.maxY, agc$deflated.maxZ
++                                                )) {
++                                                    continue;
++                                                }
++                                            }
++                                            // AGC end - Jigsaw BoxOctree negative filter
++
+                                             if (!Shapes.joinIsNotEmpty(
+                                                 childrenFree.get(), Shapes.create(AABB.of(targetBB).deflate(0.25)), BooleanOp.ONLY_SECOND
+                                             )) {
+                                                 childrenFree.setValue(
+                                                     Shapes.joinUnoptimized(childrenFree.get(), Shapes.create(AABB.of(targetBB)), BooleanOp.ONLY_FIRST)
+                                                 );
++                                                // AGC start - record placed piece in its lineage octree
++                                                if (io.papermc.paper.agc.AgcCapabilityMatrix.isEnabled(io.papermc.paper.agc.AgcCapabilityMatrix.Feature.JIGSAW_BOX_OCTREE)) {
++                                                    final AABB agc$placed = AABB.of(targetBB);
++                                                    this.agc$octreeFor(childrenFree).insert(
++                                                        agc$placed.minX, agc$placed.minY, agc$placed.minZ,
++                                                        agc$placed.maxX, agc$placed.maxY, agc$placed.maxZ
++                                                    );
++                                                }
++                                                // AGC end - record placed piece
+                                                 int sourceGroundLevelDelta = sourcePiece.getGroundLevelDelta();
+                                                 int targetGroundLevelDelta;
+                                                 if (targetRigid) {
+

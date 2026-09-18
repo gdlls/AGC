@@ -56,25 +56,15 @@ public final class AgcAdaptiveViewDistanceController {
     ) {
         final int min = Math.max(2, minDistance);
         final int max = Math.max(min, maxDistance);
-
         int target = max;
 
-        // Density scaling: with 500+ players, ceiling is pulled down
-        if (playerCount >= 500) {
-            target = Math.min(target, 6);
-        } else if (playerCount >= 250) {
-            target = Math.min(target, 8);
-        } else if (playerCount >= 100) {
-            target = Math.min(target, 10);
-        }
-
-        // Performance scaling: adapt based on tick latency
-        if (rollingMspt >= 45.0) {
+        // Performance-driven scaling only: Never artificially downgrade view distance if server is healthy (MSPT < 40ms)
+        if (rollingMspt >= 50.0) {
+            target = Math.max(min, target - 3);
+        } else if (rollingMspt >= 45.0) {
             target = Math.max(min, target - 2);
-        } else if (rollingMspt >= 35.0) {
+        } else if (rollingMspt >= 40.0) {
             target = Math.max(min, target - 1);
-        } else if (rollingMspt <= 20.0 && playerCount < 300) {
-            target = Math.min(max, target + 1);
         }
 
         final int clamped = Math.max(min, Math.min(max, target));

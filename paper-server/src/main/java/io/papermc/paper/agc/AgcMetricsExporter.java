@@ -43,6 +43,14 @@ public final class AgcMetricsExporter {
         worldMap.put("total_waves", worldMetrics.totalWaves());
         worldMap.put("average_wave_ms", worldMetrics.averageWaveMillis());
         worldMap.put("failures", worldMetrics.failures());
+        // "parallel_ticks" is the dispatch branch, not evidence of overlap. These are: only a tick with
+        // at least one multi-world wave really ran two worlds at once. See EngineMetrics.concurrencyRatio().
+        worldMap.put("concurrent_ticks", worldMetrics.concurrentTicks());
+        worldMap.put("concurrent_waves", worldMetrics.concurrentWaves());
+        worldMap.put("single_world_waves", worldMetrics.singleWorldWaves());
+        worldMap.put("peak_wave_size", worldMetrics.peakWaveSize());
+        worldMap.put("concurrency_ratio", worldMetrics.concurrencyRatio());
+        worldMap.put("min_worlds", worldMetrics.minWorlds());
         root.put("world_engine", worldMap);
 
         // 3. Network Subsystems
@@ -119,6 +127,82 @@ public final class AgcMetricsExporter {
         parityMap.put("violations_detected", parityMetrics.violationsDetected());
         parityMap.put("is_compliant", parityMetrics.isFullyCompliant());
         root.put("behavior_parity", parityMap);
+
+        // 9. Advanced Optimization Engines Telemetry
+        final var light = io.papermc.paper.agc.light.AgcStarLightBatchOptimizer.get().metrics();
+        final Map<String, Object> lightMap = new LinkedHashMap<>();
+        lightMap.put("pooled_nibbles", light.pooledNibbleCount());
+        lightMap.put("nibbles_acquired", light.nibblesAcquired());
+        lightMap.put("updates_coalesced", light.updatesCoalesced());
+        lightMap.put("sky_fastpaths", light.skyBitmaskFastPaths());
+        root.put("starlight_batching", lightMap);
+
+        final var chunkCache = io.papermc.paper.agc.chunk.AgcChunkCacheHierarchy.get().metrics();
+        final Map<String, Object> chunkCacheMap = new LinkedHashMap<>();
+        chunkCacheMap.put("l1_hits", chunkCache.l1Hits());
+        chunkCacheMap.put("l2_hits", chunkCache.l2Hits());
+        chunkCacheMap.put("l1_evictions", chunkCache.l1Evictions());
+        chunkCacheMap.put("deduplicated_loads", chunkCache.deduplicatedLoads());
+        chunkCacheMap.put("prefetch_triggers", chunkCache.prefetchTriggers());
+        root.put("chunk_cache_hierarchy", chunkCacheMap);
+
+        final var redstone = io.papermc.paper.agc.redstone.AgcRedstoneOptimizer.get().metrics();
+        final Map<String, Object> redstoneMap = new LinkedHashMap<>();
+        redstoneMap.put("redundant_filtered", redstone.redundantUpdatesFiltered());
+        redstoneMap.put("observer_loops_broken", redstone.observerLoopsBroken());
+        redstoneMap.put("boundary_cache_hits", redstone.boundaryCacheHits());
+        redstoneMap.put("clocks_suppressed", redstone.clockLagMachinesSuppressed());
+        redstoneMap.put("wires_coalesced", redstone.wireUpdatesCoalesced());
+        root.put("redstone_optimizer", redstoneMap);
+
+        final var hopper = io.papermc.paper.agc.hopper.AgcHopperOptimizer.get().metrics();
+        final Map<String, Object> hopperMap = new LinkedHashMap<>();
+        hopperMap.put("target_hits", hopper.targetContainerCacheHits());
+        hopperMap.put("double_chest_hits", hopper.doubleChestCacheHits());
+        hopperMap.put("bitmask_checks", hopper.bitmaskFastChecks());
+        hopperMap.put("ticks_skipped", hopper.hopperTicksSkipped());
+        root.put("hopper_optimizer", hopperMap);
+
+        final var villager = io.papermc.paper.agc.villager.AgcVillagerOptimizer.get().metrics();
+        final Map<String, Object> villagerMap = new LinkedHashMap<>();
+        villagerMap.put("poi_queries_saved", villager.poiQueriesSaved());
+        villagerMap.put("pathfinding_throttled", villager.pathfindingThrottled());
+        villagerMap.put("price_cache_hits", villager.priceCacheHits());
+        villagerMap.put("gossip_throttled", villager.gossipThrottled());
+        villagerMap.put("golem_checks_throttled", villager.golemChecksThrottled());
+        root.put("villager_optimizer", villagerMap);
+
+        final var netCodec = io.papermc.paper.agc.network.AgcFastNetworkSerializationEngine.get().metrics();
+        final Map<String, Object> netCodecMap = new LinkedHashMap<>();
+        netCodecMap.put("varints_encoded", netCodec.varIntsEncoded());
+        netCodecMap.put("varlongs_encoded", netCodec.varLongsEncoded());
+        netCodecMap.put("compression_bypassed", netCodec.compressionBypassed());
+        netCodecMap.put("buffers_recycled", netCodec.buffersRecycled());
+        root.put("network_codec", netCodecMap);
+
+        final var dispatcher = io.papermc.paper.agc.event.AgcLockFreeEventDispatcher.get().metrics();
+        final Map<String, Object> dispMap = new LinkedHashMap<>();
+        dispMap.put("events_dispatched", dispatcher.eventsDispatched());
+        dispMap.put("listeners_invoked", dispatcher.listenersInvoked());
+        dispMap.put("cancelled_skipped", dispatcher.cancelledListenersSkipped());
+        root.put("lockfree_event_dispatcher", dispMap);
+
+        final var slab = io.papermc.paper.agc.memory.AgcOffHeapSlabAllocator.get().metrics();
+        final Map<String, Object> slabMap = new LinkedHashMap<>();
+        slabMap.put("slab_1k", slab.slab1kAcquisitions());
+        slabMap.put("slab_4k", slab.slab4kAcquisitions());
+        slabMap.put("slab_16k", slab.slab16kAcquisitions());
+        slabMap.put("slab_64k", slab.slab64kAcquisitions());
+        slabMap.put("total_releases", slab.totalReleases());
+        root.put("offheap_slab_allocator", slabMap);
+
+        final var vector = io.papermc.paper.agc.simd.AgcVectorMath.get().metrics();
+        final Map<String, Object> vectorMap = new LinkedHashMap<>();
+        vectorMap.put("batch_aabb_tests", vector.batchAabbTests());
+        vectorMap.put("vector_distances", vector.vectorDistanceCalculations());
+        vectorMap.put("batch_manhattan", vector.batchManhattanCalculations());
+        vectorMap.put("vector_ops", vector.vectorOperations());
+        root.put("vector_math_simd", vectorMap);
 
         return root;
     }

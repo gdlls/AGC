@@ -1908,11 +1908,10 @@ public class CraftPlayer extends CraftHumanEntity implements Player, PluginMessa
 
         if (this.invertedVisibilityEntities.remove(entity.getUniqueId()) == null) {
             this.untrackAndHideEntity(entity);
-        } else {
-            // AGC start - shared latency packet fast path
-            ++CraftPlayer.meteus$visibilityMutationVersion;
-            // AGC end - shared latency packet fast path
         }
+        // AGC start - shared latency packet fast path
+        CraftPlayer.meteus$notifyVisibilityMutated();
+        // AGC end - shared latency packet fast path
     }
 
     @Override
@@ -2031,11 +2030,10 @@ public class CraftPlayer extends CraftHumanEntity implements Player, PluginMessa
 
         if (this.invertedVisibilityEntities.remove(entity.getUniqueId()) == null) {
             this.trackAndShowEntity(entity);
-        } else {
-            // AGC start - shared latency packet fast path
-            ++CraftPlayer.meteus$visibilityMutationVersion;
-            // AGC end - shared latency packet fast path
         }
+        // AGC start - shared latency packet fast path
+        CraftPlayer.meteus$notifyVisibilityMutated();
+        // AGC end - shared latency packet fast path
     }
     // Paper start
     public com.destroystokyo.paper.profile.PlayerProfile getPlayerProfile() {
@@ -2081,6 +2079,10 @@ public class CraftPlayer extends CraftHumanEntity implements Player, PluginMessa
 
     public static int meteus$getVisibilityMutationVersion() {
         return CraftPlayer.meteus$visibilityMutationVersion;
+    }
+
+    public static void meteus$notifyVisibilityMutated() {
+        ++CraftPlayer.meteus$visibilityMutationVersion;
     }
     // AGC end - shared latency packet fast path
 

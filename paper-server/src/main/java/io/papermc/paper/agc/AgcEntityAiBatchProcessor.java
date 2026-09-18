@@ -18,9 +18,10 @@ public final class AgcEntityAiBatchProcessor {
     private static final AgcEntityAiBatchProcessor INSTANCE = new AgcEntityAiBatchProcessor();
     public static final int BUCKET_COUNT = 4;
 
-    // Telemetry & metrics
     private final AtomicLong goalsEvaluated = new AtomicLong();
     private final AtomicLong goalsSkipped = new AtomicLong();
+    private final AtomicLong sensorsTicked = new AtomicLong();
+    private final AtomicLong sensorsSkipped = new AtomicLong();
 
     public static AgcEntityAiBatchProcessor get() {
         return INSTANCE;
@@ -56,32 +57,89 @@ public final class AgcEntityAiBatchProcessor {
     }
 
     /**
+     * Determines whether an entity's Brain sensors should tick on this tick.
+     * Inactive / idle entities throttle sensor evaluation (every 2 ticks round-robin),
+     * saving up to 50% Brain sensor tick overhead (Pufferfish DAB / Petal).
+     *
+     * @param entityId    Entity ID
+     * @param currentTick Current world tick
+     * @param isEngaged   Whether the entity has active targets or behaviors
+     * @return true if sensors should tick
+     */
+    public boolean shouldTickSensors(final int entityId, final long currentTick, final boolean isEngaged) {
+        if (isEngaged) {
+            this.sensorsTicked.incrementAndGet();
+            return true;
+        }
+
+        final boolean run = ((currentTick + entityId) & 1) == 0;
+        if (run) {
+            this.sensorsTicked.incrementAndGet();
+        } else {
+            this.sensorsSkipped.incrementAndGet();
+        }
+        return run;
+    }
+
+    /**
      * Resets AI batching telemetry counters.
      */
     public void resetMetrics() {
         this.goalsEvaluated.set(0);
         this.goalsSkipped.set(0);
+        this.sensorsTicked.set(0);
+        this.sensorsSkipped.set(0);
+    }
+
+    public long getSensorsTicked() {
+        return this.sensorsTicked.get();
+    }
+
+    public long getSensorsSkipped() {
+        return this.sensorsSkipped.get();
     }
 
     public AiMetrics metrics() {
         return new AiMetrics(
             this.goalsEvaluated.get(),
-            this.goalsSkipped.get()
+            this.goalsSkipped.get(),
+            this.sensorsTicked.get(),
+            this.sensorsSkipped.get()
         );
     }
 
     public record AiMetrics(
         long goalsEvaluated,
-        long goalsSkipped
+        long goalsSkipped,
+        long sensorsTicked,
+        long sensorsSkipped
     ) {
+        public long totalGoalRequests() {
+            return this.goalsEvaluated + this.goalsSkipped;
+        }
+
+        public long totalSensorRequests() {
+            return this.sensorsTicked + this.sensorsSkipped;
+        }
+
+        public double goalCpuReductionRatio() {
+            final long total = totalGoalRequests();
+            if (total == 0) return 0.0;
+            return (double) this.goalsSkipped / (double) total;
+        }
+
+        public double sensorCpuReductionRatio() {
+            final long total = totalSensorRequests();
+            if (total == 0) return 0.0;
+            return (double) this.sensorsSkipped / (double) total;
+        }
+
         public long totalRequests() {
             return this.goalsEvaluated + this.goalsSkipped;
         }
 
         public double cpuReductionRatio() {
-            final long total = totalRequests();
-            if (total == 0) return 0.0;
-            return (double) this.goalsSkipped / (double) total;
+            return goalCpuReductionRatio();
         }
     }
 }

@@ -23,9 +23,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class AgcHotPathCacheTest {
 
-    // -----------------------------------------------------------------------
     // TickBudget
-    // -----------------------------------------------------------------------
 
     @Test
     void tickBudgetAcquiresUpToMax() {
@@ -64,7 +62,7 @@ class AgcHotPathCacheTest {
         assertTrue(budget.tryAcquire(10, 3));
         assertTrue(budget.tryAcquire(10, 3));
         assertTrue(budget.tryAcquire(10, 3));
-        // 9 used, remaining 1 → 4 더는 못 삼
+        // 9 used, remaining 1 -> cannot acquire 4
         assertFalse(budget.tryAcquire(10, 4));
         assertTrue(budget.tryAcquire(10, 1));
     }
@@ -72,7 +70,7 @@ class AgcHotPathCacheTest {
     @Test
     void tickBudgetZeroMaxAllowsAlways() {
         final AgcHotPathCache.TickBudget budget = new AgcHotPathCache.TickBudget();
-        // max=0 means disabled → 항상 true
+        // max=0 means disabled -> always true
         for (int i = 0; i < 100; i++) {
             assertTrue(budget.tryAcquire(0));
         }
@@ -106,13 +104,10 @@ class AgcHotPathCacheTest {
         start.countDown();
         pool.shutdown();
         assertTrue(pool.awaitTermination(30, TimeUnit.SECONDS));
-        // 각 iteration 끝에서 reset하므로 마지막 reset 후의 0이 항상 max 이하여야 함
         assertTrue(acquired.get() > 0);
     }
 
-    // -----------------------------------------------------------------------
     // ChunkPacketCache
-    // -----------------------------------------------------------------------
 
     @Test
     void chunkPacketCachePutAndGet() {
@@ -135,7 +130,6 @@ class AgcHotPathCacheTest {
     @Test
     void chunkPacketCacheEntryCapEvicts() {
         final AgcHotPathCache.ChunkPacketCache cache = new AgcHotPathCache.ChunkPacketCache(8, 1024 * 1024);
-        // 12개 넣으면 eviction
         for (int i = 0; i < 12; i++) {
             cache.put(i, 0, new byte[16]);
         }
@@ -149,7 +143,7 @@ class AgcHotPathCacheTest {
         cache.put(0, 0, new byte[40]);
         cache.put(1, 0, new byte[40]);
         cache.put(2, 0, new byte[40]);
-        // 120 bytes > 100 → 일부 evict
+        // 120 bytes > 100 -> partial eviction
         assertTrue(cache.currentBytes() <= 100, "Bytes should be <= cap, got " + cache.currentBytes());
     }
 
@@ -186,13 +180,10 @@ class AgcHotPathCacheTest {
 
     @Test
     void chunkPacketCacheSampleEvictionIsLRU() {
-        // sample_size=4, batch=1/2 → sample 중 2개 evict
         final AgcHotPathCache.ChunkPacketCache cache = new AgcHotPathCache.ChunkPacketCache(2, 1024 * 1024);
-        // 4개 put
         for (int i = 0; i < 4; i++) {
             cache.put(i, 0, new byte[10]);
         }
-        // cap=2 → 2개만 남아야 함
         assertTrue(cache.size() <= 2);
     }
 
@@ -222,9 +213,7 @@ class AgcHotPathCacheTest {
         assertTrue(cache.size() <= 1000);
     }
 
-    // -----------------------------------------------------------------------
     // PacketCounter
-    // -----------------------------------------------------------------------
 
     @Test
     void packetCounterCountsProcessed() {
@@ -259,13 +248,11 @@ class AgcHotPathCacheTest {
     void packetCounterIgnoresNegativeBytes() {
         final AgcHotPathCache.PacketCounter counter = new AgcHotPathCache.PacketCounter();
         counter.recordProcessed(-1);
-        assertEquals(1, counter.processed()); // count는 증가
-        assertEquals(0, counter.bytes());     // bytes는 음수 무시
+        assertEquals(1, counter.processed());
+        assertEquals(0, counter.bytes());
     }
 
-    // -----------------------------------------------------------------------
     // Pool sizing
-    // -----------------------------------------------------------------------
 
     @Test
     void suggestedGlobalRegionThreadsIsAtLeastTwo() {
@@ -284,9 +271,7 @@ class AgcHotPathCacheTest {
         assertTrue(total <= Math.max(2, cores));
     }
 
-    // -----------------------------------------------------------------------
     // CacheSnapshot
-    // -----------------------------------------------------------------------
 
     @Test
     void cacheSnapshotStartsEmpty() {
@@ -311,24 +296,19 @@ class AgcHotPathCacheTest {
         assertTrue(ratio >= 0.0 && ratio <= 1.0);
     }
 
-    // -----------------------------------------------------------------------
     // ThreadLocal tick budget
-    // -----------------------------------------------------------------------
 
     @Test
     void threadLocalTickBudgetIsPerThread() throws InterruptedException {
-        // 메인 스레드 budget
         final AgcHotPathCache.TickBudget main = AgcHotPathCache.tickBudget();
-        main.tryAcquire(1); // 1 사용
+        main.tryAcquire(1);
 
-        // 다른 스레드는 새 budget
         final AgcHotPathCache.TickBudget[] holder = new AgcHotPathCache.TickBudget[1];
         final Thread t = new Thread(() -> holder[0] = AgcHotPathCache.tickBudget());
         t.start();
         t.join();
         assertNotNull(holder[0]);
         assertNotNull(main);
-        // 메인은 이미 1 사용했지만 다른 스레드는 fresh
         assertEquals(0, holder[0].used());
     }
 }

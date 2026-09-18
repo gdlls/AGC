@@ -40,7 +40,8 @@ public final class MoonriseCommon {
     public static final BalancedPrioritisedThreadPool.OrderedStreamGroup SERVER_GROUP = MoonriseCommon.WORKER_POOL.createOrderedStreamGroup();
 
     public static void adjustWorkerThreads(final int configWorkerThreads, final int configIoThreads) {
-        int defaultWorkerThreads = OSNuma.getNativeInstance().getTotalCores()  / 2;
+        final int totalCores = OSNuma.getNativeInstance().getTotalCores();
+        int defaultWorkerThreads = totalCores / 2;
         if (defaultWorkerThreads <= 4) {
             defaultWorkerThreads = defaultWorkerThreads <= 3 ? 1 : 2;
         } else {
@@ -49,12 +50,28 @@ public final class MoonriseCommon {
         defaultWorkerThreads = Integer.getInteger(PlatformHooks.get().getBrand() + ".WorkerThreadCount", Integer.valueOf(defaultWorkerThreads));
 
         int workerThreads = configWorkerThreads;
+        int ioThreads = configIoThreads;
 
-        if (workerThreads <= 0) {
-            workerThreads = defaultWorkerThreads;
+        // AGC start - scale worker and I/O threads dynamically across any CPU core count
+        if (io.papermc.paper.agc.AgcCapabilityMatrix.getMode() != io.papermc.paper.agc.AgcCapabilityMatrix.Mode.VANILLA) {
+            if (workerThreads <= 0) {
+                final int scaledWorkers = Math.max(1, (int) Math.round(totalCores * 0.6));
+                workerThreads = Integer.getInteger(PlatformHooks.get().getBrand() + ".WorkerThreadCount", scaledWorkers);
+            }
+            if (ioThreads <= 0) {
+                final int scaledIo = Math.max(1, Math.min(6, totalCores / 4));
+                ioThreads = Integer.getInteger(PlatformHooks.get().getBrand() + ".IoThreadCount", scaledIo);
+            }
+        } else {
+            if (workerThreads <= 0) {
+                workerThreads = defaultWorkerThreads;
+            }
+            if (ioThreads <= 0) {
+                ioThreads = 1;
+            }
         }
-
-        final int ioThreads = Math.max(1, configIoThreads);
+        // AGC end
+        ioThreads = Math.max(1, ioThreads);
 
         WORKER_POOL.adjustThreadCount(workerThreads);
         IO_POOL.adjustThreadCount(ioThreads);

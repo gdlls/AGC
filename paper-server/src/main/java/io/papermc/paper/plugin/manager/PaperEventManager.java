@@ -44,17 +44,41 @@ class PaperEventManager {
 
         HandlerList handlers = event.getHandlers();
         RegisteredListener[] listeners = handlers.getRegisteredListeners();
+        // AGC start - LOCKFREE_EVENT_DISPATCHER zero-listener fast bailout
+        if (io.papermc.paper.agc.AgcCapabilityMatrix.isEnabled(io.papermc.paper.agc.AgcCapabilityMatrix.Feature.LOCKFREE_EVENT_DISPATCHER)) {
+            if (listeners.length == 0) {
+                return;
+            }
+        }
+        // AGC end
 
+        final boolean isSync = !event.isAsynchronous();
+        final boolean parallelActive = io.papermc.paper.agc.AgcParallelWorldTickEngine.get().isParallelPhaseActive();
         for (RegisteredListener registration : listeners) {
             if (!registration.getPlugin().isEnabled()) {
                 continue;
             }
 
+            final Plugin plugin = registration.getPlugin();
+            final long startTime = System.nanoTime();
             try {
-                registration.callEvent(event);
+                if (isSync && parallelActive) {
+                    final Throwable[] error = new Throwable[1];
+                    io.papermc.paper.agc.AgcPluginSafetyGuard.get().executeSynchronousPluginListener(plugin, () -> {
+                        try {
+                            registration.callEvent(event);
+                        } catch (final Throwable t) {
+                            error[0] = t;
+                        }
+                    });
+                    if (error[0] != null) {
+                        if (error[0] instanceof AuthorNagException ane) throw ane;
+                        throw error[0];
+                    }
+                } else {
+                    registration.callEvent(event);
+                }
             } catch (AuthorNagException ex) {
-                Plugin plugin = registration.getPlugin();
-
                 if (plugin.isNaggable()) {
                     plugin.setNaggable(false);
 
@@ -71,6 +95,10 @@ class PaperEventManager {
                 if (!(event instanceof ServerExceptionEvent)) { // We don't want to cause an endless event loop
                     this.callEvent(new ServerExceptionEvent(new ServerEventException(msg, ex, registration.getPlugin(), registration.getListener(), event)));
                 }
+            } finally {
+                io.papermc.paper.agc.plugin.AgcPluginWatchdog.get().recordExecution(
+                    plugin.getName(), System.nanoTime() - startTime
+                );
             }
         }
     }

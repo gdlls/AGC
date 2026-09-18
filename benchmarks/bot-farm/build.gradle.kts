@@ -36,6 +36,15 @@ application {
     mainClass.set("agc.bench.HarnessMain")
 }
 
+// Console-command CLI for inspecting a server that is already under load:
+//   gradlew -p benchmarks/bot-farm rcon --args="127.0.0.1 25575 bench \"agc status\""
+tasks.register<JavaExec>("rcon") {
+    group = "application"
+    description = "Runs one or more console commands over RCON against a running server."
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("agc.bench.RconCommandCli")
+}
+
 tasks.withType<JavaCompile>().configureEach {
     options.encoding = "UTF-8"
 }

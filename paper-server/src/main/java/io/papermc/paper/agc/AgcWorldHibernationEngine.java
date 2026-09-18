@@ -43,7 +43,6 @@ public final class AgcWorldHibernationEngine {
 
     private final ConcurrentHashMap<String, WorldTrackInfo> trackedWorlds = new ConcurrentHashMap<>();
 
-    // Telemetry & metrics
     private final AtomicLong hibernationsTriggered = new AtomicLong();
     private final AtomicLong coldEvictionsTriggered = new AtomicLong();
     private final AtomicLong wakeupsTriggered = new AtomicLong();

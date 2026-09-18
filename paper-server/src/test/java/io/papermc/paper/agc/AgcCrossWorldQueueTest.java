@@ -4,6 +4,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -121,5 +123,20 @@ class AgcCrossWorldQueueTest {
         final int drained = AgcCrossWorldQueue.get().drainAll();
         assertEquals(threads * opsPerThread, drained);
         assertEquals(threads * opsPerThread, executed.get());
+    }
+
+    @Test
+    void priorityOrderingDrainsHighBeforeNormalAndLow() {
+        final List<String> executionOrder = new ArrayList<>();
+
+        AgcCrossWorldQueue.get().enqueue(AgcCrossWorldQueue.Priority.LOW, "low-1", () -> executionOrder.add("LOW"));
+        AgcCrossWorldQueue.get().enqueue(AgcCrossWorldQueue.Priority.NORMAL, "normal-1", () -> executionOrder.add("NORMAL"));
+        AgcCrossWorldQueue.get().enqueue(AgcCrossWorldQueue.Priority.HIGH, "high-1", () -> executionOrder.add("HIGH-1"));
+        AgcCrossWorldQueue.get().enqueue(AgcCrossWorldQueue.Priority.HIGH, "high-2", () -> executionOrder.add("HIGH-2"));
+
+        assertEquals(4, AgcCrossWorldQueue.get().size());
+        AgcCrossWorldQueue.get().drainAll();
+
+        assertEquals(List.of("HIGH-1", "HIGH-2", "NORMAL", "LOW"), executionOrder);
     }
 }

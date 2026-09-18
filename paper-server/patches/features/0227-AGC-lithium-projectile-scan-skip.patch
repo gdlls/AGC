@@ -1,0 +1,45 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: AGC Developer <developer@agc.com>
+Date: Sun, 06 Sep 2026 12:00:00 +0900
+Subject: [PATCH] AGC Lithium same-class projectile scan skip
+
+Ender pearls never hit ender pearls (vanilla rejects them in canHitEntity
+via isPickable), yet every pearl in a dense stasis stack pays full
+inflate+clip math against every other pearl each tick. This pre-filters
+same-class pearls from the scan when the source is a ThrownEnderpearl.
+Hit results are identical; only wasted per-candidate work is skipped.
+Gated by AgcCapabilityMatrix LITHIUM_COLLISION_ENGINE (baseline-safe).
+
+diff --git a/net/minecraft/world/entity/projectile/ProjectileUtil.java b/net/minecraft/world/entity/projectile/ProjectileUtil.java
+--- a/net/minecraft/world/entity/projectile/ProjectileUtil.java
++++ b/net/minecraft/world/entity/projectile/ProjectileUtil.java
+@@ -157,17 +157,28 @@ public class ProjectileUtil {
+     public static @Nullable EntityHitResult getEntityHitResult(
+         final Level level,
+         final Entity source,
+         final Vec3 from,
+         final Vec3 to,
+         final AABB targetSearchArea,
+         final Predicate<Entity> matching,
+         final float entityMargin
+     ) {
++        // AGC start - Lithium same-class projectile skip (identical hit results, skips wasted clip math)
++        final Predicate<Entity> agc$matching;
++        if (source instanceof net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownEnderpearl
++            && io.papermc.paper.agc.AgcCapabilityMatrix.isEnabled(io.papermc.paper.agc.AgcCapabilityMatrix.Feature.LITHIUM_COLLISION_ENGINE)) {
++            agc$matching = matching.and(
++                entity -> entity.getClass() != net.minecraft.world.entity.projectile.throwableitemprojectile.ThrownEnderpearl.class
++            );
++        } else {
++            agc$matching = matching;
++        }
++        // AGC end - Lithium same-class projectile skip
+         double nearest = Double.MAX_VALUE;
+         Optional<Vec3> nearestLocation = Optional.empty();
+         Entity hitEntity = null;
+ 
+-        for (Entity entity : level.getEntities(source, targetSearchArea, matching)) {
++        for (Entity entity : level.getEntities(source, targetSearchArea, agc$matching)) {
+             AABB bb = entity.getBoundingBox().inflate(entityMargin);
+             Optional<Vec3> location = bb.clip(from, to);
+             if (location.isPresent()) {

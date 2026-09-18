@@ -75,10 +75,14 @@ public class GlobalConfiguration extends ConfigurationPart {
         public int playerMaxConcurrentChunkGenerates = 0;
     }
 
-    public Agc agc;
+    public transient Agc agc = new Agc();
 
-    public class Agc extends ConfigurationPart {
-        public Performance performance;
+    public static class Agc extends ConfigurationPart {
+        public String mode = "agc_aggressive";
+        public boolean singleplayerFeelCombat = false;
+        public boolean networkReadTimeout = true;
+        public boolean multiworldUnload = true;
+        public Performance performance = new Performance();
 
         public class Performance extends ConfigurationPart {
             @Comment("Reduces repeated lookups and casts in the Moonrise entity tracker tick loop. This does not change tracking rules or packet contents.")
@@ -89,6 +93,8 @@ public class GlobalConfiguration extends ConfigurationPart {
             public boolean globalDebugSubscriberFastPath = true;
             @Comment("Uses an indexed send loop for chunk block, light, and block entity broadcasts when the receiver list supports fast random access.")
             public boolean chunkBroadcastFastPath = true;
+            @Comment("Reuses the serialized chunk payload for unchanged block-entity-free chunks when several players receive the same chunk (login storms, view-distance crossings). Validation is exact-content (per-instance mutation epoch), light data is always rebuilt per recipient, and anti-xray or block-entity-bearing chunks always take the vanilla path, so output bytes are identical.")
+            public boolean chunkSendSerializationCache = true;
             @Comment("Removes stale entity tracker viewers with iterator removal instead of allocating snapshot lists during dense player movement.")
             public boolean entityTrackerPurgeFastPath = true;
             @Comment("Skips natural spawn state construction in worlds with no players while preserving ticking for loaded chunks.")
@@ -107,8 +113,6 @@ public class GlobalConfiguration extends ConfigurationPart {
             public boolean waypointEmptyFastPath = true;
             @Comment("Uses indexed loops for common PlayerList maintenance passes over all online players.")
             public boolean playerListIterationFastPath = true;
-            @Comment("Skips entity tracking packet broadcast work immediately when an entity has no tracking players.")
-            public boolean emptyEntityTrackerBroadcastFastPath = true;
             @Comment("Avoids weather player update loops in empty worlds and uses indexed loops when players are present.")
             public boolean weatherPlayerLoopFastPath = true;
             @Comment("Uses indexed loops for expensive player resource reload broadcasts such as advancements and recipes.")
@@ -269,8 +273,6 @@ public class GlobalConfiguration extends ConfigurationPart {
             public boolean entityPassengerListFastPath = true;
             @Comment("Avoids stream tree allocation while teleporting nested passenger stacks.")
             public boolean passengerTreeIterationFastPath = true;
-            @Comment("Uses explicit iterator and indexed passenger loops in the main entity tick path.")
-            public boolean entityTickLoopFastPath = true;
             @Comment("Skips entity tick-list iteration setup when a world has no tickable entities.")
             public boolean entityTickListEmptyFastPath = true;
             @Comment("Reuses empty collision result lists and avoids allocation in common no-entity collision checks.")
@@ -281,18 +283,18 @@ public class GlobalConfiguration extends ConfigurationPart {
             public boolean crammingCountFastPath = true;
             @Comment("Defers allocating the per-player experience-orb pickup list until an orb is actually in range, avoiding a throwaway list allocation every tick for every player. Pickup behavior is unchanged.")
             public boolean playerPickupOrbAllocFastPath = true;
-            @Comment("Experimental, opt-in. Encodes an entity movement packet once when it is broadcast to many tracking players and reuses the bytes for the remaining recipients, instead of re-encoding per connection (helps crowded areas with hundreds of viewers). Only locale-independent movement packets are cached, so the wire output is identical; compression and encryption still run per connection. Disabled by default until validated under real multi-player load.")
-            public boolean packetEncodingCacheFastPath = false;
-            @Comment("Experimental, opt-in. In the entity tracker, a stationary entity only re-evaluates tracking for players that moved this tick (instead of every nearby player every tick), with a staggered full refresh every 32 ticks. Turns the O(players^2) per-tick tracker cost into O(movers x players) for idle crowds - the dominant cost for thousands of players standing in a tiny area. Disabled by default until validated with a real client (visibility/vanish edge cases self-correct within 32 ticks).")
-            public boolean trackerIdleSkipFastPath = false;
-            @Comment("Full-refresh interval (ticks) for trackerIdleSkipFastPath: every N ticks a stationary entity re-evaluates all nearby players (staggered per entity) to catch rare non-positional tracking changes. Higher = cheaper for very dense crowds but slower to reflect those rare changes. 1 disables the idle skip. Default 256.")
-            public int trackerIdleSkipRefreshTicks = 256;
+            @Comment("Encodes an entity movement packet once when it is broadcast to many tracking players and reuses the bytes for the remaining recipients, instead of re-encoding per connection (helps crowded areas with hundreds of viewers). Wire output is identical; compression and encryption still run per connection.")
+            public boolean packetEncodingCacheFastPath = true;
+            @Comment("In the entity tracker, a stationary entity only re-evaluates tracking for players that moved this tick (instead of every nearby player every tick), with a staggered full refresh every trackerIdleSkipRefreshTicks ticks. Turns the O(players^2) per-tick tracker cost into O(movers x players) for idle crowds.")
+            public boolean trackerIdleSkipFastPath = true;
+            @Comment("Full-refresh interval (ticks) for trackerIdleSkipFastPath: every N ticks a stationary entity re-evaluates all nearby players (staggered per entity) to catch rare non-positional tracking changes. Higher = cheaper for very dense crowds but slower to reflect those rare changes. 1 disables the idle skip. Default 32 (1.6s worst case per entity, 1/32 of entities re-evaluated per tick).")
+            public int trackerIdleSkipRefreshTicks = 32;
             @Comment("Opt-in for extreme density. Re-evaluates WHICH players can see each entity only every N ticks (staggered per entity) while still broadcasting movement every tick, cutting the O(movers x viewers) tracking re-eval cost when thousands move in a tiny area. The trade-off is that entities entering/leaving view-distance range appear/disappear up to N ticks late (imperceptible in a packed area; vanish/hide stays immediate). 1 = off (default, preserves vanilla feel); high-pop servers can set 3-4.")
             public int trackerUpdateThrottleTicks = 1;
             @Comment("Skips the per-tick natural-spawn census (which iterates every entity to compute mob caps) and the per-player mob-count bookkeeping when the doMobSpawning gamerule is disabled. The census only feeds the spawn loop, which is already off, so this is pure saved work for servers that disable mob spawning. Spawning behavior is unchanged.")
             public boolean spawnCensusSkipFastPath = true;
-            @Comment("Experimental, opt-in. Computes entity activation range by iterating activatable entities once (early-exit on the first in-range player) instead of scanning all entities around every player. Always-active entities (players) resolve in O(1), turning the O(players^2) activation scan into roughly O(entities) for dense crowds. Disabled by default until validated with live mobs.")
-            public boolean activationRangeIterateOnceFastPath = false;
+            @Comment("Computes entity activation range by iterating activatable entities once (early-exit on the first in-range player) instead of scanning all entities around every player. The activation decision is unchanged: an entity is still active exactly when some non-spectator player has it inside that entity type's activation range, and the always-active set is still handled by defaultActivationState.")
+            public boolean activationRangeIterateOnceFastPath = true;
             @Comment("Uses direct backing-list scans for entity section range queries and class instance maps.")
             public boolean entitySectionScanFastPath = true;
             @Comment("Uses direct tracker loops and avoids redundant section scans during entity-fluid interaction updates.")
@@ -431,28 +433,32 @@ public class GlobalConfiguration extends ConfigurationPart {
             public int chunkTaskPollFullSweepInterval = 64;
             @Comment("Uses a cached ServerLevel array snapshot for hot multi-world server loops such as clocks, ticking, autosave, and time sync.")
             public boolean serverLevelSnapshotIterationFastPath = true;
-            @Comment("Caches whether the global player list can use one shared latency packet until Bukkit visibility state changes.")
-            public boolean latencyVisibilityStateCacheFastPath = true;
             @Comment("Rotates incremental player autosave scans through the online player list instead of starting at index zero every autosave tick.")
             public boolean playerAutosaveRoundRobinFastPath = true;
             @Comment("Skips the periodic every-60-tick entity position packet when the entity has not moved since its last sent position. That packet carries a zero movement delta the client applies as nothing (on-ground changes already force a full teleport), so sending it to every viewer is pure waste - a large share of broadcast traffic in entity-dense areas. The forced-teleport interval still fires a full position resync, so there is no drift, and output to vanilla clients is unchanged.")
             public boolean skipIdlePositionSyncFastPath = true;
+            @Comment("Skips periodic player .dat autosaves when no tracked mutation was recorded since the last save. Default false: dirty tracking cannot observe every mutation path (plugin NBT edits, external tools), so skipping widens the crash-rollback window versus vanilla Paper. The off-tick ordered writer still removes autosave from the tick loop. Enable only if you accept vanilla-differs-on-crash semantics for less disk I/O.")
+            public boolean differentialPlayerSave = false;
+            @Comment("Merges same-tick nearby explosions into a single blast. Default true for 500-scale burst stability (explosion coalescing preserves parity while preventing explosion cascade TPS collapse).")
+            public boolean explosionCoalescing = true;
+            @Comment("Ticks far-away trivial entities (boats, minecarts, item frames) at reduced cadence. Default false: reduced cadence changes observable behavior (minecart throughput, despawn timing) versus vanilla Paper.")
+            public boolean entityStrideBalancing = false;
             // AGC start - hit rewind and adaptive view distance config
-            @Comment("Enables server-authoritative hit rewind for PvP: rewinds the target player's position by the attacker's RTT/2 ticks when validating melee hits. Reduces the PvP disadvantage for high-ping players without changing damage values. Enabled by default in AGC aggressive-compatible mode with a conservative 6-tick cap; set false for strict vanilla parity.")
-            public boolean hitRewindEnabled = true;
+            @Comment("Enables server-authoritative hit rewind for PvP: rewinds the target player's position by the attacker's RTT/2 ticks when validating melee hits. Reduces the PvP disadvantage for high-ping players without changing damage values. Default false: hit validation must stay byte-identical to vanilla Paper unless the operator opts in.")
+            public boolean hitRewindEnabled = false;
             @Comment("Maximum ticks to rewind target position for hit rewind (hitRewindEnabled). 1 tick = 50ms. Default 6 = 300ms max compensation. Higher values help more extreme pings but allow more server-side positional divergence.")
             public int hitRewindMaxTicks = 6;
             @Comment("Scales entity tracking range for high-ping players to reduce their packet load without affecting chunk loading. RTT>150ms=90%, RTT>300ms=80%, RTT>500ms=60%. Chunk view distance is unaffected.")
             public boolean adaptiveViewDistanceFastPath = true;
             // AGC end - hit rewind and adaptive view distance config
-            @Comment("Aggressive-compatible default. MULTITHREADING: ticks independent worlds in parallel across a pool of tick-threads (plus the main thread) with a barrier at the end of the world phase, instead of one world after another on a single thread. Each world stays internally single-threaded, so its chunk system and the plugin events fired during its tick run on exactly one thread - chunk sync stays correct and single-world plugins behave as on vanilla Paper. Cross-world entity transfers (portals) during the parallel phase are deferred to the main thread post-barrier so they never race a world being ticked. Best for servers that spread players across many active worlds (minigame/arena/survival instances): per-world tick cost then scales with CPU cores instead of summing on one core. CAVEAT: a plugin that synchronously reads/writes a DIFFERENT world from inside an event handler is not safe under this mode. Enabled by default in AGC aggressive-compatible mode, but the compatibility bridge keeps Paper main-thread semantics when plugins are unknown or risky.")
+            @Comment("Enables multi-core parallel world ticking with wave dispatch. The server tick loop executes independent worlds concurrently on dedicated worker threads, with cross-world operations safely deferred to post-barrier main thread execution. Default true.")
             public boolean parallelWorldTick = true;
-            @Comment("Worker tick-threads for parallelWorldTick. 0 = auto (available processors - 1). The main thread also ticks one world, so total parallelism is this + 1. Capped at the number of worlds each tick.")
+            @Comment("Worker tick-threads for parallelWorldTick. 0 = auto (available processors - 1). The main thread also ticks one world, so total parallelism is this + 1. Capped at the number of worlds each tick. Read once at engine bootstrap - the pool is not resizable, so a change needs a restart.")
             public int parallelWorldTickThreads = 0;
-            @Comment("Only engage parallelWorldTick when at least this many worlds exist. Below this the sequential path is used (parallel dispatch overhead is not worth it for a couple of worlds). Default 4 in aggressive-compatible mode.")
-            public int parallelWorldTickMinWorlds = 4;
-            @Comment("Unsafe override for parallelWorldTick compatibility scan. Keep false for production. When true AGC may tick worlds in parallel even when plugins are unknown or flagged as cross-world/event sensitive.")
-            public boolean parallelWorldTickForceUnsafe = true;
+            @Comment("Only engage parallelWorldTick when at least this many worlds are tickable in the same tick. Below this the sequential path is used. Applied live on every config sync; 2 is the floor to parallelize whenever 2 or more worlds exist.")
+            public int parallelWorldTickMinWorlds = 2;
+            @Comment("Unsafe override for parallelWorldTick conflict detection. Keep false for production. When true the tick loop's world conflict predicate is dropped, so worlds sharing a level name (the overworld/nether/end family, which exchange entities through portals) may tick concurrently - portal-linked entity transfer is not deferred for that case. It exists as an operator debugging knob, logs a warning while it is in effect, and only matters while the feature itself is on.")
+            public boolean parallelWorldTickForceUnsafe = false;
             @Comment("Keeps Bukkit/Paper plugin-facing callbacks on the primary thread by translating worker-discovered plugin-sensitive work to a post-barrier main-thread queue. Enabled by default; experimental features should not bypass it.")
             public boolean pluginThreadTranslationLayer = true;
             @Comment("Maximum translated plugin-sensitive tasks drained on the primary thread per tick. Prevents worker-discovered compatibility work from monopolising the main thread.")
@@ -517,6 +523,34 @@ public class GlobalConfiguration extends ConfigurationPart {
             public int noInvasionMaxTranslatorPending = 8192;
             @Comment("Maximum token carry multiplier for the AGC per-player chunk FIFO fair queue. Higher values let returning players catch up without changing per-player chunk order.")
             public int chunkFairQueueMaxCarryMultiplier = 4;
+            @Comment("Enables the AGC max-optimization batch: Jigsaw BoxOctree culling, template-pool duplicate skip, FastNoise sampler, Lithium collision/POI predicates, NBT early-bounds prune, C2ME chunk pipeline and UniverseSpigot-style adaptive networking. All are vanilla-parity preserving; disable individually below for strict debugging.")
+            public boolean maxOptimizationBatch = true;
+            @Comment("Enables Jigsaw BoxOctree intersection culling for structure layout (Structure Layout Optimizer port). Bit-identical placement decisions.")
+            public boolean jigsawBoxOctree = true;
+            @Comment("Enables template-pool duplicate-weight candidate skip. Never changes which piece is placed.")
+            public boolean templatePoolDedup = true;
+            @Comment("Enables FastNoise zero-allocation Perlin sampler for worldgen density. Bit-identical noise values.")
+            public boolean fastNoiseEngine = true;
+            @Comment("Enables Lithium-grade entity collision fast predicates (fluid-push/suffocation/cramming/projectile).")
+            public boolean lithiumCollisionEngine = true;
+            @Comment("Enables Lithium-grade POI section index with portal fast path.")
+            public boolean poiSearchEngine = true;
+            @Comment("Enables giant structure-NBT early-bounds prune. Bypassed automatically for processors with finalizeProcessing.")
+            public boolean structureNbtPruner = true;
+            @Comment("Enables ScalableLux-style parallel light-task splitting. Worker threads run propagation, joined by barrier before reads.")
+            public boolean parallelLightEngine = true;
+            @Comment("Enables fast player-exclusion boundary filtering for mob spawn candidates (NaturalSpawner).")
+            public boolean spawnerDensityOptimizer = true;
+            @Comment("Enables C2ME-style async chunk serialization, generation backpressure and IO autosizing.")
+            public boolean c2meChunkPipeline = true;
+            @Comment("Maximum in-flight chunk generation jobs before backpressure defers new demand (C2ME-style). Prevents elytra-burst OOM.")
+            public int c2meMaxInFlightGeneration = 256;
+            @Comment("Enables UniverseSpigot/SteelMC-style adaptive networking (compression follow-MSPT, tracker throttle, broadcast batching). Packet contents and order never change.")
+            public boolean universeNetEngine = true;
+            @Comment("View-distance margin for the no-tick policy (C2ME-style). 0 = vanilla behavior (tick radius equals view distance).")
+            public int noTickViewDistanceMargin = 0;
+            @Comment("Enables the Folia-inspired region tick bridge: read-only helpers off-thread, all mutations committed FIFO on the primary thread. Plugin compatible by construction.")
+            public boolean regionTickBridge = true;
             @Comment("Enables AGC alpha10 per-player intent scheduler. It gives every player deterministic FIFO tickets for cosmetic network, chunk, entity-snapshot and arena work so aggressive optimisation cannot reorder their visible stream.")
             public boolean playerIntentScheduler = true;
             @Comment("Per-player cosmetic-network intent budget per tick. Interactive packets are never charged to this budget.")
@@ -933,7 +967,12 @@ public class GlobalConfiguration extends ConfigurationPart {
                 executor.setMaximumPoolSize(_chatExecutorMaxSize);
             }
         }
-        public int maxJoinsPerTick = 5;
+        // AGC - raised from 5: the join-storm gate is a per-tick pacing valve, not a load-shedding
+        // mechanism. placeNewPlayer is the only main-thread cost it bounds; with the parallel world
+        // tick + chunk send cache absorbing the fanout work, 5/tick artificially serialized logins
+        // behind a 400ms floor at 50 concurrent joins. 16 keeps the gate meaningful under attack
+        // conditions while letting a normal join burst complete in a single tick wave.
+        public int maxJoinsPerTick = 16;
         public boolean sendFullPosForItemEntities = false;
         public boolean loadPermissionsYmlBeforePlugins = true;
         @Constraints.Min(4)

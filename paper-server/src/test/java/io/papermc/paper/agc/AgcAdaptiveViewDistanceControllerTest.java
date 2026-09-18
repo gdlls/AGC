@@ -18,26 +18,25 @@ class AgcAdaptiveViewDistanceControllerTest {
     }
 
     @Test
-    void highDensityScalesDownViewDistance() {
+    void healthyPerformanceMaintainsFullConfiguredViewDistance() {
         final var controller = AgcAdaptiveViewDistanceController.get();
 
-        // 500 players, healthy MSPT 20ms -> clamped to max 6
-        final int dist500 = controller.calculateOptimalDistance(20.0, 500, 4, 12);
-        assertTrue(dist500 <= 6);
-        assertTrue(dist500 >= 4);
+        // 500 players, healthy MSPT 15ms -> stays at 100% full view distance (12)
+        final int distHealthy500 = controller.calculateOptimalDistance(15.0, 500, 4, 12);
+        assertEquals(12, distHealthy500);
 
-        // 50 players, healthy MSPT 15ms -> can reach up to 12
-        final int dist50 = controller.calculateOptimalDistance(15.0, 50, 4, 12);
-        assertTrue(dist50 >= 10);
+        // 50 players, healthy MSPT 10ms -> full 12
+        final int distHealthy50 = controller.calculateOptimalDistance(10.0, 50, 4, 12);
+        assertEquals(12, distHealthy50);
     }
 
     @Test
     void highMsptScalesDownViewDistanceToProtectTps() {
         final var controller = AgcAdaptiveViewDistanceController.get();
 
-        // Severe lag (MSPT = 48ms) -> decreases view distance
+        // Severe lag (MSPT = 48ms) -> decreases view distance to protect server
         final int distLag = controller.calculateOptimalDistance(48.0, 100, 4, 12);
-        assertTrue(distLag <= 8);
+        assertTrue(distLag <= 10);
     }
 
     @Test

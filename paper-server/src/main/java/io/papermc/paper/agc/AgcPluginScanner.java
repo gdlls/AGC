@@ -57,6 +57,29 @@ public final class AgcPluginScanner {
     }
 
     /**
+     * Scans and classifies a loaded plugin using automated heuristics.
+     */
+    public void scanPlugin(final org.bukkit.plugin.Plugin plugin) {
+        if (plugin == null) {
+            return;
+        }
+        final String name = plugin.getName();
+        final String lower = name.toLowerCase(Locale.ROOT);
+        ConcurrencyProfile profile = ConcurrencyProfile.FULLY_PARALLEL_SAFE;
+        String reason = "Modern thread-safe plugin";
+
+        if (lower.contains("multiverse") || lower.contains("multiworld") || lower.contains("myworlds")
+                || lower.contains("hyperverse") || lower.contains("perworld") || lower.contains("crossworld")) {
+            profile = ConcurrencyProfile.CROSS_WORLD_MUTATING;
+            reason = "Detected multi-world / dimensional management plugin";
+        } else if (lower.contains("citizens") || lower.contains("mythicmobs") || lower.contains("shopkeepers")) {
+            profile = ConcurrencyProfile.CROSS_WORLD_MUTATING;
+            reason = "Entity AI and cross-world entity tracking plugin";
+        }
+        registerPluginAnalysis(name, profile, reason);
+    }
+
+    /**
      * Resolves the profile for a given plugin name (defaults to FULLY_PARALLEL_SAFE if unlisted).
      */
     public ConcurrencyProfile getProfile(final String pluginName) {
@@ -86,6 +109,27 @@ public final class AgcPluginScanner {
     public void clear() {
         this.scannedPlugins.clear();
     }
+
+    public ScannerMetrics metrics() {
+        int parallel = 0;
+        int sync = 0;
+        int cross = 0;
+        for (final PluginReport report : this.scannedPlugins.values()) {
+            switch (report.profile()) {
+                case FULLY_PARALLEL_SAFE -> parallel++;
+                case LEGACY_SYNC_SENSITIVE -> sync++;
+                case CROSS_WORLD_MUTATING -> cross++;
+            }
+        }
+        return new ScannerMetrics(this.scannedPlugins.size(), parallel, sync, cross);
+    }
+
+    public record ScannerMetrics(
+        int pluginsScanned,
+        int parallelSafePlugins,
+        int syncSensitivePlugins,
+        int dangerousPlugins
+    ) {}
 
     public record PluginReport(
         String pluginName,

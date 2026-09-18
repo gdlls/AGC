@@ -14,33 +14,16 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * AGC — Netty 채널 파이프라인 부스터.
- *
- * <p>Paper의 {@link ChannelInitializeListener} 훅을 통해, Connection이 자제적으로
- * Netty 파이프라인을 구성한 직후에 AGC가 채널의 워터마크, idle timeout, auto-read 정책 등을
- * 하드코딩 튜닝합니다.</p>
- *
- * <p>이 클래스는 <b>paper-specific</b> 후처리 훅이라, patches/sources의 Connection 패치를
- * 직접 수정하지 않고도 채널 레벨의 핵심 튜닝을 적용할 수 있습니다.</p>
- *
- * <h2>활성화 / 비활성화</h2>
- * <p>{@link #setEnabled(boolean)}로 런타임에 토글 가능. 비활성화되면
- * {@code afterInitChannel}이 no-op으로 바뀌지만 이미 등록된 채널은 영향받지 않는다.
- * 새 연결부터 적용.</p>
- *
- * <h2>스레드 안전성</h2>
- * <p>등록 / 해제 모두 Netty I/O 스레드 또는 부트스트랩 스레드에서 호출된다.
- * 라이브 채널 트래킹은 {@link ConcurrentHashMap} 키셋 사용.</p>
+ * AGC Netty channel pipeline post-processor.
+ * Applies tuned watermarks, read timeouts, and auto-read policies via {@link ChannelInitializeListener}.
  */
 public final class AgcNetworkEnhancer implements ChannelInitializeListener {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AgcNetworkEnhancer.class);
     private static final AgcNetworkEnhancer INSTANCE = new AgcNetworkEnhancer();
 
-    /** 채널 ID → 등록 정보 추적. closeFuture에서 자동 제거. */
     private final ConcurrentHashMap<Channel, ChannelInfo> liveChannels = new ConcurrentHashMap<>();
 
-    /** 메트릭 — 전체 적용 / 스킵 카운트. */
     private final AtomicLong appliedCount = new AtomicLong();
     private final AtomicLong skippedCount = new AtomicLong();
     private final AtomicLong errorCount = new AtomicLong();
@@ -53,9 +36,6 @@ public final class AgcNetworkEnhancer implements ChannelInitializeListener {
 
     private AgcNetworkEnhancer() {}
 
-    /**
-     * 런타임 토글. true면 새 채널에 적용, false면 no-op.
-     */
     public void setEnabled(final boolean enabled) {
         this.enabled = enabled;
         LOGGER.info("AGC Netty enhancer {}", enabled ? "enabled" : "disabled");
@@ -65,9 +45,6 @@ public final class AgcNetworkEnhancer implements ChannelInitializeListener {
         return this.enabled;
     }
 
-    /**
-     * Netty 채널이 만들어진 직후 호출. 워터마크/timeout/auto-read 하드코딩.
-     */
     @Override
     public void afterInitChannel(@NonNull final Channel channel) {
         if (!this.enabled) {
@@ -84,24 +61,46 @@ public final class AgcNetworkEnhancer implements ChannelInitializeListener {
             channel.closeFuture().addListener(future -> this.liveChannels.remove(channel));
             this.appliedCount.incrementAndGet();
         } catch (final Throwable t) {
-            // 절대 메인 흐름에 영향 주면 안 됨.
             this.errorCount.incrementAndGet();
             LOGGER.warn("Failed to apply AGC Netty tuning on channel {}", channel, t);
         }
     }
 
     private static void applyWaterMark(final Channel channel) {
-        // AGC 튜닝: 더 큰 high-water-mark → auto-read가 자주 토글되지 않음 → syscall 감소.
-        // Netty 4.2: public 생성자는 2-arg (low, high)만 노출. 3-arg deprecated/internal.
-        final WriteBufferWaterMark mark = new WriteBufferWaterMark(
-            AgcPerformanceTuning.CHANNEL_AUTO_READ_LOW_WATERMARK,
-            AgcPerformanceTuning.CHANNEL_AUTO_READ_HIGH_WATERMARK
-        );
+        // VANILLA mode promises untouched Netty channels: never touch watermarks there.
+        if (AgcCapabilityMatrix.getMode() == AgcCapabilityMatrix.Mode.VANILLA) {
+            return;
+        }
+        int low = AgcPerformanceTuning.CHANNEL_AUTO_READ_LOW_WATERMARK;
+        int high = AgcPerformanceTuning.CHANNEL_AUTO_READ_HIGH_WATERMARK;
+        try {
+            if (AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.NETWORK_CHANNEL_WATERMARK)) {
+                int players = 0;
+                try {
+                    players = org.bukkit.Bukkit.getOnlinePlayers().size();
+                } catch (final Throwable ignored) {
+                    players = 0;
+                }
+                final io.papermc.paper.agc.network.AgcUniverseNetEngine.ChannelTuning tuning =
+                    io.papermc.paper.agc.network.AgcUniverseNetEngine.get()
+                        .channelTuning(Math.max(1, Runtime.getRuntime().availableProcessors()), players);
+                low = tuning.lowWatermarkBytes();
+                high = tuning.highWatermarkBytes();
+            }
+        } catch (final Throwable ignored) {
+            // fall back to static tuning below
+        }
+        final WriteBufferWaterMark mark = new WriteBufferWaterMark(low, high);
         channel.config().setWriteBufferWaterMark(mark);
     }
 
     private static void applyReadTimeout(final Channel channel) {
-        // read timeout — 네트워크 헬스 체크. AGC 상수에서 가져옴.
+        // Explicit opt-in only (NETWORK_READ_TIMEOUT is AGGRESSIVE_BUT_SAFE): vanilla Paper
+        // already installs its own configured read timeout, so baseline/VANILLA channels
+        // keep the stock pipeline untouched.
+        if (!AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.NETWORK_READ_TIMEOUT)) {
+            return;
+        }
         final ChannelPipeline pipeline = channel.pipeline();
         if (!pipeline.names().contains(READ_TIMEOUT_HANDLER_NAME)) {
             pipeline.addFirst(READ_TIMEOUT_HANDLER_NAME,
@@ -110,23 +109,23 @@ public final class AgcNetworkEnhancer implements ChannelInitializeListener {
     }
 
     private static void applyAutoReadPolicy(final Channel channel) {
-        // auto-read는 기본 true. 채널 핸들러가 직접 false로 끌 수 있도록 그대로 두지만,
-        // 초기 채널은 true로 강제하여 첫 패킷(login start)을 즉시 받게 함.
-        channel.config().setAutoRead(true);
+        // UniverseNet staged admission check: if under a connection storm or tick pressure,
+        // defer auto-read to staged queue so Netty doesn't flood CPU with VarInt decode and decompression.
+        // When the feature is off, Netty's default auto-read (true) is left untouched.
+        if (AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.UNIVERSE_NET_ENGINE)) {
+            final boolean immediate = io.papermc.paper.agc.network.AgcUniverseNetEngine.get().onChannelInit(channel);
+            if (immediate) {
+                channel.config().setAutoRead(true);
+            }
+        }
     }
 
     private static final String READ_TIMEOUT_HANDLER_NAME = "agc-read-timeout";
 
-    /**
-     * 현재 등록된 live 채널 수.
-     */
     public int liveChannelCount() {
         return this.liveChannels.size();
     }
 
-    /**
-     * 메트릭 accessor. spark / Timings 폴링이 사용.
-     */
     public Metrics metrics() {
         return new Metrics(
             this.appliedCount.get(),

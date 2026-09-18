@@ -111,7 +111,13 @@ public abstract class CraftEntity implements org.bukkit.entity.Entity {
     public CraftEntity(final CraftServer server, final Entity entity) {
         this.server = server;
         this.entity = entity;
-        this.entityType = CraftEntityType.minecraftToBukkit(entity.getType());
+        EntityType type;
+        try {
+            type = CraftEntityType.minecraftToBukkit(entity.getType());
+        } catch (Throwable ignored) {
+            type = EntityType.UNKNOWN;
+        }
+        this.entityType = type != null ? type : EntityType.UNKNOWN;
     }
 
     public static <T extends Entity> CraftEntity getEntity(CraftServer server, T entity) {
@@ -131,13 +137,24 @@ public abstract class CraftEntity implements org.bukkit.entity.Entity {
             }
         }
 
-        CraftEntityTypes.EntityTypeData<?, T> entityTypeData = CraftEntityTypes.getEntityTypeData(CraftEntityType.minecraftToBukkit(entity.getType()));
+        EntityType bukkitType = null;
+        try {
+            bukkitType = CraftEntityType.minecraftToBukkit(entity.getType());
+        } catch (Throwable ignored) {}
+
+        CraftEntityTypes.EntityTypeData<?, T> entityTypeData = bukkitType != null ? CraftEntityTypes.getEntityTypeData(bukkitType) : null;
 
         if (entityTypeData != null) {
             return (CraftEntity) entityTypeData.convertFunction().apply(server, entity);
         }
 
-        throw new AssertionError("Unknown entity " + (entity == null ? null : entity.getClass()));
+        return new CraftDefaultEntity(server, entity);
+    }
+
+    private static final class CraftDefaultEntity extends CraftEntity {
+        private CraftDefaultEntity(CraftServer server, Entity entity) {
+            super(server, entity);
+        }
     }
 
     public Entity getHandle() {
@@ -720,6 +737,9 @@ public abstract class CraftEntity implements org.bukkit.entity.Entity {
             }
 
             this.getHandle().visibleByDefault = visible;
+            // AGC start - shared latency packet fast path
+            CraftPlayer.meteus$notifyVisibilityMutated();
+            // AGC end - shared latency packet fast path
         }
     }
 

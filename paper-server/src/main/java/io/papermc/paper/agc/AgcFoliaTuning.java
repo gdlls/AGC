@@ -18,25 +18,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * AGC — Folia regionized scheduler 위에 올라가는 두 번째 tick 가속기.
- *
- * <p>Paper/Folia의 regionized tick이 chunk region 단위로 멀티스레드 tick을 돌리는 동안,
- * AGC는 그 위에 <b>월드 단위 글로벌 비동기 워크로드 풀</b>을 추가합니다.</p>
- *
- * <p>용도:</p>
- * <ul>
- *   <li>월드별 비동기 chunk unload</li>
- *   <li>월드별 비동기 player packet flush</li>
- *   <li>월드 메타데이터 저장 (world.dat, level.dat 백업)</li>
- *   <li>Cross-region 비동기 작업 (월드 간 텔레포트, 인벤토리 동기화)</li>
- * </ul>
- *
- * <p>이 스레드 풀은 <b>region tick thread</b>와 분리되어 있어, region tick이 막혀도
- * 비동기 워크로드는 계속 진행됩니다.</p>
- *
- * <p><b>호환성:</b> 이 풀은 메인 tick / region tick과 별개의 executor를 사용하므로
- * Bukkit {@code SchedulerTask} 순서와 분리됩니다. 플러그인이 동기적으로 결과를
- * 기다리는 경우 {@code AsyncScheduler#runNow} 또는 메인 스레드 큐로 라우팅해야 합니다.</p>
+ * AGC — Global asynchronous workload pool and world tick budget manager.
  */
 public final class AgcFoliaTuning {
 
@@ -49,9 +31,7 @@ public final class AgcFoliaTuning {
     private AgcFoliaTuning() {}
 
     /**
-     * 서버 부팅 시 1회 호출. 비동기 워크로드 풀 초기화.
-     *
-     * <p>멱등성: 두 번 이상 호출해도 두 번째부터는 no-op.</p>
+     * Initializes the asynchronous workload pool. Idempotent.
      */
     public static void bootstrap() {
         if (!STARTED.compareAndSet(false, true)) {
@@ -73,10 +53,7 @@ public final class AgcFoliaTuning {
     }
 
     /**
-     * 비동기 풀에 작업을 제출. 예외는 풀의 uncaughtExceptionHandler로 라우팅되며
-     * 호출자에게는 전파되지 않습니다.
-     *
-     * @throws RejectedExecutionException 풀 shutdown 이후 호출 시
+     * Submits a task to the async pool.
      */
     public static void submitAsync(final Runnable task) {
         if (task == null) {
@@ -84,22 +61,18 @@ public final class AgcFoliaTuning {
         }
         final ScheduledExecutorService pool = ASYNC_POOL;
         if (pool == null) {
-            // 부트스트랩 전이면 동기 fallback. 테스트 환경에서 안전.
             task.run();
             return;
         }
         try {
             pool.execute(task);
         } catch (final RejectedExecutionException e) {
-            // shutdown 진행 중 — 호출자가 결정하도록 그대로 전파.
             throw e;
         }
     }
 
     /**
-     * 비동기 풀에 지연 작업을 예약.
-     *
-     * @return 취소 가능한 future. 부트스트랩 전이면 {@code null}.
+     * Schedules a delayed task in the async pool.
      */
     public static ScheduledFuture<?> scheduleAsync(final Runnable task, final long delayMs) {
         if (task == null) {
@@ -110,7 +83,6 @@ public final class AgcFoliaTuning {
         }
         final ScheduledExecutorService pool = ASYNC_POOL;
         if (pool == null) {
-            // 부트스트랩 전이면 동기 fallback.
             task.run();
             return null;
         }
@@ -118,14 +90,12 @@ public final class AgcFoliaTuning {
     }
 
     /**
-     * 서버 shutdown 시 호출. 진행 중인 작업이 끝날 때까지 짧게 대기 후 강제 종료.
+     * Shuts down the async workload pool.
      */
     public static void shutdown() {
         AgcParallelWorldTickEngine.get().shutdown();
         final ScheduledExecutorService pool = ASYNC_POOL;
         ASYNC_POOL = null;
-        // STARTED를 false로 되돌려서 재시작 후 bootstrap()이 풀을 다시 만들 수 있게 한다.
-        // (테스트 격리 / 핫 reload 시나리오 대응)
         STARTED.set(false);
         if (pool == null) {
             return;
@@ -142,9 +112,7 @@ public final class AgcFoliaTuning {
         }
     }
 
-    /**
-     * 풀 사이즈 / 부트스트랩 상태 / 살아있는 워커 수. 디버그 / spark / Timings 노출용.
-     */
+    /** Status snapshot of async workload pool. */
     public static PoolStatus status() {
         final ScheduledExecutorService pool = ASYNC_POOL;
         if (pool == null) {
@@ -164,9 +132,7 @@ public final class AgcFoliaTuning {
     public record PoolStatus(boolean started, int coreSize, int activeThreads, int queueSize) {
     }
 
-    // -----------------------------------------------------------------------
-    // Per-world tick budget (Folia regionized threads 위에서 동작)
-    // -----------------------------------------------------------------------
+    // Per-world tick budget
 
     private static final ConcurrentHashMap<ServerLevel, WorldTickBudget> BUDGETS = new ConcurrentHashMap<>();
 
@@ -175,7 +141,7 @@ public final class AgcFoliaTuning {
     }
 
     /**
-     * 모든 월드 budget을 한 번에 reset. 새 tick 시작 시 메인에서 호출.
+     * Resets all world tick budget windows.
      */
     public static void resetAllBudgets() {
         for (final WorldTickBudget budget : BUDGETS.values()) {
@@ -184,17 +150,14 @@ public final class AgcFoliaTuning {
     }
 
     /**
-     * shutdown 시 모든 budget 추적 해제.
+     * Clears all budget tracking on shutdown.
      */
     public static void clearBudgets() {
         BUDGETS.clear();
     }
 
     /**
-     * 월드 tick 시간 / 엔티티 수 / 청크 수 누적.
-     *
-     * <p>원래 tick 단위 메트릭을 lock-free로 누적. sliding window는 외부 구현에 맡기고
-     * 이 클래스는 단순 누적만 담당한다.</p>
+     * Tracks world tick durations and entity/chunk counts.
      */
     public static final class WorldTickBudget {
         private final AtomicLong totalTickNanos = new AtomicLong();
@@ -219,12 +182,7 @@ public final class AgcFoliaTuning {
             this.tickCount.incrementAndGet();
         }
 
-        /**
-         * 평균 tick 시간 (밀리초).
-         *
-         * <p>이전 구현은 {@code totalNanos / entities / 1000}이었는데 의미가
-         * 부정확했다. tick 1회당 평균 시간을 직접 반환.</p>
-         */
+        /** Average tick duration in milliseconds. */
         public double averageTickMillis() {
             final long ticks = this.tickCount.get();
             if (ticks == 0L) {
@@ -233,9 +191,7 @@ public final class AgcFoliaTuning {
             return (this.totalTickNanos.get() / 1_000_000.0) / (double) ticks;
         }
 
-        /**
-         * 직전 tick 시간 (밀리초).
-         */
+        /** Duration of last tick in milliseconds. */
         public double lastTickMillis() {
             return this.lastTickDurationNanos.get() / 1_000_000.0;
         }
@@ -252,19 +208,12 @@ public final class AgcFoliaTuning {
             return this.tickCount.get();
         }
 
-        /**
-         * 매 tick 끝에서 호출 — sliding window용 카운터를 0으로 되돌림.
-         * 누적 통계는 보존된다.
-         */
         public void resetTickWindow() {
-            // 누적 통계는 건드리지 않는다. lastTick* 만 갱신.
             this.lastTickStartNanos.set(System.nanoTime());
         }
     }
 
-    /**
-     * 서버가 살아있는 동안 디버그 보고용. shutdown 후에는 빈 리스트.
-     */
+    /** Returns human-readable budget report for active worlds. */
     public static List<String> budgetReport() {
         if (BUDGETS.isEmpty()) {
             return List.of();

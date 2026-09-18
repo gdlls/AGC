@@ -22,7 +22,6 @@ public final class AgcHotObjectPool<T> {
     private final int maxPerThread;
     private final ThreadLocal<ArrayDeque<T>> threadPool;
 
-    // Telemetry & metrics
     private final AtomicLong acquires = new AtomicLong();
     private final AtomicLong releases = new AtomicLong();
     private final AtomicLong creations = new AtomicLong();

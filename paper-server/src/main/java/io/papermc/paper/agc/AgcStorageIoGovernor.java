@@ -5,7 +5,7 @@ import java.util.PriorityQueue;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * AGC — Storage I/O Governor & Asynchronous Save Quota Arbiter (Roadmap Phase 2).
+ * AGC — Storage I/O Governor & Asynchronous Save Quota Arbiter.
  *
  * <p>When 500+ worlds run on a single host, unconstrained autosave flushes can saturate
  * NVMe/disk I/O queues and cause severe MSPT spikes due to file locking and OS page cache thrashing.</p>
@@ -34,7 +34,6 @@ public final class AgcStorageIoGovernor {
         public int weight() { return this.weight; }
     }
 
-    // Token bucket parameters
     private volatile double tokenCapacity = 5000.0;     // Max burst tokens (chunks)
     private volatile double refillRatePerSec = 1000.0;  // Normal sustained rate (chunks/sec)
     private volatile double tokens = 5000.0;
@@ -45,7 +44,6 @@ public final class AgcStorageIoGovernor {
             .thenComparingLong(t -> t.enqueueTimestamp)
     );
 
-    // Telemetry & metrics
     private final AtomicLong savesAdmitted = new AtomicLong();
     private final AtomicLong savesThrottled = new AtomicLong();
     private final AtomicLong bytesSavedEstimated = new AtomicLong();

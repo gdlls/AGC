@@ -37,52 +37,70 @@ class AgcCapabilityMatrixTest {
     @Test
     void baselineModeEnablesVanillaSafeAndBaseline() {
         AgcCapabilityMatrix.setMode(AgcCapabilityMatrix.Mode.AGC_BASELINE);
-        // NET_* watermarks는 VANILLA_SAFE → 활성
+        // NET_* watermarks and CHUNK_SEND_BUDGET are BASELINE and wired -> enabled in baseline
         assertTrue(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.NETWORK_CHANNEL_WATERMARK));
-        assertTrue(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.NETWORK_READ_TIMEOUT));
-        // CHUNK_SEND_BUDGET는 BASELINE → 활성
         assertTrue(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.CHUNK_SEND_BUDGET));
-        // CHUNK_PACKET_CACHE는 AGGRESSIVE_BUT_SAFE → 비활성
-        assertFalse(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.CHUNK_PACKET_CACHE));
-        // NET_ZSTD는 AGGRESSIVE_BUT_SAFE → 비활성
+        // NETWORK_READ_TIMEOUT is AGGRESSIVE_BUT_SAFE -> disabled in baseline
+        assertFalse(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.NETWORK_READ_TIMEOUT));
+        // CHUNK_PACKET_CACHE is BASELINE -> enabled by default
+        assertTrue(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.CHUNK_PACKET_CACHE));
+        // NET_ZSTD is AGGRESSIVE_BUT_SAFE -> disabled in baseline
         assertFalse(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.NETWORK_ZSTD_COMPRESSION));
-        // PACKET_PRIORITY는 AGGRESSIVE_BUT_SAFE → 비활성
+        // PACKET_PRIORITY is AGGRESSIVE_BUT_SAFE -> disabled in baseline
         assertFalse(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.NETWORK_PACKET_PRIORITY));
+        // HOT_OBJECT_POOLS is AGGRESSIVE_BUT_SAFE -> disabled in baseline
+        assertFalse(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.HOT_OBJECT_POOLS));
+        // FAST_NETWORK_SERIALIZER is BASELINE -> enabled in baseline
+        assertTrue(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.FAST_NETWORK_SERIALIZER));
+        // VECTOR_MATH_ACCELERATOR is BASELINE -> enabled in baseline
+        assertTrue(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.VECTOR_MATH_ACCELERATOR));
+        // LOCKFREE_EVENT_DISPATCHER is BASELINE -> enabled in baseline
+        assertTrue(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.LOCKFREE_EVENT_DISPATCHER));
     }
 
     @Test
     void aggressiveModeEnablesAggressiveFeatures() {
         AgcCapabilityMatrix.setMode(AgcCapabilityMatrix.Mode.AGC_AGGRESSIVE);
         for (final AgcCapabilityMatrix.Feature f : AgcCapabilityMatrix.Feature.values()) {
-            // 전부 활성 (현재 정의된 feature는 모두 AGGRESSIVE_BUT_SAFE까지)
-            assertTrue(AgcCapabilityMatrix.isEnabled(f),
-                "AGGRESSIVE mode should enable " + f);
+            // Dormant or explicitly opt-in features stay disabled in AGGRESSIVE
+            if (AgcCapabilityMatrix.isDormant(f)
+                || f == AgcCapabilityMatrix.Feature.SINGLEPLAYER_FEEL_COMBAT
+                || f == AgcCapabilityMatrix.Feature.NETWORK_READ_TIMEOUT
+                || f == AgcCapabilityMatrix.Feature.MULTIWORLD_UNLOAD) {
+                assertFalse(AgcCapabilityMatrix.isEnabled(f),
+                    "dormant or opt-in feature must stay disabled in AGGRESSIVE: " + f);
+            } else {
+                assertTrue(AgcCapabilityMatrix.isEnabled(f),
+                    "AGGRESSIVE mode should enable " + f);
+            }
         }
     }
 
     @Test
     void runtimeOverrideBeatsMode() {
         AgcCapabilityMatrix.setMode(AgcCapabilityMatrix.Mode.AGC_AGGRESSIVE);
-        // aggressive에선 CHUNK_PACKET_CACHE 활성
-        assertTrue(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.CHUNK_PACKET_CACHE));
+        // DEFAULT_VIEW_DISTANCE is dormant (no production consumer), so mode alone must NOT enable it.
+        assertFalse(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.DEFAULT_VIEW_DISTANCE));
 
-        // override로 끄기
-        AgcCapabilityMatrix.setRuntimeOverride(AgcCapabilityMatrix.Feature.CHUNK_PACKET_CACHE, false);
-        assertFalse(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.CHUNK_PACKET_CACHE));
+        // Disable via override
+        AgcCapabilityMatrix.setRuntimeOverride(AgcCapabilityMatrix.Feature.DEFAULT_VIEW_DISTANCE, false);
+        assertFalse(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.DEFAULT_VIEW_DISTANCE));
 
-        // override로 다시 켜기
-        AgcCapabilityMatrix.setRuntimeOverride(AgcCapabilityMatrix.Feature.CHUNK_PACKET_CACHE, true);
-        assertTrue(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.CHUNK_PACKET_CACHE));
+        // Enable via override (override wins over mode AND dormancy)
+        AgcCapabilityMatrix.setRuntimeOverride(AgcCapabilityMatrix.Feature.DEFAULT_VIEW_DISTANCE, true);
+        assertTrue(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.DEFAULT_VIEW_DISTANCE));
     }
 
     @Test
     void clearOverrideRestoresModeDefault() {
         AgcCapabilityMatrix.setMode(AgcCapabilityMatrix.Mode.AGC_BASELINE);
         AgcCapabilityMatrix.setRuntimeOverride(AgcCapabilityMatrix.Feature.NETWORK_ZSTD_COMPRESSION, true);
-        assertTrue(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.NETWORK_ZSTD_COMPRESSION));
+        assertTrue(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.NETWORK_ZSTD_COMPRESSION),
+            "operator pin wins over dormancy (verified-live A/B workflow must keep working)");
 
         AgcCapabilityMatrix.clearRuntimeOverrides();
-        assertFalse(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.NETWORK_ZSTD_COMPRESSION));
+        assertFalse(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.NETWORK_ZSTD_COMPRESSION),
+            "without the pin, a dormant feature reports disabled in every mode");
     }
 
     @Test
@@ -116,7 +134,6 @@ class AgcCapabilityMatrixTest {
         assertTrue(grouped.containsKey(AgcPerformanceTuning.Safety.VANILLA_SAFE));
         assertTrue(grouped.containsKey(AgcPerformanceTuning.Safety.BASELINE));
         assertTrue(grouped.containsKey(AgcPerformanceTuning.Safety.AGGRESSIVE_BUT_SAFE));
-        // aggressive에서도 모든 feature는 (현재 정의상) EXPERIMENTAL이 없으므로 모두 active
         for (final var list : grouped.values()) {
             assertNotNull(list);
         }
@@ -134,5 +151,109 @@ class AgcCapabilityMatrixTest {
     @Test
     void modeEnumHasThreeValues() {
         assertEquals(3, AgcCapabilityMatrix.Mode.values().length);
+    }
+
+    @Test
+    void maxOptimizationBatchGating() {
+        // Baseline-safe engines are on by default; aggressive-only ones stay gated.
+        AgcCapabilityMatrix.setMode(AgcCapabilityMatrix.Mode.AGC_BASELINE);
+        assertTrue(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.JIGSAW_BOX_OCTREE));
+        assertTrue(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.TEMPLATE_POOL_DEDUP));
+        assertTrue(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.FAST_NOISE_ENGINE));
+        assertTrue(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.LITHIUM_COLLISION_ENGINE));
+        assertTrue(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.POI_SEARCH_ENGINE));
+        assertTrue(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.STRUCTURE_NBT_PRUNER));
+        assertTrue(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.C2ME_CHUNK_PIPELINE));
+        // UNIVERSE_NET_ENGINE is aggressive-only -> disabled in baseline
+        assertFalse(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.UNIVERSE_NET_ENGINE));
+        assertTrue(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.PARALLEL_LIGHT_ENGINE));
+        assertFalse(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.REGION_TICK_BRIDGE));
+
+        AgcCapabilityMatrix.setMode(AgcCapabilityMatrix.Mode.AGC_AGGRESSIVE);
+        assertTrue(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.PARALLEL_LIGHT_ENGINE));
+        assertTrue(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.REGION_TICK_BRIDGE));
+        assertTrue(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.UNIVERSE_NET_ENGINE));
+
+        AgcCapabilityMatrix.setMode(AgcCapabilityMatrix.Mode.VANILLA);
+        assertFalse(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.JIGSAW_BOX_OCTREE));
+        assertFalse(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.FAST_NOISE_ENGINE));
+    }
+
+    /**
+     * {@link AgcCapabilityMatrix#isEnabled} is cached into an immutable snapshot because it is
+     * read from the hottest paths in the server (worldgen noise, entity tracking, chunk send).
+     * Every mutator must therefore republish that snapshot - otherwise a mode switch or an
+     * {@code /agc override} would silently stop taking effect.
+     */
+    @Test
+    void cachedSnapshotIsRepublishedOnEveryMutation() {
+        final AgcCapabilityMatrix.Feature feature = AgcCapabilityMatrix.Feature.FAST_NOISE_ENGINE;
+
+        AgcCapabilityMatrix.setMode(AgcCapabilityMatrix.Mode.VANILLA);
+        assertFalse(AgcCapabilityMatrix.isEnabled(feature), "VANILLA must clear the cached snapshot");
+
+        AgcCapabilityMatrix.setMode(AgcCapabilityMatrix.Mode.AGC_BASELINE);
+        assertTrue(AgcCapabilityMatrix.isEnabled(feature), "baseline must re-enable the feature");
+
+        AgcCapabilityMatrix.setRuntimeOverride(feature, false);
+        assertFalse(AgcCapabilityMatrix.isEnabled(feature), "override off must reach the cached snapshot");
+
+        AgcCapabilityMatrix.setRuntimeOverride(feature, true);
+        assertTrue(AgcCapabilityMatrix.isEnabled(feature), "override on must reach the cached snapshot");
+
+        AgcCapabilityMatrix.clearRuntimeOverrides();
+        assertTrue(AgcCapabilityMatrix.isEnabled(feature), "clearing overrides must restore the mode default");
+
+        // The snapshot must cover every declared feature, not just the one under test.
+        for (final AgcCapabilityMatrix.Feature f : AgcCapabilityMatrix.Feature.values()) {
+            assertEquals(AgcCapabilityMatrix.activeBySafety().values().stream().anyMatch(list -> list.contains(f)),
+                AgcCapabilityMatrix.isEnabled(f), "cached snapshot disagrees with report for " + f);
+        }
+    }
+
+    /**
+     * Hot-path readers run on worldgen worker threads while the main thread may switch the mode.
+     * Pre-caching must not introduce a data race: a read has to observe a complete snapshot, never
+     * a torn/garbage one.
+     */
+    @Test
+    void cachedReadsAreSafeUnderConcurrentModeSwitching() throws Exception {
+        final AgcCapabilityMatrix.Feature feature = AgcCapabilityMatrix.Feature.HOPPER_OPTIMIZER;
+        final java.util.concurrent.atomic.AtomicBoolean stop = new java.util.concurrent.atomic.AtomicBoolean();
+        final java.util.concurrent.atomic.AtomicReference<Throwable> failure =
+            new java.util.concurrent.atomic.AtomicReference<>();
+        final Thread[] readers = new Thread[4];
+        for (int i = 0; i < readers.length; i++) {
+            readers[i] = new Thread(() -> {
+                try {
+                    while (!stop.get()) {
+                        // HOPPER_OPTIMIZER is NMS-wired and enabled in both modes, so a correct
+                        // (non-torn) snapshot is always true. A dormant feature could not serve here:
+                        // its override-free value is false by design.
+                        if (!AgcCapabilityMatrix.isEnabled(feature)) {
+                            throw new AssertionError("torn snapshot: feature lost while it is enabled in both modes");
+                        }
+                    }
+                } catch (final Throwable t) {
+                    failure.compareAndSet(null, t);
+                }
+            }, "agc-capability-reader-" + i);
+            readers[i].setDaemon(true);
+            readers[i].start();
+        }
+
+        for (int i = 0; i < 20_000; i++) {
+            AgcCapabilityMatrix.setMode(i % 2 == 0
+                ? AgcCapabilityMatrix.Mode.AGC_AGGRESSIVE
+                : AgcCapabilityMatrix.Mode.AGC_BASELINE);
+        }
+        stop.set(true);
+        for (final Thread reader : readers) {
+            reader.join(5_000L);
+        }
+        AgcCapabilityMatrix.setMode(AgcCapabilityMatrix.Mode.AGC_BASELINE);
+        if (failure.get() != null) {
+            throw new AssertionError("concurrent read failed", failure.get());
+        }
     }
 }

@@ -18,15 +18,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Tests for {@link AgcFoliaTuning}.
- *
- * <p>서버 lifecycle (bootstrap / shutdown / status) + WorldTickBudget 측정.
- * ServerLevel을 받는 {@code budgetFor()} 메서드는 NMS 의존성 때문에 unit test에서 제외.</p>
  */
 class AgcFoliaTuningTest {
 
     @BeforeEach
     void cleanState() {
-        // bootstrap이 이미 됐다면 shutdown
         try {
             AgcFoliaTuning.shutdown();
         } catch (final Throwable ignored) {
@@ -41,16 +37,13 @@ class AgcFoliaTuningTest {
         }
     }
 
-    // -----------------------------------------------------------------------
     // Bootstrap / shutdown
-    // -----------------------------------------------------------------------
 
     @Test
     void bootstrapIsIdempotent() {
         AgcFoliaTuning.bootstrap();
-        AgcFoliaTuning.bootstrap(); // 두 번째도 OK (no-op)
         AgcFoliaTuning.bootstrap();
-        // shutdown도 idempotent
+        AgcFoliaTuning.bootstrap();
         AgcFoliaTuning.shutdown();
     }
 
@@ -105,7 +98,6 @@ class AgcFoliaTuningTest {
 
     @Test
     void submitAsyncBeforeBootstrapRunsSync() {
-        // bootstrap 없이 호출 → 동기 실행 (예외 안 던짐)
         final boolean[] ran = {false};
         AgcFoliaTuning.submitAsync(() -> ran[0] = true);
         assertTrue(ran[0]);
@@ -123,7 +115,6 @@ class AgcFoliaTuningTest {
     void shutdownAfterBootstrapIsClean() {
         AgcFoliaTuning.bootstrap();
         AgcFoliaTuning.shutdown();
-        // 두 번째 shutdown도 OK
         AgcFoliaTuning.shutdown();
     }
 
@@ -136,9 +127,7 @@ class AgcFoliaTuningTest {
         assertTrue(status.coreSize() > 0);
     }
 
-    // -----------------------------------------------------------------------
-    // WorldTickBudget (NMS ServerLevel 없이 직접 인스턴스화)
-    // -----------------------------------------------------------------------
+    // WorldTickBudget
 
     @Test
     void worldTickBudgetStartsAtZero() {
@@ -186,7 +175,6 @@ class AgcFoliaTuningTest {
         budget.recordTickEnd(10, 5);
         assertEquals(1L, budget.tickCount());
         budget.resetTickWindow();
-        // resetTickWindow는 누적 카운터를 보존
         assertEquals(1L, budget.tickCount());
         assertEquals(10L, budget.entitiesTicked());
     }
@@ -218,9 +206,7 @@ class AgcFoliaTuningTest {
         assertEquals(threads * perThread, budget.entitiesTicked());
     }
 
-    // -----------------------------------------------------------------------
     // PoolStatus record
-    // -----------------------------------------------------------------------
 
     @Test
     void poolStatusRecordHoldsValues() {

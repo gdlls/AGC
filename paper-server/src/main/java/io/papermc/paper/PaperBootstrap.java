@@ -27,14 +27,51 @@ public final class PaperBootstrap {
             }
             throw new IllegalStateException("AGC Performance Tuning validation failed");
         }
+        final io.papermc.paper.agc.AgcHardwareTopologyDetector.HardwareProfile profile =
+            io.papermc.paper.agc.AgcHardwareTopologyDetector.get().profile();
+        io.papermc.paper.agc.AgcScalePresetManager.get();
+        io.papermc.paper.agc.AgcPluginSafetyGuard.get().bindPrimaryThread(Thread.currentThread());
         io.papermc.paper.agc.AgcFoliaTuning.bootstrap();
-        Runtime.getRuntime().addShutdownHook(new Thread(io.papermc.paper.agc.AgcFoliaTuning::shutdown, "AGC-Shutdown-Hook"));
-        io.papermc.paper.agc.AgcNetworkEnhancer.get().setEnabled(true);
+        io.papermc.paper.agc.AgcSingleplayerFeelCombatEngine.getInstance();
+        io.papermc.paper.agc.selfhealing.AgcSelfHealingEngine.get();
+        io.papermc.paper.agc.AgcHotPathRuntimeBridge.get();
+        // AGC start - max-optimization engine bootstrap (pools + stateless singletons)
+        io.papermc.paper.agc.light.AgcParallelLightEngine.get().bootstrap();
+        io.papermc.paper.agc.chunk.AgcC2meChunkPipeline.get().bootstrap();
+        io.papermc.paper.agc.tick.AgcRegionTickBridge.get().bootstrap();
+        io.papermc.paper.agc.worldgen.AgcJigsawBoxOctree.shared();
+        io.papermc.paper.agc.worldgen.AgcTemplatePoolDedup.get();
+        io.papermc.paper.agc.worldgen.AgcStructureNbtPruner.get();
+        io.papermc.paper.agc.entity.AgcLithiumCollisionEngine.get();
+        io.papermc.paper.agc.entity.AgcPoiSearchEngine.get();
+        io.papermc.paper.agc.network.AgcUniverseNetEngine.get();
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            io.papermc.paper.agc.light.AgcParallelLightEngine.get().shutdown();
+            io.papermc.paper.agc.chunk.AgcC2meChunkPipeline.get().shutdown();
+            io.papermc.paper.agc.tick.AgcRegionTickBridge.get().shutdown();
+        }, "AGC-Engines-Shutdown-Hook"));
+        // AGC end - max-optimization engine bootstrap
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            io.papermc.paper.agc.AgcFoliaTuning.shutdown();
+            io.papermc.paper.agc.io.AgcRegionFileManager.get().clear();
+        }, "AGC-Shutdown-Hook"));
+        // VANILLA mode promises untouched Netty channels; the enhancer's internal
+        // feature gates already cover per-feature behavior in the other modes.
+        io.papermc.paper.agc.AgcNetworkEnhancer.get().setEnabled(
+            io.papermc.paper.agc.AgcCapabilityMatrix.getMode() != io.papermc.paper.agc.AgcCapabilityMatrix.Mode.VANILLA
+        );
         io.papermc.paper.network.ChannelInitializeListenerHolder.addListener(
             net.kyori.adventure.key.Key.key("agc", "network_enhancer"),
             io.papermc.paper.agc.AgcNetworkEnhancer.get()
         );
-        LOGGER.info("AGC Performance Layer initialized successfully (mode: {})", io.papermc.paper.agc.AgcCapabilityMatrix.getMode());
+        io.papermc.paper.agc.AgcStabilityJournal.get().record(
+            io.papermc.paper.agc.AgcStabilityJournal.EventType.SYSTEM_INFO,
+            "Bootstrap",
+            "Server Bootstrap Complete: Mode=" + io.papermc.paper.agc.AgcCapabilityMatrix.getMode()
+                + ", Cores=" + profile.logicalCores() + ", SIMD=" + profile.simd()
+        );
+        LOGGER.info("AGC Performance Layer initialized successfully (mode: {}, HW: {}/{} cores, SIMD: {})",
+            io.papermc.paper.agc.AgcCapabilityMatrix.getMode(), profile.arch(), profile.logicalCores(), profile.simd());
         // AGC end
 
         Main.main(options);

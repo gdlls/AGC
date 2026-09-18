@@ -5,15 +5,11 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * AGC — 통합 메트릭 accessor. spark / Timings 폴링에서 사용.
- *
- * <p>다른 AGC 컴포넌트들 (Folia tuning, HotPathCache, NetworkEnhancer)에서
- * 메트릭을 한 곳에 모아서 외부 도구가 한 번의 호출로 전부 가져갈 수 있도록 한다.</p>
- *
- * <p>lock-free counter만 사용. 스냅샷 시점의 일관성은 보장되지 않지만
- * Timings의 ms-주기 폴링에는 충분.</p>
+ * AGC unified metrics collector and accessor for spark / Timings polling.
  */
 public final class AgcMetrics {
+
+    private static final long START_NANOS = System.nanoTime();
 
     private static final AtomicLong CACHE_HITS = new AtomicLong();
     private static final AtomicLong CACHE_MISSES = new AtomicLong();
@@ -30,9 +26,6 @@ public final class AgcMetrics {
 
     private AgcMetrics() {}
 
-    // =====================================================================
-    // Recording API — 내부 AGC 컴포넌트들이 호출
-    // =====================================================================
 
     public static void recordCacheHit() { CACHE_HITS.incrementAndGet(); }
     public static void recordCacheMiss() { CACHE_MISSES.incrementAndGet(); }
@@ -59,16 +52,13 @@ public final class AgcMetrics {
     public static void recordChannelRegistered() { CHANNELS_REGISTERED.incrementAndGet(); }
     public static void recordChannelClosed() { CHANNELS_CLOSED.incrementAndGet(); }
 
-    // =====================================================================
-    // Accessor API — spark / Timings 폴링
-    // =====================================================================
 
     /**
-     * 현재 카운터 스냅샷. Timings의 {@code onTick} 등에서 호출.
+     * Snapshot current counter values for Timings or spark.
      */
     public static Snapshot snapshot() {
         return new Snapshot(
-            System.nanoTime(),
+            Math.max(0L, System.nanoTime() - START_NANOS),
             CACHE_HITS.get(),
             CACHE_MISSES.get(),
             CACHE_EVICTIONS.get(),
@@ -85,7 +75,7 @@ public final class AgcMetrics {
     }
 
     /**
-     * 운영자가 보는 human-readable 보고.
+     * Human-readable diagnostic report.
      */
     public static String report() {
         final Snapshot s = snapshot();
@@ -112,7 +102,7 @@ public final class AgcMetrics {
     }
 
     /**
-     * Timings 메타데이터용 {@code Map<String, Long>}. 키는 Timings 패널 이름.
+     * Map representation for Timings metadata.
      */
     public static Map<String, Long> asTimingsMap() {
         final Snapshot s = snapshot();
@@ -136,7 +126,7 @@ public final class AgcMetrics {
     }
 
     /**
-     * 모든 카운터 reset. 테스트 / 서버 재시작 시 사용.
+     * Reset all counters (e.g. for testing).
      */
     public static void resetAll() {
         CACHE_HITS.set(0);
@@ -161,7 +151,7 @@ public final class AgcMetrics {
     }
 
     /**
-     * 메트릭 스냅샷. record 호출 사이의 일관성 보장은 없지만 ms 주기 폴링에는 충분.
+     * Immutable metrics snapshot.
      */
     public record Snapshot(
         long nanoTime,

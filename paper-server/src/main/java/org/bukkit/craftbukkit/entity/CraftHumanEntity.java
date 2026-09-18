@@ -837,22 +837,22 @@ public class CraftHumanEntity extends CraftLivingEntity implements HumanEntity {
 
     @Override
     public float getSaturation() {
-        return this.getHandle().getFoodData().getSaturationLevelPublic();
+        return this.getHandle().getFoodData().getSaturationLevel();
     }
 
     @Override
     public void setSaturation(float value) {
-        this.getHandle().getFoodData().setSaturationLevelPublic(value);
+        this.getHandle().getFoodData().setSaturation(value);
     }
 
     @Override
     public int getFoodLevel() {
-        return this.getHandle().getFoodData().getFoodLevelPublic();
+        return this.getHandle().getFoodData().getFoodLevel();
     }
 
     @Override
     public void setFoodLevel(int value) {
-        this.getHandle().getFoodData().setFoodLevelPublic(value);
+        this.getHandle().getFoodData().setFoodLevel(value);
     }
 
     @Override

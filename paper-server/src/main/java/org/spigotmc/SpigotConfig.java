@@ -196,7 +196,11 @@ public class SpigotConfig {
     }
 
     private static void nettyThreads() {
-        int count = SpigotConfig.getInt("settings.netty-threads", 4);
+        // AGC start - scale Netty IO threads dynamically across any CPU core count
+        final int available = Runtime.getRuntime().availableProcessors();
+        final int defaultThreads = Math.max(1, Math.min(8, available / 2));
+        int count = SpigotConfig.getInt("settings.netty-threads", defaultThreads);
+        // AGC end
         System.setProperty("io.netty.eventLoopThreads", Integer.toString(count));
         Bukkit.getLogger().log(Level.INFO, "Using {0} threads for Netty based IO", count);
     }

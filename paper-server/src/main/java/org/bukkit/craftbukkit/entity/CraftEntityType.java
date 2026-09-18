@@ -19,11 +19,13 @@ public class CraftEntityType {
         Preconditions.checkArgument(minecraft != null);
 
         net.minecraft.core.Registry<net.minecraft.world.entity.EntityType<?>> registry = CraftRegistry.getMinecraftRegistry(Registries.ENTITY_TYPE);
-        EntityType bukkit = Registry.ENTITY_TYPE.get(CraftNamespacedKey.fromMinecraft(registry.getResourceKey(minecraft).orElseThrow().identifier()));
+        var resKey = registry.getResourceKey(minecraft);
+        if (resKey.isEmpty()) {
+            return EntityType.UNKNOWN;
+        }
+        EntityType bukkit = Registry.ENTITY_TYPE.get(CraftNamespacedKey.fromMinecraft(resKey.get().identifier()));
 
-        Preconditions.checkArgument(bukkit != null);
-
-        return bukkit;
+        return bukkit != null ? bukkit : EntityType.UNKNOWN;
     }
 
     private static final java.util.Map<EntityType, net.minecraft.resources.ResourceKey<net.minecraft.world.entity.EntityType<?>>> KEY_CACHE = java.util.Collections.synchronizedMap(new java.util.EnumMap<>(EntityType.class)); // Paper

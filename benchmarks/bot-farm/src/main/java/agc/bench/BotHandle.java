@@ -28,4 +28,11 @@ public interface BotHandle {
 
     /** Disconnects the session cleanly. */
     void disconnect();
+
+    /** Number of ticks this bot has been ticked. */
+    default int getAgeTicks() { return 0; }
+
+    default int incrementAge() { return 0; }
+ 
+    default void setAgeTicks(int age) {}
 }

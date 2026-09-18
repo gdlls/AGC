@@ -82,6 +82,19 @@ public final class MSPTCommand extends Command {
                 )
             )
         );
+        // AGC start - Expose true percentiles from 5s Moonrise tick data
+        final TickData.TickReportData report5s = server.tickTimes5s.generateTickReport(null, System.nanoTime(), server.tickRateManager().nanosecondsPerTick());
+        if (report5s != null) {
+            final double p50 = report5s.timePerTickData().segmentAll().median() * 1.0E-6D;
+            final double p95 = report5s.timePerTickData().segment95PercentBest().greatest() * 1.0E-6D;
+            final double p99 = report5s.timePerTickData().segment99PercentBest().greatest() * 1.0E-6D;
+            sender.sendMessage(text().content("Percentiles (5s): ").color(GOLD)
+                .append(text("p50: ", GRAY), getColor(p50), text("ms, ", GRAY))
+                .append(text("p95: ", GRAY), getColor(p95), text("ms, ", GRAY))
+                .append(text("p99: ", GRAY), getColor(p99), text("ms", GRAY))
+            );
+        }
+        // AGC end
         return true;
     }
 

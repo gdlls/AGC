@@ -17,7 +17,7 @@ public final class BotFarm implements AutoCloseable {
     private final Supplier<BotHandle> botFactory;
     private final List<BotHandle> bots = new CopyOnWriteArrayList<>();
     private final ScheduledExecutorService scheduler =
-        Executors.newSingleThreadScheduledExecutor(r -> {
+        Executors.newScheduledThreadPool(4, r -> {
             final Thread t = new Thread(r, "agc-bench-farm");
             t.setDaemon(true);
             return t;
@@ -43,6 +43,18 @@ public final class BotFarm implements AutoCloseable {
         }
     }
 
+    /** Staggers bot ages uniformly over [0, lifetimeTicks) so sessions do not expire in lockstep bursts. */
+    public void staggerBotAges(final int lifetimeTicks) {
+        if (lifetimeTicks <= 0 || this.bots.isEmpty()) return;
+        final int size = this.bots.size();
+        int i = 0;
+        for (final BotHandle bot : this.bots) {
+            final int age = (int) ((long) i * lifetimeTicks / size);
+            bot.setAgeTicks(age);
+            i++;
+        }
+    }
+
     /** Starts the 20 Hz scenario tick loop. */
     public void startScenarioLoop(final Scenario scenario) {
         this.churnPerSecond = scenario.churnPerSecond();
@@ -50,11 +62,12 @@ public final class BotFarm implements AutoCloseable {
             if (!this.running) {
                 return;
             }
-            final int tick = this.tickIndex.incrementAndGet();
+            this.tickIndex.incrementAndGet();
             for (final BotHandle bot : this.bots) {
                 try {
                     if (bot.isConnected()) {
-                        scenario.onBotTick(bot, tick);
+                        bot.incrementAge();
+                        scenario.onBotTick(bot, bot.getAgeTicks());
                     }
                 } catch (final Throwable t) {
                     // Never let one bad bot kill the farm loop.
@@ -74,13 +87,14 @@ public final class BotFarm implements AutoCloseable {
                 return;
             }
             try {
-                // One leave + one join per interval keeps steady-state population roughly constant.
-                this.bots.stream().filter(b -> !b.isConnected()).findFirst().ifPresent(b -> {
-                    this.bots.remove(b);
-                });
+                this.bots.removeIf(b -> !b.isConnected());
                 final BotHandle fresh = this.botFactory.get();
-                fresh.connect();
-                this.bots.add(fresh);
+                this.scheduler.execute(() -> {
+                    try {
+                        fresh.connect();
+                        this.bots.add(fresh);
+                    } catch (final Throwable ignored) {}
+                });
             } catch (final Throwable t) {
                 System.err.println("[bench] churn error: " + t);
             }

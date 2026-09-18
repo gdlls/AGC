@@ -12,8 +12,6 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Tests for {@link AgcNetworkEnhancer}.
- *
- * <p>Channel 객체 없이도 검증 가능한 부분: enable/disable 토글, metrics 초기값, singleton.</p>
  */
 class AgcNetworkEnhancerTest {
 
@@ -50,7 +48,6 @@ class AgcNetworkEnhancerTest {
 
     @Test
     void metricsStartsAtZero() {
-        // 새 metrics 호출에서 카운터는 누적 (singleton이므로 정확히 0 보장 안 됨)
         final AgcNetworkEnhancer.Metrics m = AgcNetworkEnhancer.get().metrics();
         assertNotNull(m);
         assertTrue(m.applied() >= 0);
@@ -70,8 +67,6 @@ class AgcNetworkEnhancerTest {
 
     @Test
     void disabledSkipsEnhancement() {
-        // disabled 상태에서 채널 후처리는 no-op이어야 함.
-        // 직접 channel을 만들기 어려우니 enable/disable 토글만 검증.
         AgcNetworkEnhancer.get().setEnabled(false);
         assertFalse(AgcNetworkEnhancer.get().isEnabled());
         AgcNetworkEnhancer.get().setEnabled(true);

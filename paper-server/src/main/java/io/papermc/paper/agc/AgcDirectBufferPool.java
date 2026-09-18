@@ -22,7 +22,6 @@ public final class AgcDirectBufferPool {
 
     private final PooledByteBufAllocator allocator = PooledByteBufAllocator.DEFAULT;
 
-    // Telemetry & metrics
     private final AtomicLong buffersAcquired = new AtomicLong();
     private final AtomicLong buffersReleased = new AtomicLong();
     private final AtomicLong directBytesAllocated = new AtomicLong();

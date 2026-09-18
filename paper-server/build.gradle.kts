@@ -230,10 +230,8 @@ tasks.jar {
 }
 
 tasks.test {
-    testClassesDirs = files(layout.buildDirectory.dir("classes/java/test"))
-    classpath = files(layout.buildDirectory.dir("classes/java/test"), layout.buildDirectory.dir("classes/java/main")) + sourceSets.test.get().runtimeClasspath
+    dependsOn(testAgc)
     include("**/**TestSuite.class")
-    include("**/*Test.class")
     workingDir = temporaryDir
     useJUnitPlatform {
         forkEvery = 1
@@ -254,6 +252,10 @@ val testAgc by tasks.registering(JavaExec::class) {
     classpath(sourceSets.test.get().output.classesDirs)
     classpath(sourceSets.main.get().output.classesDirs)
     classpath(sourceSets.test.get().runtimeClasspath)
+    val filter = project.findProperty("agcTestFilter")?.toString()
+    if (filter != null) {
+        args(filter)
+    }
 }
 
 val generatedDir: java.nio.file.Path = layout.projectDirectory.dir("src/generated/java").asFile.toPath()
@@ -304,6 +306,30 @@ fun TaskContainer.registerRunTask(
     val memoryGb = providers.gradleProperty("paper.runMemoryGb").getOrElse("2")
     minHeapSize = "${memoryGb}G"
     maxHeapSize = "${memoryGb}G"
+
+    val gcEngine = providers.gradleProperty("paper.runGc").getOrElse("zgc")
+    if (gcEngine.equals("zgc", ignoreCase = true)) {
+        jvmArgs(
+            "-XX:+UseZGC",
+            "-XX:+AlwaysPreTouch"
+        )
+    } else if (gcEngine.equals("g1gc", ignoreCase = true)) {
+        jvmArgs(
+            "-XX:+UseG1GC",
+            "-XX:+UnlockExperimentalVMOptions",
+            "-XX:MaxGCPauseMillis=15",
+            "-XX:+ParallelRefProcEnabled",
+            "-XX:G1NewSizePercent=30",
+            "-XX:G1MaxNewSizePercent=40",
+            "-XX:G1ReservePercent=15",
+            "-XX:InitiatingHeapOccupancyPercent=45",
+            "-XX:+AlwaysPreTouch"
+        )
+    }
+    val extraJvmArgs = providers.gradleProperty("paper.runJvmArgs").orNull
+    if (!extraJvmArgs.isNullOrBlank()) {
+        jvmArgs(extraJvmArgs.split(" ").filter { it.isNotBlank() })
+    }
 
     doFirst {
         workingDir.mkdirs()

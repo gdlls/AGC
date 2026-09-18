@@ -20,12 +20,16 @@ public final class Scenarios {
     private Scenarios() {}
 
     public static Scenario byName(final String name) {
+        return byName(name, 100, 25.0);
+    }
+
+    public static Scenario byName(final String name, final int targetBots, final double joinRate) {
         return switch (name.toLowerCase(Locale.ROOT)) {
             case "dense-combat" -> denseCombat();
             case "redstone-storm" -> redstoneStorm();
             case "teleport-storm" -> teleportStorm();
             case "chunk-gen-storm" -> chunkGenStorm();
-            case "login-storm" -> loginStorm(100.0);
+            case "login-storm" -> loginStorm(targetBots, joinRate);
             default -> throw new IllegalArgumentException(
                 "unknown scenario: " + name + " (expected dense-combat|redstone-storm|teleport-storm|chunk-gen-storm|login-storm)");
         };
@@ -99,7 +103,7 @@ public final class Scenarios {
             @Override public int durationTicks() { return 20 * 240; } // 4 minutes
 
             @Override public String[] serverSetupCommands() {
-                return new String[] { "gamemode spectator @a" };
+                return new String[] { "defaultgamemode spectator", "gamemode spectator @a" };
             }
 
             @Override public void onBotTick(final BotHandle bot, final int tick) {
@@ -110,14 +114,22 @@ public final class Scenarios {
     }
 
     public static Scenario loginStorm(final double churnPerSecond) {
+        return loginStorm(100, churnPerSecond);
+    }
+
+    public static Scenario loginStorm(final int targetBots, final double churnPerSecond) {
+        final double rate = Math.max(1.0, churnPerSecond);
+        final int lifetimeTicks = Math.max(20, (int) Math.round((targetBots / rate) * 20.0));
         return new Scenario() {
             @Override public String name() { return "login-storm"; }
             @Override public int durationTicks() { return 20 * 120; } // 2 minutes
             @Override public boolean isLoginChurn() { return true; }
-            @Override public double churnPerSecond() { return churnPerSecond; }
+            @Override public double churnPerSecond() { return rate; }
             @Override public void onBotTick(final BotHandle bot, final int tick) {
                 // Churning sessions only need to survive the join sequence briefly.
-                if (tick == 100) {
+                // Apply deterministic per-bot jitter (+/- 10 ticks) so sessions desynchronize smoothly.
+                final int jitter = Math.abs(System.identityHashCode(bot)) % 21 - 10;
+                if (tick >= Math.max(20, lifetimeTicks + jitter)) {
                     bot.disconnect();
                 }
             }

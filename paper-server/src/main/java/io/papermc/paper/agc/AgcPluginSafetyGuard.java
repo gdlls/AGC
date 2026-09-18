@@ -37,6 +37,10 @@ public final class AgcPluginSafetyGuard {
     /** FIFO mailbox of operations awaiting execution on the primary thread. */
     private final ConcurrentLinkedQueue<PendingOp> mailbox = new ConcurrentLinkedQueue<>();
 
+    private final java.util.concurrent.locks.ReentrantLock pluginExecutionLock = new java.util.concurrent.locks.ReentrantLock();
+    private final AtomicLong pluginLockWaitNanos = new AtomicLong();
+    private final AtomicLong pluginInvocationsProtected = new AtomicLong();
+
     public static AgcPluginSafetyGuard get() {
         return INSTANCE;
     }
@@ -58,7 +62,52 @@ public final class AgcPluginSafetyGuard {
      */
     public boolean isPrimaryThread() {
         final Thread main = this.primaryThread;
-        return main == null || Thread.currentThread() == main;
+        // AGC start - gate the virtualizer probe behind the one-way latch
+        // (TickThread#agc$virtualPossible). While no virtual context has ever been entered the
+        // probe would evaluate false anyway, so skipping the ThreadLocal walk preserves semantics
+        // while removing a hash-probe from every Bukkit event dispatch / scheduler check.
+        final Thread current = Thread.currentThread();
+        if (main == null || current == main || current instanceof ca.spottedleaf.moonrise.common.util.TickThread) {
+            return true;
+        }
+        return ca.spottedleaf.moonrise.common.util.TickThread.agc$virtualPossible()
+            && AgcPluginVirtualizer.isVirtualPrimary();
+        // AGC end
+    }
+
+    /**
+     * Executes a synchronous plugin event listener, enforcing the Bukkit single-threaded contract.
+     * If the current thread is the server primary thread, execution runs immediately without lock contention.
+     * On parallel world tick worker threads, serializes listener execution under a reentrant lock and
+     * enters a virtual primary execution context so that plugins never experience concurrent modifications
+     * or fail primary-thread assertions.
+     *
+     * @param plugin The target plugin
+     * @param action The listener action to execute
+     */
+    public void executeSynchronousPluginListener(final Object plugin, final Runnable action) {
+        if (action == null) {
+            return;
+        }
+
+        final Thread main = this.primaryThread;
+        final boolean isMain = main != null && Thread.currentThread() == main;
+        final boolean parallelActive = AgcParallelWorldTickEngine.get().isParallelPhaseActive();
+
+        if (isMain && !parallelActive) {
+            action.run();
+            return;
+        }
+
+        this.pluginInvocationsProtected.incrementAndGet();
+        final long start = System.nanoTime();
+        this.pluginExecutionLock.lock();
+        try (final AgcPluginVirtualizer.ContextScope ignored = AgcPluginVirtualizer.get().enterContext("plugin-listener", 0L)) {
+            this.pluginLockWaitNanos.addAndGet(System.nanoTime() - start);
+            action.run();
+        } finally {
+            this.pluginExecutionLock.unlock();
+        }
     }
 
     /**
@@ -174,13 +223,25 @@ public final class AgcPluginSafetyGuard {
         this.asyncCallsIntercepted.set(0);
         this.bridgesExecuted.set(0);
         this.peakDepth.set(0);
+        this.pluginLockWaitNanos.set(0);
+        this.pluginInvocationsProtected.set(0);
+        this.primaryThread = null;
+    }
+
+    public long pluginInvocationsProtected() {
+        return this.pluginInvocationsProtected.get();
+    }
+
+    public long pluginLockWaitNanos() {
+        return this.pluginLockWaitNanos.get();
     }
 
     public GuardMetrics metrics() {
         return new GuardMetrics(
             this.primaryThread != null ? this.primaryThread.getName() : "unbound",
             this.asyncCallsIntercepted.get(),
-            this.bridgesExecuted.get()
+            this.bridgesExecuted.get(),
+            this.pluginInvocationsProtected.get()
         );
     }
 
@@ -190,7 +251,8 @@ public final class AgcPluginSafetyGuard {
     public record GuardMetrics(
         String primaryThreadName,
         long asyncCallsIntercepted,
-        long bridgesExecuted
+        long bridgesExecuted,
+        long pluginInvocationsProtected
     ) {
     }
 }

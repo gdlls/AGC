@@ -452,6 +452,14 @@ public class CraftScheduler implements BukkitScheduler {
      */
     public void mainThreadHeartbeat() {
         this.currentTick++;
+        // AGC start - Drain deferred plugin safety mailbox and cross-world queue on primary thread
+        io.papermc.paper.agc.AgcPluginSafetyGuard.get().drainMailbox(0);
+        io.papermc.paper.agc.AgcCrossWorldQueue.get().drainAll();
+        // AGC start - max-optimization batch: one-shot config sync + region-bridge ordered commits
+        io.papermc.paper.agc.AgcConfigSync.get().syncIfNeeded();
+        io.papermc.paper.agc.tick.AgcRegionTickBridge.get().drainCommits();
+        // AGC end
+        // AGC end
         // Paper start
         if (!this.isAsyncScheduler) {
             this.asyncScheduler.mainThreadHeartbeat();

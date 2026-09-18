@@ -409,6 +409,11 @@ public final class CraftServer implements Server {
         this.serverLinks = new CraftServerLinks(console);
 
         Bukkit.setServer(this);
+        // AGC start - Bind primary server thread to safety guard
+        if (console.getRunningThread() != null) {
+            io.papermc.paper.agc.AgcPluginSafetyGuard.get().bindPrimaryThread(console.getRunningThread());
+        }
+        // AGC end
         // Paper start
         this.commandMap = new CraftCommandMap(this);
         this.pluginManager = new SimplePluginManager(this, commandMap);
@@ -592,6 +597,9 @@ public final class CraftServer implements Server {
         for (Plugin plugin : plugins) {
             if ((!plugin.isEnabled()) && (plugin.getDescription().getLoad() == type)) {
                 this.enablePlugin(plugin);
+                // AGC start - Auto scan plugin concurrency profile
+                io.papermc.paper.agc.AgcPluginScanner.get().scanPlugin(plugin);
+                // AGC end
             }
         }
 
@@ -1903,9 +1911,21 @@ public final class CraftServer implements Server {
 
         message = broadcastMessageEvent.message(); // Paper - Adventure
 
-        for (CommandSender recipient : recipients) {
-            recipient.sendMessage(message);
+        // AGC start - Chat broadcast single-pass optimization
+        if (recipients.size() > 1) {
+            final net.kyori.adventure.text.Component finalMsg = message;
+            io.papermc.paper.agc.chat.AgcChatOptimizer.get().broadcastSinglePass(
+                finalMsg,
+                net.kyori.adventure.text.serializer.gson.GsonComponentSerializer.gson()::serialize,
+                recipients,
+                (recipient, json) -> recipient.sendMessage(finalMsg)
+            );
+        } else {
+            for (CommandSender recipient : recipients) {
+                recipient.sendMessage(message);
+            }
         }
+        // AGC end
 
         return recipients.size();
     }

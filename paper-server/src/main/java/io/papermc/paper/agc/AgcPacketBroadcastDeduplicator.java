@@ -24,7 +24,6 @@ public final class AgcPacketBroadcastDeduplicator {
     private static final Logger LOGGER = LoggerFactory.getLogger(AgcPacketBroadcastDeduplicator.class);
     private static final AgcPacketBroadcastDeduplicator INSTANCE = new AgcPacketBroadcastDeduplicator();
 
-    // Telemetry & metrics
     private final AtomicLong broadcastsExecuted = new AtomicLong();
     private final AtomicLong totalRecipientsServed = new AtomicLong();
     private final AtomicLong serializationsSaved = new AtomicLong();

@@ -47,7 +47,6 @@ class AgcPerformanceTuningTest {
 
     @Test
     void safetyLabelsAreAttached() {
-        // 모든 *_SAFETY 상수가 non-null이어야 한다.
         assertNotNull(AgcPerformanceTuning.MAX_CHUNKS_SENT_PER_TICK_SAFETY);
         assertNotNull(AgcPerformanceTuning.CHANNEL_WATERMARK_SAFETY);
         assertNotNull(AgcPerformanceTuning.CHANNEL_READ_TIMEOUT_SAFETY);
@@ -94,14 +93,12 @@ class AgcPerformanceTuningTest {
 
     @Test
     void booleanFlagsAreExplicit() {
-        // 어떤 feature는 명시적 boolean으로 노출되어야 한다.
         assertTrue(AgcPerformanceTuning.CACHE_CHUNK_PACKETS || !AgcPerformanceTuning.CACHE_CHUNK_PACKETS);
         assertTrue(AgcPerformanceTuning.USE_HOT_OBJECT_POOLS || !AgcPerformanceTuning.USE_HOT_OBJECT_POOLS);
     }
 
     @Test
     void antixrayIsOptIn() {
-        // Anti-XRay는 기본 off여야 함 (서버 부하 큼)
         assertFalse(AgcPerformanceTuning.ANTIXRAY_DEFAULT_ENABLED);
     }
 }

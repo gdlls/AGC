@@ -975,7 +975,10 @@ public class CraftEventFactory {
     }
 
     public static int callEntityIgniteEvent(net.minecraft.world.entity.Entity entity, int fuseTime) {
-        if (entity instanceof net.minecraft.world.entity.monster.cubemob.SulfurCube) {
+        // AGC - sulfur_cube now has a real API mapping (org.bukkit.entity.SulfurCube extends Slime),
+        // but it is not a Creeper: the old `instanceof SulfurCube` branch casting its Bukkit entity to
+        // Creeper was a latent ClassCastException. Only fire CreeperIgniteEvent for actual creepers.
+        if (entity instanceof net.minecraft.world.entity.monster.Creeper) {
             com.destroystokyo.paper.event.entity.CreeperIgniteEvent event = new com.destroystokyo.paper.event.entity.CreeperIgniteEvent((org.bukkit.entity.Creeper) entity.getBukkitEntity(), true);
             if (!event.callEvent()) {
                 return net.minecraft.world.entity.item.PrimedTnt.NO_FUSE;

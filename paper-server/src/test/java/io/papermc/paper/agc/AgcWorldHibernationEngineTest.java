@@ -101,4 +101,56 @@ class AgcWorldHibernationEngineTest {
         assertEquals(AgcWorldHibernationEngine.Tier.HOT, engine.getTier("world_minigame"));
         assertEquals(AgcWorldHibernationEngine.WorldState.ACTIVE, engine.getState("world_minigame"));
     }
+
+    @Test
+    void multiWorldBotStressLifecycle() {
+        final var engine = AgcWorldHibernationEngine.get();
+        final int worldCount = 50;
+        final int totalBots = 200;
+
+        // 1. Initial State: Distribute 200 bots across 50 worlds (4 bots per world)
+        for (int w = 0; w < worldCount; w++) {
+            final String worldName = "arena_" + w;
+            final var state = engine.updateWorld(worldName, 4, 0, 10, 100, null);
+            assertEquals(AgcWorldHibernationEngine.WorldState.ACTIVE, state);
+            assertTrue(engine.shouldTickWorld(worldName));
+        }
+        assertEquals(worldCount, engine.metrics().activeWorlds());
+
+        // 2. Bots evacuate worlds 10..49 (40 worlds become empty, worlds 0..9 keep 20 bots each)
+        for (int w = 10; w < worldCount; w++) {
+            engine.updateWorld("arena_" + w, 0, 1, 10, 100, null); // Enters DRAINING
+        }
+        assertEquals(10, engine.metrics().activeWorlds());
+        assertEquals(40, engine.metrics().drainingWorlds());
+
+        // 3. Advance to tick 25: All 40 empty worlds enter WARM (HIBERNATING)
+        for (int w = 10; w < worldCount; w++) {
+            final var state = engine.updateWorld("arena_" + w, 0, 25, 10, 100, null);
+            assertEquals(AgcWorldHibernationEngine.WorldState.HIBERNATING, state);
+            assertFalse(engine.shouldTickWorld("arena_" + w));
+        }
+        assertEquals(40, engine.metrics().warmHibernatingWorlds());
+
+        // 4. Advance to tick 150: All 40 hibernating worlds enter COLD
+        final java.util.concurrent.atomic.AtomicInteger coldCallbacks = new java.util.concurrent.atomic.AtomicInteger();
+        for (int w = 10; w < worldCount; w++) {
+            final var state = engine.updateWorld("arena_" + w, 0, 150, 10, 100, coldCallbacks::incrementAndGet);
+            assertEquals(AgcWorldHibernationEngine.WorldState.COLD, state);
+            assertFalse(engine.shouldTickWorld("arena_" + w));
+        }
+        assertEquals(40, coldCallbacks.get());
+        assertEquals(40, engine.metrics().coldDormantWorlds());
+
+        // 5. Bot Rush: 200 bots surge into 20 cold worlds (arena_10 .. arena_29)
+        for (int w = 10; w < 30; w++) {
+            final var state = engine.updateWorld("arena_" + w, 10, 160, 10, 100, null);
+            assertEquals(AgcWorldHibernationEngine.WorldState.ACTIVE, state);
+            assertTrue(engine.shouldTickWorld("arena_" + w));
+        }
+        // 10 originally active + 20 woke = 30 active, 20 still cold
+        assertEquals(30, engine.metrics().activeWorlds());
+        assertEquals(20, engine.metrics().coldDormantWorlds());
+        assertEquals(20, engine.metrics().wakeupsTriggered());
+    }
 }

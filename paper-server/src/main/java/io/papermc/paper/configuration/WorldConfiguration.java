@@ -512,7 +512,8 @@ public class WorldConfiguration extends ConfigurationPart {
         public int maxAutoSaveChunksPerTick = 24;
         public int fixedChunkInhabitedTime = -1;
         public boolean preventMovingIntoUnloadedChunks = false;
-        public Duration delayChunkUnloadsBy = Duration.of("10s");
+        // AGC - reduce chunk unload delay default from 10s to 1s to prevent memory blowup under 500 CCU
+        public Duration delayChunkUnloadsBy = Duration.of("1s");
         public Reference2IntMap<EntityType<?>> entityPerChunkSaveLimit = Util.make(new Reference2IntOpenHashMap<>(BuiltInRegistries.ENTITY_TYPE.size()), map -> {
             map.defaultReturnValue(-1);
             map.put(EntityTypes.EXPERIENCE_ORB, -1);

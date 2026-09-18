@@ -47,6 +47,7 @@ import java.io.File;
 import java.io.IOException;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
+import java.nio.file.AccessDeniedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -75,6 +76,7 @@ import org.slf4j.Logger;
 import org.spigotmc.SpigotConfig;
 import org.spigotmc.SpigotWorldConfig;
 import org.spongepowered.configurate.BasicConfigurationNode;
+import org.spongepowered.configurate.CommentedConfigurationNode;
 import org.spongepowered.configurate.ConfigurateException;
 import org.spongepowered.configurate.ConfigurationNode;
 import org.spongepowered.configurate.ConfigurationOptions;
@@ -224,6 +226,42 @@ public class PaperConfigurations extends Configurations<GlobalConfiguration, Wor
     public GlobalConfiguration initializeGlobalConfiguration(final RegistryAccess registryAccess) throws ConfigurateException {
         GlobalConfiguration configuration = super.initializeGlobalConfiguration(registryAccess);
         GlobalConfiguration.set(configuration);
+        io.papermc.paper.agc.AgcConfigSync.get().syncLoadedConfiguration();
+        return configuration;
+    }
+
+    @Override
+    protected GlobalConfiguration initializeGlobalConfiguration(final RegistryAccess registryAccess, final org.spongepowered.configurate.util.CheckedFunction<ConfigurationNode, GlobalConfiguration, org.spongepowered.configurate.serialize.SerializationException> creator) throws ConfigurateException {
+        final Path file = this.globalFolder.resolve(GLOBAL_CONFIG_FILE_NAME);
+        final ObjectMapper.Factory factory = this.createGlobalObjectMapperFactoryBuilder().build();
+        final YamlConfigurationLoader loader = this.createGlobalLoaderBuilder(registryAccess)
+            .defaultOptions(options -> options.serializers(serializers -> serializers
+                .register(this::isConfigType, factory.asTypeSerializer())
+                .registerAnnotatedObjects(factory)))
+            .path(file)
+            .build();
+        final ConfigurationNode node;
+        if (Files.notExists(file)) {
+            node = CommentedConfigurationNode.root(loader.defaultOptions());
+            node.node(Configuration.VERSION_FIELD).raw(this.globalConfigVersion());
+            GlobalConfiguration.isFirstStart = true;
+        } else {
+            node = loader.load();
+            this.verifyGlobalConfigVersion(node);
+        }
+        this.applyGlobalConfigTransformations(node);
+        final GlobalConfiguration.Agc agc = AgcConfigurations.load(this.globalFolder, node.node("agc"));
+        node.removeChild("agc");
+        final GlobalConfiguration configuration = creator.apply(node);
+        configuration.agc = agc;
+        try {
+            loader.save(node);
+        } catch (final ConfigurateException ex) {
+            if (!(ex.getCause() instanceof AccessDeniedException)) {
+                throw ex;
+            }
+            LOGGER.warn("Could not save {}: Paper could not persist the full set of configuration settings in the configuration file. Any setting missing from the configuration file will be set with its default value in memory. Admins should make sure to review the configuration documentation at https://docs.papermc.io/paper/configuration for more details.", file, ex);
+        }
         return configuration;
     }
 
@@ -332,6 +370,7 @@ public class PaperConfigurations extends Configurations<GlobalConfiguration, Wor
     public void reloadConfigs(MinecraftServer server) {
         try {
             this.initializeGlobalConfiguration(server.registryAccess(), reloader(this.globalConfigClass, GlobalConfiguration.get()));
+            io.papermc.paper.agc.AgcConfigSync.get().syncLoadedConfiguration();
             this.initializeWorldDefaultsConfiguration(server.registryAccess());
             for (ServerLevel level : server.getAllLevels()) {
                 this.createWorldConfig(createWorldContextMap(level), reloader(this.worldConfigClass, level.paperConfig()));

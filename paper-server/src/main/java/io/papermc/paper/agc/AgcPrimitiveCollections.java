@@ -12,9 +12,7 @@ public final class AgcPrimitiveCollections {
 
     private AgcPrimitiveCollections() {}
 
-    // =========================================================================
     // Chunk & Block coordinate bit packing (Fast bitwise arithmetic)
-    // =========================================================================
 
     /**
      * Packs (chunkX, chunkZ) into a single 64-bit primitive long.
@@ -50,9 +48,7 @@ public final class AgcPrimitiveCollections {
         return (int) ((packed << 38) >> 38);
     }
 
-    // =========================================================================
     // Primitive IntArrayList (Zero-boxing resizable primitive integer list)
-    // =========================================================================
 
     public static final class IntArrayList {
         private int[] elements;

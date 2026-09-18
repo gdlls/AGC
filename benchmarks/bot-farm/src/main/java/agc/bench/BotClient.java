@@ -43,6 +43,7 @@ public final class BotClient implements BotHandle {
     private volatile ClientSession session;
     private final AtomicBoolean connected = new AtomicBoolean(false);
     private final AtomicLong packetsReceived = new AtomicLong();
+    private final java.util.concurrent.atomic.AtomicInteger ageTicks = new java.util.concurrent.atomic.AtomicInteger();
 
     // Client-side kinematics: the server trusts these client-authoritative packets.
     private volatile double x = 64.5, y = -60.0, z = 64.5;
@@ -136,6 +137,21 @@ public final class BotClient implements BotHandle {
                 s.disconnect("bench done");
             } catch (final Throwable ignored) {}
         }
+    }
+
+    @Override
+    public int getAgeTicks() {
+        return this.ageTicks.get();
+    }
+
+    @Override
+    public int incrementAge() {
+        return this.ageTicks.incrementAndGet();
+    }
+
+    @Override
+    public void setAgeTicks(final int age) {
+        this.ageTicks.set(age);
     }
 
     public long packetsReceived() {

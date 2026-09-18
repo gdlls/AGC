@@ -54,6 +54,14 @@ public final class MsptProbe implements AutoCloseable {
         this.scheduler.scheduleAtFixedRate(this::pollOnce, intervalMillis, intervalMillis, TimeUnit.MILLISECONDS);
     }
 
+    public void stopSampling() {
+        this.scheduler.shutdown();
+    }
+
+    public void clearSamples() {
+        this.samples.clear();
+    }
+
     /** One-shot console command execution for scenario setup. */
     public void execSetupCommand(final String cmd) throws IOException {
         if (this.rcon == null) {
@@ -94,7 +102,9 @@ public final class MsptProbe implements AutoCloseable {
                     this.samples.computeIfAbsent("avg", k -> Collections.synchronizedList(new ArrayList<>())).add(avg);
                     this.samples.computeIfAbsent("min", k -> Collections.synchronizedList(new ArrayList<>())).add(min);
                     this.samples.computeIfAbsent("max", k -> Collections.synchronizedList(new ArrayList<>())).add(max);
-                    this.samples.computeIfAbsent("p99", k -> Collections.synchronizedList(new ArrayList<>())).add(max);
+                    if (!out.toLowerCase(java.util.Locale.ROOT).contains("p99")) {
+                        this.samples.computeIfAbsent("p99", k -> Collections.synchronizedList(new ArrayList<>())).add(max);
+                    }
                 }
                 tripletIndex++;
                 matched = true;
@@ -110,6 +120,13 @@ public final class MsptProbe implements AutoCloseable {
             }
         } catch (final Throwable t) {
             System.err.println("[bench] mspt poll failed: " + t.getMessage());
+            try {
+                if (this.rcon != null) {
+                    this.rcon.close();
+                }
+                this.rcon = new RconClient();
+                this.rcon.connect(this.host, this.port, this.password);
+            } catch (final Throwable ignored) {}
         }
     }
 

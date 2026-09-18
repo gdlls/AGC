@@ -1,0 +1,30 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: AGC Developer <developer@agc.com>
+Date: Sun, 06 Sep 2026 12:00:00 +0900
+Subject: [PATCH] AGC Lithium entity push pair early-out
+
+Ports Lithium's entity.collisions fast-reject into Entity.push(Entity): pairs
+that provably produce no motion (either side noPhysics, or Paper's
+onlyPlayersCollide with no player participant) return before the sqrt/div
+push math. Outcomes are identical to vanilla — the same conditions guard the
+same block below — this only hoists field/config reads above the math.
+
+diff --git a/net/minecraft/world/entity/Entity.java b/net/minecraft/world/entity/Entity.java
+--- a/net/minecraft/world/entity/Entity.java
++++ b/net/minecraft/world/entity/Entity.java
+@@ -2398,7 +2398,15 @@ public abstract class Entity
+     public void push(final Entity entity) {
+         if (!this.isPassengerOfSameVehicle(entity)) {
++            // AGC start - Lithium collision pair skip (field/config reads only; identical outcomes)
++            if (entity.noPhysics || this.noPhysics) {
++                return;
++            }
++            if (this.level.paperConfig().collisions.onlyPlayersCollide && !(entity instanceof ServerPlayer || this instanceof ServerPlayer)) {
++                return;
++            }
++            // AGC end - Lithium collision pair skip
+             if (!entity.noPhysics && !this.noPhysics) {
+                 if (this.level.paperConfig().collisions.onlyPlayersCollide && !(entity instanceof ServerPlayer || this instanceof ServerPlayer)) return; // Paper - Collision option for requiring a player participant
+                 double xa = entity.getX() - this.getX();
+                 double za = entity.getZ() - this.getZ();
+                 double dd = Mth.absMax(xa, za);

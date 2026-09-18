@@ -5,7 +5,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * AGC — Palette Copy-On-Write (COW) & Section Memory Optimizer (Roadmap Phase 2).
+ * AGC — Palette Copy-On-Write (COW) & Section Memory Optimizer.
  *
  * <p>In servers with 500+ multi-worlds and millions of chunk sections, a massive portion
  * of sections consist of uniform blocks (e.g. pure air, bedrock, ocean water, stone fill).
@@ -23,10 +23,8 @@ public final class AgcPaletteCowOptimizer {
 
     private static final AgcPaletteCowOptimizer INSTANCE = new AgcPaletteCowOptimizer();
 
-    // Cache of shared single-state palettes (keyed by stateId/blockStateId)
     private final Map<Integer, SharedSingleStatePalette> sharedPalettes = new ConcurrentHashMap<>();
 
-    // Telemetry & metrics
     private final AtomicLong sectionsOptimized = new AtomicLong();
     private final AtomicLong cowExpansions = new AtomicLong();
     private final AtomicLong estimatedBytesSaved = new AtomicLong();
@@ -69,12 +67,10 @@ public final class AgcPaletteCowOptimizer {
 
         if (uniform) {
             this.sectionsOptimized.incrementAndGet();
-            // Typical 4096-entry palette + bit storage overhead is ~2048 to 4096 bytes per section
             this.estimatedBytesSaved.addAndGet(2048L);
             return new PaletteOptimizationResult(getSharedPalette(first), true);
         }
 
-        // Non-uniform section: standard mutable palette
         return new PaletteOptimizationResult(new MutableSectionPalette(blockStateIds), false);
     }
 
@@ -99,9 +95,6 @@ public final class AgcPaletteCowOptimizer {
         );
     }
 
-    // ========================================================================
-    // Palette abstractions
-    // ========================================================================
 
     public interface SectionPalette {
         int get(int x, int y, int z);
@@ -133,7 +126,6 @@ public final class AgcPaletteCowOptimizer {
             if (newStateId == this.stateId) {
                 return this; // No mutation needed
             }
-            // Copy-On-Write: fork to mutable palette
             if (this.optimizer != null) {
                 this.optimizer.recordCowExpansion();
             }

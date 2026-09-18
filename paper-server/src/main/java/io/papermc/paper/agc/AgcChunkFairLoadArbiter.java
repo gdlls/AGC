@@ -26,7 +26,6 @@ public final class AgcChunkFairLoadArbiter<T> {
 
     private final Map<UUID, PlayerChunkQueue<T>> playerQueues = new ConcurrentHashMap<>();
 
-    // Telemetry & metrics
     private final AtomicLong chunksEnqueued = new AtomicLong();
     private final AtomicLong chunksAdmitted = new AtomicLong();
     private final AtomicLong passesExecuted = new AtomicLong();

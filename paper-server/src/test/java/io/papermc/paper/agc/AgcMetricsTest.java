@@ -167,8 +167,20 @@ class AgcMetricsTest {
     }
 
     @Test
-    void snapshotNanoTimeIsPositive() {
-        final AgcMetrics.Snapshot s = AgcMetrics.snapshot();
-        assertTrue(s.nanoTime() > 0L);
+    void snapshotNanoTimeIsElapsedSinceMetricsInitialization() throws InterruptedException {
+        final AgcMetrics.Snapshot first = AgcMetrics.snapshot();
+        Thread.sleep(1L);
+        final AgcMetrics.Snapshot second = AgcMetrics.snapshot();
+        assertTrue(first.nanoTime() >= 0L);
+        assertTrue(second.nanoTime() >= first.nanoTime(),
+            "snapshot time must be monotonic elapsed uptime");
+        assertTrue(second.nanoTime() < System.nanoTime(),
+            "snapshot time must not expose System.nanoTime() absolute value");
+    }
+
+    @Test
+    void reportFormatsUptimeFromZeroBasedElapsedNanos() {
+        final String report = AgcMetrics.report();
+        assertTrue(report.matches("(?s).*uptime=(?:\\d+ns|[0-9.]+ms|[0-9.]+s|[0-9.]+m).*"));
     }
 }

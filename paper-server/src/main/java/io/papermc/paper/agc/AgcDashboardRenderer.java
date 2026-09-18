@@ -51,8 +51,14 @@ public final class AgcDashboardRenderer {
             direct.totalAllocatedBytes() / (1024.0 * 1024.0),
             cow.estimatedBytesSaved() / (1024.0 * 1024.0)));
         lines.add("---------------------------------------------------------------------");
-        lines.add(String.format("  [World Engine] Parallel Ticks: %,d | Waves: %,d (Avg: %.2fms) | Failures: %d",
-            world.parallelTicks(), world.totalWaves(), world.averageWaveMillis(), world.failures()));
+        // Two lines on purpose: "parallel ticks" (wave dispatch taken) and "concurrent ticks" (two
+        // worlds really overlapped) are different facts, and reporting only the first let the engine
+        // advertise parallelism it never delivered. minWorlds/peak wave size make the partition visible.
+        lines.add(String.format("  [World Engine] Dispatch: parallel=%,d sequential=%,d ticks | Waves: %,d (Avg: %.2fms) | Failures: %d",
+            world.parallelTicks(), world.sequentialTicks(), world.totalWaves(), world.averageWaveMillis(), world.failures()));
+        lines.add(String.format("  [World Engine] Concurrency: %,d ticks overlapped (%.1f%%) | Concurrent waves: %,d (peak %d worlds) | Single-world waves: %,d | minWorlds=%d",
+            world.concurrentTicks(), world.concurrencyRatio() * 100.0, world.concurrentWaves(),
+            world.peakWaveSize(), world.singleWorldWaves(), world.minWorlds()));
         lines.add(String.format("  [500+ Worlds 3-Tier] Active: %d | Warm (RAM): %d | Cold (Disk): %d | Saved: %,d",
             hbr.activeWorlds(), hbr.warmHibernatingWorlds(), hbr.coldDormantWorlds(), hbr.worldTicksSaved()));
         lines.add(String.format("  [Storage I/O] Available Tokens: %.0f | Saves Admitted: %,d | Throttled: %,d",

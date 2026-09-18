@@ -8,7 +8,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * AGC — Vanilla Behavioral Equivalence & Parity Invariant Suite (Roadmap Phase 5).
+ * AGC — Vanilla Behavioral Equivalence & Parity Invariant Suite.
  *
  * <p>Under AGC's parallel world execution and aggressive optimizations, minor tick-order
  * deviations are permissible if and only if they maintain <b>Behavioral Equivalence</b>
@@ -46,7 +46,6 @@ public final class AgcBehaviorParitySuite {
 
     private final Map<ParityCategory, ParityRule> registeredRules = new ConcurrentHashMap<>();
 
-    // Telemetry & metrics
     private final AtomicLong checksExecuted = new AtomicLong();
     private final AtomicLong deviationsAllowed = new AtomicLong();
     private final AtomicLong violationsDetected = new AtomicLong();
