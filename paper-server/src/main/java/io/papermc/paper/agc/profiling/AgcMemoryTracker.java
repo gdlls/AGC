@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  * <p>Monitors JVM heap dynamics, direct/off-heap memory allocations, Young/Old GC pause metrics,
  * and estimates realtime object allocation rates. Correlates GC pauses with tick stalls and
- * exposes telemetry via JMX and the {@code /agc gc} / {@code /agc memory} commands.</p>
+ * exposes telemetry via JMX.</p>
  */
 public final class AgcMemoryTracker implements AgcMemoryTrackerMXBean {
 

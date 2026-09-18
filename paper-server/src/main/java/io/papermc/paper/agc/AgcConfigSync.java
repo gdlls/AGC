@@ -12,11 +12,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * AGC — Applies the {@code config/agc.yml} settings (surfaced as
  * {@link GlobalConfiguration.Agc}) to the {@link AgcCapabilityMatrix}.
  *
- * <p>agc.yml is authoritative for mode and every performance control: each sync
- * clears matrix runtime overrides first, then re-applies the file's decisions,
- * so operator pins made via {@code /agc override} live only until the next
- * reload. {@code mode=vanilla} clears all overrides (pure vanilla). Config
- * booleans only ever enable features the current mode allows; dormant features
+ * <p>agc.yml is authoritative for performance controls: each sync
+ * clears matrix runtime overrides first, then re-applies the file's decisions.
+ * Config booleans enable or disable features; dormant features
  * (no production consumer) stay off. Runs at global-config load — before
  * networking and worlds start — and on every reload.</p>
  */
@@ -58,10 +56,6 @@ public final class AgcConfigSync {
 
     /**
      * Applies file config to the capability matrix.
-     *
-     * @param respectExistingOverrides when {@code true}, features the operator
-     *        pinned via {@code /agc override} keep the operator's value
-     * @return {@code true} if the sync ran (config was available)
      */
     public synchronized void syncLoadedConfiguration() {
         final GlobalConfiguration config = GlobalConfiguration.get();

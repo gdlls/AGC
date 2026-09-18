@@ -53,9 +53,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *       {@code minecraft:overworld}/{@code the_nether}/{@code the_end} for the server's own world) and/or
  *       route {@code Entity.changeDimension} through {@code AgcCrossWorldQueue} while a parallel phase is
  *       active.</li>
- *   <li>Delete the matching assertions here, then re-run the multi-world bench
- *       ({@code /agcbenchworlds create 6} + {@code /agc dashboard}) and require a non-zero
- *       {@code Concurrency} line before advertising the feature as an optimization.</li>
+ *   <li>Delete the matching assertions here, then re-run the multi-world benchmark
+ *       and require a non-zero {@code Concurrency} line before advertising the feature as an optimization.</li>
  * </ol>
  */
 public class AgcParallelWorldTickOverlapPreconditionsTest {

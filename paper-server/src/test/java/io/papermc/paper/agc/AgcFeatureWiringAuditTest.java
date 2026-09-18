@@ -31,7 +31,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * <p>The capability matrix can report a feature as {@code enabled} while no production code ever
  * reads that decision. A source census (production roots only, comment lines stripped) found
  * exactly that: 16 of 44 features had <b>zero</b> consumers — no gate read, no config-key read,
- * no tuning-constant read — yet the matrix (and {@code /agc}) advertised them as active
+ * no tuning-constant read — yet the matrix advertised them as active
  * optimizations. Unit tests cannot catch this: they prove a class behaves as designed
  * <i>when called</i>, never that anything calls it.</p>
  *

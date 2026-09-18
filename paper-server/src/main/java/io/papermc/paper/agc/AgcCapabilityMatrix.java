@@ -7,14 +7,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * AGC — Feature capability matrix across operating modes.
- *
- * <p>Three operating modes are supported:</p>
- * <ul>
- *   <li>{@link Mode#VANILLA}: 100% identical to vanilla Paper. All AGC optimizations disabled.</li>
- *   <li>{@link Mode#AGC_BASELINE}: Enables safe, strictly vanilla-compatible fast paths.</li>
- *   <li>{@link Mode#AGC_AGGRESSIVE}: Default mode. Enables safe adaptive and multithreaded optimizations.</li>
- * </ul>
+ * AGC — Feature capability matrix. All optimizations are active out-of-the-box.
  */
 public final class AgcCapabilityMatrix {
 
@@ -37,7 +30,7 @@ public final class AgcCapabilityMatrix {
      *       the feature is wired or declared dormant — no new silent lies.</li>
      * </ul>
      *
-     * <p>Operator pins ({@code /agc override}) still win over dormancy, preserving the verified live
+     * <p>Runtime overrides still win over dormancy, preserving the verified live
      * A/B workflow; dormancy only fixes the unconfigured default report.</p>
      */
     private static final java.util.Set<Feature> DORMANT_FEATURES = java.util.Set.of(

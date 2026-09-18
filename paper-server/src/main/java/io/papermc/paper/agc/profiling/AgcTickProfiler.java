@@ -18,7 +18,7 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  * <p>Instruments nanosecond-accurate execution times across all core server subsystems
  * (World Ticking, Entities, Block Entities, Chunk IO/Gen, Network, Plugin Events, Redstone/Block Updates).
  * Retains a lock-free 1200-tick (60-second) rolling ring buffer, calculates statistical percentiles
- * (p50, p95, p99, max), and exposes telemetry via JMX and the {@code /agc profile} command.</p>
+ * (p50, p95, p99, max), and exposes telemetry via JMX.</p>
  */
 public final class AgcTickProfiler implements AgcTickProfilerMXBean {
 
