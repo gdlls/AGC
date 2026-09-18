@@ -14,6 +14,8 @@ public class AgcUltraScaleStressBenchmarkTest {
         final AgcUltraScaleStressBenchmark.UltraReport report =
             AgcUltraScaleStressBenchmark.runSimulation(config);
 
+        System.out.println(report.formatSummary());
+
         assertNotNull(report);
         assertTrue(report.targetSloMet(), "5,000 CCU x 500 Worlds simulation must meet 20 TPS SLO");
         assertTrue(report.averageMspt() < 25.0, "Average MSPT must be under 25.0ms (got " + report.averageMspt() + "ms)");
@@ -34,6 +36,8 @@ public class AgcUltraScaleStressBenchmarkTest {
         final AgcUltraScaleStressBenchmark.UltraReport report =
             AgcUltraScaleStressBenchmark.runSimulation(config);
 
+        System.out.println(report.formatSummary());
+
         assertNotNull(report);
         assertTrue(report.targetSloMet(), "1,000 CCU Dense Wilderness must meet 20 TPS SLO");
         assertTrue(report.averageMspt() < 25.0, "Average MSPT must be under 25.0ms (got " + report.averageMspt() + "ms)");
@@ -52,6 +56,8 @@ public class AgcUltraScaleStressBenchmarkTest {
         final AgcUltraScaleStressBenchmark.UltraReport report =
             AgcUltraScaleStressBenchmark.runSimulation(config);
 
+        System.out.println(report.formatSummary());
+
         assertNotNull(report);
         assertTrue(report.targetSloMet(), "1,000 CCU Scattered Chunk Loading must meet 20 TPS SLO");
         assertTrue(report.averageMspt() < 25.0, "Average MSPT must be under 25.0ms (got " + report.averageMspt() + "ms)");
@@ -68,6 +74,8 @@ public class AgcUltraScaleStressBenchmarkTest {
 
         final AgcUltraScaleStressBenchmark.UltraReport report =
             AgcUltraScaleStressBenchmark.runSimulation(config);
+
+        System.out.println(report.formatSummary());
 
         assertNotNull(report);
         assertTrue(report.targetSloMet(), "1,000 CCU Normal Survival must meet 20 TPS SLO");
@@ -86,6 +94,8 @@ public class AgcUltraScaleStressBenchmarkTest {
 
         final AgcUltraScaleStressBenchmark.UltraReport report =
             AgcUltraScaleStressBenchmark.runSimulation(config);
+
+        System.out.println(report.formatSummary());
 
         assertNotNull(report);
         assertTrue(report.targetSloMet(), "1,000 CCU Mass Combat Storm must meet 20 TPS SLO");
