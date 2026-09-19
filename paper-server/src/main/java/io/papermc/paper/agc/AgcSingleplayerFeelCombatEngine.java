@@ -10,10 +10,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * AGC — High-Performance Native KBSync & Singleplayer-Feel Combat Engine.
+ * AGC — High-Performance Singleplayer-Feel Combat & Sub-Tick Dispatch Engine.
  *
- * <p>Predicts client-side ground state and compensates knockback trajectory based on
- * latency and kinematic solvers. Defaults to {@code false} for strict vanilla parity.</p>
+ * <p>Dispatches knockback velocity packets immediately via Netty micro-flushes
+ * while guaranteeing 100% pure vanilla knockback physics and trajectory parity.</p>
  */
 public final class AgcSingleplayerFeelCombatEngine {
 
@@ -169,7 +169,8 @@ public final class AgcSingleplayerFeelCombatEngine {
 
 
     /**
-     * Calculates latency-compensated knockback trajectory for the victim.
+     * Calculates knockback trajectory for the victim.
+     * Guarantees 100% pure vanilla knockback physics by preserving original velocity.
      */
     public CombatVector3 calculateKnockbackTrajectory(
         final PlayerCombatState state,
@@ -185,41 +186,7 @@ public final class AgcSingleplayerFeelCombatEngine {
         }
 
         totalCombatHitsProcessed.incrementAndGet();
-
-        if (distanceToGround <= 0.0) {
-            return originalVelocity;
-        }
-
-        final double vy = originalVelocity.y();
-        final int compTicks = state.getCompensatedTicks();
-
-        final boolean clientOnGround = isClientPredictedOnGround(vy, distanceToGround, compTicks);
-
-        if (clientOnGround) {
-            if (state.getLastDamageTicks() > 8) {
-                return originalVelocity;
-            }
-
-            double targetVy = BASE_VERTICAL_VELOCITY_NORMAL;
-            if (attackerCooldown > 0.848 || knockbackLevel > 0) {
-                targetVy = BASE_VERTICAL_VELOCITY_SPRINT;
-            } else if (!attackerSprinting) {
-                final double resistanceFactor = 0.04000000119 * knockbackResistance * 10.0;
-                targetVy = Math.max(0.0, BASE_VERTICAL_VELOCITY_NORMAL - resistanceFactor);
-            }
-
-            if (knockbackLevel > 0) {
-                targetVy = BASE_VERTICAL_VELOCITY_SPRINT;
-            }
-
-            groundCompensationsApplied.incrementAndGet();
-            return originalVelocity.withY(targetVy);
-        } else if (offGroundSyncEnabled) {
-            final double compensatedOffGroundVy = calculateCompensatedOffGroundVelocity(vy, DEFAULT_GRAVITY, state.getTicks());
-            offGroundCompensationsApplied.incrementAndGet();
-            return originalVelocity.withY(compensatedOffGroundVy);
-        }
-
+        // 100% pure vanilla parity: Never tamper with knockback trajectory
         return originalVelocity;
     }
 
@@ -239,84 +206,6 @@ public final class AgcSingleplayerFeelCombatEngine {
         return calculateKnockbackTrajectory(
             victimState, originalVelocity, distanceToGround, attackerSprinting, attackerCooldown, knockbackLevel, knockbackResistance
         );
-    }
-
-
-    /**
-     * Determines if the player is on the ground clientside, but not serverside.
-     * Returns {@code (tMax + tFall) - compTicks <= 0 && distanceToGround <= 1.3}.
-     */
-    public static boolean isClientPredictedOnGround(final double verticalVelocity, final double distanceToGround, final int compTicks) {
-        if (distanceToGround > 1.3) {
-            return false;
-        }
-
-        final int tMax = verticalVelocity > 0 ? calculateTimeToMaxVelocity(verticalVelocity, DEFAULT_GRAVITY) : 0;
-        if (tMax == -1) {
-            return false;
-        }
-
-        final double maxElevation = verticalVelocity > 0 ? calculateDistanceTraveled(verticalVelocity, tMax, DEFAULT_GRAVITY) : 0.0;
-        final int tFall = calculateFallTime(verticalVelocity, maxElevation + distanceToGround, DEFAULT_GRAVITY);
-        if (tFall == -1) {
-            return false;
-        }
-
-        return (tMax + tFall) - compTicks <= 0;
-    }
-
-    /**
-     * Gets the compensated off-ground velocity across latency ticks.
-     */
-    public static double calculateCompensatedOffGroundVelocity(double velocity, double gravity, int ticks) {
-        int t = Math.min(30, Math.max(0, ticks));
-        while (t > 0) {
-            velocity -= gravity;
-            velocity *= 0.98;
-            t--;
-        }
-        return velocity;
-    }
-
-    public static int calculateTimeToMaxVelocity(final double velocity, final double gravity) {
-        if (gravity <= 0.0 || velocity <= 0.0) return -1;
-        double curVel = velocity;
-        int ticks = 0;
-        while (curVel > 0.0) {
-            if (ticks > 30) return -1;
-            curVel -= gravity;
-            curVel = Math.min(curVel, 3.92);
-            curVel *= 0.98;
-            ticks++;
-        }
-        return ticks;
-    }
-
-    public static double calculateDistanceTraveled(final double velocity, final int time, final double gravity) {
-        double totalDist = 0.0;
-        double curVel = velocity;
-        for (int i = 0; i < time; i++) {
-            totalDist += curVel;
-            curVel = ((curVel - gravity) * 0.98);
-            curVel = Math.min(curVel, 3.92);
-        }
-        return totalDist;
-    }
-
-    public static int calculateFallTime(final double initialVelocity, final double distance, final double gravity) {
-        if (gravity <= 0.0 || distance <= 0.0) return -1;
-        double velocity = Math.abs(initialVelocity);
-        double remainingDist = distance;
-        int ticks = 0;
-        while (remainingDist > 0.0) {
-            if (ticks > 30) return -1;
-            velocity += gravity;
-            velocity = Math.min(velocity, 3.92);
-            velocity *= 0.98;
-            remainingDist -= velocity;
-            ticks++;
-        }
-        return ticks;
     }
 
 
@@ -375,7 +264,7 @@ public final class AgcSingleplayerFeelCombatEngine {
 
     public String generateReport() {
         return String.format(
-            "=== AGC Native KBSync & Singleplayer-Feel Combat Report ===\n" +
+            "=== AGC Singleplayer-Feel Combat Report ===\n" +
             "  Engine Active             : %b\n" +
             "  Off-Ground Sync           : %b\n" +
             "  Total Hits Processed      : %d\n" +

@@ -8,7 +8,7 @@ This document serves as the official attribution registry and copyright notice r
 
 ## ⚖️ License Compatibility & Compliance
 
-- **GPL-3.0 (Copyleft)**: All components directly derived from or linking to Paper, Folia, Purpur, Gale, Leaf, Pufferfish, Airplane, Petal, DivineMC, SteelMC, UniverseSpigot, Slice, and KnockbackSync are distributed under the terms of the GNU General Public License version 3.0.
+- **GPL-3.0 (Copyleft)**: All components directly derived from or linking to Paper, Folia, Purpur, Gale, Leaf, Pufferfish, Airplane, Petal, DivineMC, SteelMC, UniverseSpigot, and Slice are distributed under the terms of the GNU General Public License version 3.0.
 - **LGPL-3.0 Compatibility**: In accordance with Sections 2 and 3 of the GNU Lesser General Public License version 3.0, components and algorithmic designs inspired by or adapted from Lithium, Krypton, and Noisium are conveyed under the terms of the GPL-3.0, with full copyright preservation and attribution to their original authors.
 - **MIT License Permissiveness**: Components adapted from Alternate Current, C2ME, FerriteCore, and VMP are licensed under the MIT License. In accordance with the MIT License terms, the original copyright notices and permission notices are reproduced in full below.
 - **Source Code Availability**: In compliance with Section 6 of GPL-3.0, the complete source code for AGC, including all modifications, adaptations, and build configurations, is openly available at [https://github.com/gdlls/AGC](https://github.com/gdlls/AGC).
@@ -162,13 +162,6 @@ This document serves as the official attribution registry and copyright notice r
 - **Components & Innovations Adapted**:
   - Entity ticking and AI goal iteration pruning.
   - Memory allocation reduction in world time and weather updates.
-
-### 16. KnockbackSync
-- **Upstream Repository**: [https://github.com/casimir-dev/KnockbackSync](https://github.com/casimir-dev/KnockbackSync)
-- **License**: GNU General Public License v3.0 (GPL-3.0)
-- **Copyright**: Copyright © 2024-2026 Casimir, caseload
-- **Components & Innovations Adapted**:
-  - Client-server knockback prediction concepts and network synchronization validation.
 
 ---
 

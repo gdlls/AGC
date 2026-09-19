@@ -51,60 +51,43 @@ public class AgcSingleplayerFeelCombatEngineTest {
     }
 
     @Test
-    public void testGroundPredictionAndUpwardRestoration() {
+    public void testPureVanillaKnockbackTrajectoryPreserved() {
         engine.setEnabled(true);
         assertTrue(engine.isEnabled());
 
         final AgcSingleplayerFeelCombatEngine.PlayerCombatState victimState = engine.getOrCreateState(testVictimId);
         victimState.setPing(120.0);
-        victimState.setPing(120.0);
 
         final AgcSingleplayerFeelCombatEngine.CombatVector3 original =
-            new AgcSingleplayerFeelCombatEngine.CombatVector3(0.2, 0.0, 0.2);
+            new AgcSingleplayerFeelCombatEngine.CombatVector3(0.2, 0.35, 0.2);
 
-        final AgcSingleplayerFeelCombatEngine.CombatVector3 compensated =
+        final AgcSingleplayerFeelCombatEngine.CombatVector3 result =
             engine.calculateKnockbackTrajectory(victimState, original, 0.05, true, 1.0, 0, 0.0);
 
-        assertEquals(0.40, compensated.y(), 1e-4, "Should compensate vertical velocity to 0.40 for sprint hit");
-        assertEquals(1, engine.getGroundCompensationsApplied());
+        // 100% Vanilla parity: Velocity is strictly preserved without any KBSync manipulation
+        assertEquals(original.x(), result.x(), 1e-6);
+        assertEquals(original.y(), result.y(), 1e-6);
+        assertEquals(original.z(), result.z(), 1e-6);
         assertEquals(1, engine.getTotalCombatHitsProcessed());
     }
 
     @Test
-    public void testOffGroundDecayCompensation() {
+    public void testOffGroundVanillaKnockbackPreserved() {
         engine.setEnabled(true);
         engine.setOffGroundSyncEnabled(true);
 
         final AgcSingleplayerFeelCombatEngine.PlayerCombatState victimState = engine.getOrCreateState(testVictimId);
         victimState.setPing(100.0);
-        victimState.setPing(100.0);
 
         final AgcSingleplayerFeelCombatEngine.CombatVector3 original =
             new AgcSingleplayerFeelCombatEngine.CombatVector3(0.3, 0.4, 0.3);
 
-        final AgcSingleplayerFeelCombatEngine.CombatVector3 compensated =
+        final AgcSingleplayerFeelCombatEngine.CombatVector3 result =
             engine.calculateKnockbackTrajectory(victimState, original, 3.0, false, 0.5, 0, 0.0);
 
-        assertEquals(1, engine.getOffGroundCompensationsApplied());
-        assertTrue(compensated.y() != original.y());
-    }
-
-    @Test
-    public void testDamageTicksCeiling() {
-        engine.setEnabled(true);
-
-        final AgcSingleplayerFeelCombatEngine.PlayerCombatState victimState = engine.getOrCreateState(testVictimId);
-        victimState.setPing(100.0);
-        victimState.setPing(100.0);
-        victimState.setLastDamageTicks(10);
-
-        final AgcSingleplayerFeelCombatEngine.CombatVector3 original =
-            new AgcSingleplayerFeelCombatEngine.CombatVector3(0.2, 0.0, 0.2);
-
-        final AgcSingleplayerFeelCombatEngine.CombatVector3 result =
-            engine.calculateKnockbackTrajectory(victimState, original, 0.05, true, 1.0, 0, 0.0);
-
-        assertEquals(original.y(), result.y(), 1e-4);
+        assertEquals(original.x(), result.x(), 1e-6);
+        assertEquals(original.y(), result.y(), 1e-6);
+        assertEquals(original.z(), result.z(), 1e-6);
     }
 
     @Test
@@ -161,7 +144,7 @@ public class AgcSingleplayerFeelCombatEngineTest {
         engine.setEnabled(true);
         final String report = engine.generateReport();
         assertNotNull(report);
-        assertTrue(report.contains("AGC Native KBSync & Singleplayer-Feel Combat Report"));
+        assertTrue(report.contains("AGC Singleplayer-Feel Combat Report"));
         assertTrue(report.contains("Engine Active             : true"));
     }
 }

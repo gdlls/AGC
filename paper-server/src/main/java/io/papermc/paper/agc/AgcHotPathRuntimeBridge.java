@@ -204,7 +204,7 @@ public final class AgcHotPathRuntimeBridge {
         AgcPluginSafetyGuard.get().drainMailbox(0);
     }
 
-    // 3. Singleplayer-Feel Combat & KBSync Sub-Tick Dispatch
+    // 3. Singleplayer-Feel Combat Sub-Tick Immediate Dispatch
 
     /**
      * Processes a combat knockback trajectory with sub-tick immediate dispatch (with attacker context).

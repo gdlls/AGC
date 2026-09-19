@@ -77,7 +77,6 @@ help.yml
 permissions.yml
 eula.txt
 launch-*.sh
-kbsync/
 .freebuff/
 cache/
 libraries/

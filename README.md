@@ -171,7 +171,6 @@ AGC proudly incorporates, builds upon, and adapts high-performance architectures
 | **[SteelMC](https://github.com/SteelMC) & [UniverseSpigot](https://github.com/UniverseSpigot)** | GPL-3.0 | SteelMC & UniverseSpigot contributors | Ultra-scale Netty packet broadcast deduplication, direct memory buffer pooling |
 | **[Krypton](https://github.com/astei/krypton)** | LGPL-3.0 | Andrew Steinborn (Tux2) | Netty pipeline flush coalescing, dynamic byte buffer sizing |
 | **[Slice](https://github.com/Cryptite/Slice)** | GPL-3.0 | Cryptite | Entity tick optimizations, memory allocation reduction in world time & weather loops |
-| **[KnockbackSync](https://github.com/casimir-dev/KnockbackSync)** | GPL-3.0 | Casimir, caseload | Client prediction & network knockback synchronization concepts |
 
 ---
 
