@@ -14,6 +14,12 @@ import java.util.concurrent.atomic.AtomicLong;
  * from fragmented Java heap objects into contiguous primitive arrays. This transforms entity
  * motion and gravity updates from random memory pointer chasing into sequential SIMD-friendly
  * memory streaming, maximizing CPU L1/L2 cache line hit rates ($>98\%$).</p>
+ *
+ * <p><b>INTEGRATION STATUS:</b> Called from {@code AgcHotPathRuntimeBridge}
+ * at bootstrap, but NOT directly from {@code Entity.move()} in production NMS.
+ * Full Entity→SoA migration requires solving entity lifecycle synchronization
+ * with the object-oriented Entity graph. Currently exercised by unit tests
+ * and the component benchmark.</p>
  */
 public final class AgcSoaEntityPhysicsEngine {
 

@@ -6,12 +6,13 @@ import org.slf4j.LoggerFactory;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * AGC — 64-Way SIMD / Vector Parallel Collision Detection Kernel.
+ * AGC — 8x Unrolled Batch AABB Broadphase Collision Kernel.
  *
- * <p>Executes parallel AABB intersection testing for broadphase entity-to-entity and
- * entity-to-block collision sweeps. Leverages SIMD AVX-512 register layout patterns
- * (16 floats per 512-bit lane), evaluating up to 64 bounding box overlaps in a handful
- * of CPU clock cycles without branching or memory stalls.</p>
+ * <p>Evaluates bounding box intersections in 8-element batches via manual loop
+ * unrolling to encourage JIT C2/Graal auto-vectorization. Uses Structure-of-Arrays
+ * (SoA) float[] layout for cache-line efficiency. This is pure Java code; actual
+ * hardware SIMD vectorization depends on the JVM JIT compiler recognizing the
+ * unrolled comparison pattern at runtime.</p>
  */
 public final class AgcSimdCollisionKernel {
 

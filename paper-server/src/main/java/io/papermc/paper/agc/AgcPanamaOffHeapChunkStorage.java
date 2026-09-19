@@ -16,6 +16,12 @@ import java.util.concurrent.atomic.AtomicLong;
  * native off-heap memory segments using Java Foreign Memory APIs. By keeping millions of
  * chunk sections outside the JVM Garbage Collector scan graph, GC Mark Phase duration
  * is compressed from hundreds of milliseconds down to $< 1.0\text{ ms}$ on 1TB heaps.</p>
+ *
+ * <p><b>STATUS: EXPERIMENTAL PROTOTYPE</b> — This class is not wired to the
+ * production NMS chunk engine (LevelChunk / ChunkAccess). It demonstrates
+ * Java FFM (Foreign Function & Memory) API usage for off-heap chunk section
+ * storage. Integration with the live chunk pipeline is planned but not yet
+ * implemented. Currently exercised only by unit tests.</p>
  */
 public final class AgcPanamaOffHeapChunkStorage {
 

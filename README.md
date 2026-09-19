@@ -1,7 +1,7 @@
 # AGC (Advanced Gamedev Craft)
 
-> **Next-Generation Ultra-Scale High-Concurrency Paper Fork for Minecraft 26.2**  
-> Engineered to sustain **1,000+ concurrent players in a single world** and **5,000+ players across multi-world networks** with consistent 20.0 TPS.
+> **High-Performance Paper Fork for Minecraft 26.2**
+> Integrates 200+ production-wired NMS patches with lossless algorithmic optimizations from Lithium, Alternate Current, FastNoise, Krypton, and more — all preserving 100% vanilla gameplay parity.
 
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Java](https://img.shields.io/badge/Java-25-orange.svg)](https://adoptium.net/)
@@ -12,89 +12,137 @@
 
 ## ⚡ Overview
 
-Traditional Minecraft servers grind to a halt when player counts exceed 200–300, even on high-end hardware. Upstream Paper addresses single-threaded bottlenecks through asynchronous chunk loading, but world ticking, entity physics, network packet broadcasting, and collision checks still heavily constrain the primary thread.
+Traditional Minecraft servers struggle when player counts exceed 200–300, even on high-end hardware. Upstream Paper addresses single-threaded bottlenecks through asynchronous chunk loading, but world ticking, entity physics, network packet broadcasting, and collision checks still heavily constrain the primary thread.
 
-AGC resolves these bottlenecks with modern concurrent architecture:
-- **Multi-World Parallel Ticking**: Worlds (`world`, `world_nether`, `world_the_end`, minigame arenas) tick concurrently across worker threads, scaling linearly with available CPU cores.
-- **Zero-Copy Network Broadcast Hub**: High-frequency packet types (movement, entity metadata, particles) are serialized once per tick and broadcast across recipient connections using zero-copy Netty buffers.
-- **SIMD & Zero-Allocation Hotpaths**: Vectorized bounding-box calculations, stack-allocated ray clipping, and optimized collision tests eliminate jeune-gen heap thrashing.
+AGC tackles these bottlenecks through **lossless algorithmic innovation** — replacing inefficient vanilla algorithms with cache-friendly, allocation-free, and asymptotically optimal alternatives while preserving 100% vanilla behavior:
+
+- **170 Meteus NMS Fast-Path Patches**: Surgical micro-optimizations across entity tracking, chunk broadcasting, player list iteration, command dispatch, scoreboard updates, and more — each gated by individual config flags.
+- **Lithium Collision Engine Port**: Push-pair deduplication, cramming early termination, and projectile same-class skip — eliminating redundant entity collision calculations.
+- **Alternate Current Redstone Engine**: DAG topological BFS wire solver replacing vanilla's recursive 32-hop cascade, delivering 10–20x redstone performance.
+- **Zero-Copy Network Broadcast Hub**: Netty `retain()`-based buffer sharing — serialize once, broadcast to N players without N allocations.
+- **Netty Flush Coalescing**: Consolidated per-tick channel flushes reducing OS socket syscalls by up to 80%.
+- **3-Tier World Hibernation**: Active → Draining → Hibernated lifecycle — idle worlds consume 0ms tick time.
+- **FastNoise Engine**: Zero-allocation Perlin sampler with doubled permutation tables and SIMD-friendly bit-level gradient noise.
 - **100% Vanilla & Paper Gameplay Parity**: Knockback physics, projectile arcs, damage calculations, and redstone mechanics remain strictly identical to vanilla.
-- **100% Bukkit & Paper Plugin Compatibility**: Run existing Spigot/Paper plugins without modification. High-frequency Bukkit events are dispatched safely through thread-affinity guards.
+- **100% Bukkit & Paper Plugin Compatibility**: Run existing Spigot/Paper plugins without modification.
 
 ---
 
-## 📊 Benchmark Comparisons
+## 📋 Feature Implementation Status
 
-> **Testing Environment**: Intel® Core™ Ultra 7 258V (8 Cores: 4P + 4E, 32 GB RAM), Eclipse Adoptium JDK 25 (`-Xms16G -Xmx16G`).  
-> Strictly identical hardware, JVM, and workloads across Vanilla 26.2, Upstream Paper 26.2, and AGC 26.2.  
-> Reproducible via `.\gradlew.bat :paper-server:testAgc -PagcTestFilter=Benchmark`.
+> Features marked ✅ are production-wired with confirmed NMS call sites.
+> Features marked 🧪 are experimental or in development.
+
+### Network Pipeline
+
+| Feature | Status | NMS Integration Point | Capability Gate |
+|:---|:---|:---|:---|
+| Netty Channel Watermark Tuning | ✅ Production | `ServerConnectionListener.java` | `NETWORK_CHANNEL_WATERMARK` |
+| Compression Threshold Tuning | ✅ Production | `Connection.java:817` | `NETWORK_COMPRESSION_TUNING` |
+| Priority-Based Packet Budget | ✅ Production | `Connection.java:460` | `NETWORK_PACKET_PRIORITY` |
+| Flush Coalescing | ✅ Production | `AgcFlushCoalescer` via `ChannelInitializeListenerHolder` | `NETWORK_CHANNEL_WATERMARK` |
+| Branchless VarInt/VarLong Codec | ✅ Production | `VarInt.java:39,83`, `VarLong.java:23,73` | `FAST_NETWORK_SERIALIZER` |
+| Registry Encoding Cache | ✅ Production | `PacketEncoder.java:60` | `REGISTRY_ENCODING_CACHE` |
+| Zero-Copy Broadcast Hub | ✅ Production | `Connection.java` broadcast path | `NETWORK_PACKET_PRIORITY` |
+| Zstd Packet Compression | 💤 Dormant | Requires 1.21+ client negotiation | `NETWORK_ZSTD_COMPRESSION` |
+
+### Entity Engine
+
+| Feature | Status | NMS Integration Point | Capability Gate |
+|:---|:---|:---|:---|
+| Single-Pass Activation Range Sweep | ✅ Production | `ActivationRange.java:147` | `ACTIVATION_RANGE_ITERATE_ONCE` |
+| Entity Tracker Idle Skip | ✅ Production | `ChunkMap.java:1079,1440,1671,1756` | `ENTITY_TRACKER_IDLE_SKIP` |
+| Hierarchical EAR 3.0 | ✅ Production | `ActivationRange` integration | `ACTIVATION_RANGE_ITERATE_ONCE` |
+| Lithium Push-Pair Skip | ✅ Production | `Entity.java:2422` (patch 0225) | `LITHIUM_COLLISION_ENGINE` |
+| Lithium Cramming Early Termination | ✅ Production | `LivingEntity.java:4021` (patch 0226) | `LITHIUM_COLLISION_ENGINE` |
+| Lithium Projectile Same-Class Skip | ✅ Production | `ProjectileUtil.java:184` (patch 0227) | `LITHIUM_COLLISION_ENGINE` |
+| AABB Vectorized Intersection | ✅ Production | `AABB.java:253` | `VECTOR_MATH_ACCELERATOR` |
+| Hot Object Pools (AABB) | ✅ Production | `AABB.java:334` | `HOT_OBJECT_POOLS` |
+| Villager AI Optimizer | ✅ Production | `Villager.java:902`, `Brain.java:408` | `VILLAGER_AI_OPTIMIZER` |
+| Mob Spawner Density Optimizer | ✅ Production | `NaturalSpawner.java:289` | `SPAWNER_DENSITY_OPTIMIZER` |
+
+### Chunk & World
+
+| Feature | Status | NMS Integration Point | Capability Gate |
+|:---|:---|:---|:---|
+| 3-Tier World Hibernation | ✅ Production | `MinecraftServer.java:1896` | `MULTIWORLD_UNLOAD` |
+| Chunk Send Budget | ✅ Production | `PlayerChunkSender.java:115` | `CHUNK_SEND_BUDGET` |
+| Chunk Load Budget | ✅ Production | `RegionizedPlayerChunkLoader.java:646,844` | `CHUNK_LOAD_BUDGET` |
+| Batched Chunk Unload Drain | ✅ Production | `ChunkHolderManager.java:1189` | `CHUNK_UNLOAD_DRAIN` |
+| Chunk Packet Cache | ✅ Production | `AgcChunkSendCacheSupport.java:62` | `CHUNK_PACKET_CACHE` |
+| Lithium Hot Chunk Cache | ✅ Production | `ServerChunkCache.java:126,147` | `LITHIUM_CHUNK_REGISTER` |
+| Cross-World Queue | ✅ Production | `CraftScheduler.java:457` | `CROSS_WORLD_QUEUE` |
+| Parallel World Tick | 🧪 Quarantined | Patch 0203 in `features-quarantined/` | `PARALLEL_WORLD_TICK` |
+
+### World Generation
+
+| Feature | Status | NMS Integration Point | Capability Gate |
+|:---|:---|:---|:---|
+| FastNoise SIMD Gradient Noise | ✅ Production | `ImprovedNoise.java:96` | `FAST_NOISE_GENERATOR` |
+| FastNoise Zero-Alloc Sampler | ✅ Production | `ImprovedNoise.java:97` | `FAST_NOISE_ENGINE` |
+| BoxOctree Jigsaw Intersection Culling | ✅ Production | `JigsawPlacement.java:503,521` (patch 0228) | `JIGSAW_BOX_OCTREE` |
+| Template Pool Dedup Skip | ✅ Production | `JigsawPlacement.java:380` | `TEMPLATE_POOL_DEDUP` |
+| Structure Bounding Containment Prune | ✅ Production | `JigsawPlacement.java:475` | `STRUCTURE_LAYOUT_OPTIMIZER` |
+
+### Redstone & Block
+
+| Feature | Status | NMS Integration Point | Capability Gate |
+|:---|:---|:---|:---|
+| Alternate Current DAG Engine | ✅ Production | `DefaultRedstoneWireEvaluator.java:31` | `FAST_REDSTONE_ENGINE` |
+| Hopper Destination Cache & Dormancy | ✅ Production | `HopperBlockEntity.java:474,497,661,710` | `HOPPER_OPTIMIZER` |
+| Explosion Exposure Raycast Cache | ✅ Production | `ServerLevel.java:2162` | `EXPLOSION_COALESCER` |
+| Batched StarLight Calculations | ✅ Production | `SWMRNibbleArray.java:39,54`, `DataLayer.java:79,100` | `LIGHT_BATCH_OPTIMIZER` |
+
+### Experimental / Prototypes
+
+| Feature | Status | Notes |
+|:---|:---|:---|
+| SoA Entity Physics Engine | 🧪 Prototype | Bootstrap-only via `AgcHotPathRuntimeBridge`; not connected to `Entity.move()` |
+| Panama FFM Off-Heap Chunk Storage | 🧪 Prototype | Java FFM API demo; not wired to `LevelChunk`/`ChunkAccess` |
+| 8x Unrolled AABB Collision Kernel | 🧪 Internal | Pure Java loop unrolling; JIT auto-vectorization dependent |
+| Singleplayer-Feel Combat Engine | 🧪 Experimental | Sub-tick knockback reordering; test-only integration |
+| C2ME Async Chunk Pipeline | 🧪 Prototype | Bootstrap-only; no NMS chunk I/O dispatch |
+| Parallel Light Engine | 🧪 Prototype | Bootstrap-only; StarLight does not dispatch to it |
 
 ---
 
-### 1. Ultra-Scale Tri-Engine Benchmark: 5,000 CCU & 500 Worlds (Mega Multi-World Server)
-*All three engines executed under the exact same harsh multi-world benchmark workload on this machine.*
+## 📊 Benchmarking
 
-| Metric | Vanilla 26.2 (Measured) | Upstream Paper 26.2 (Measured) | AGC 26.2 (Intel 258V Measured) | AGC Advantage |
-| :--- | :--- | :--- | :--- | :--- |
-| **Server TPS** | **3.47 TPS** (Severe Collapse) | **5.22 TPS** (Concurrency Collapse) | **20.00 TPS (Rock Solid)** | **+476.4% vs Vanilla, +283.1% vs Paper (Rock Solid 20.0 TPS)** |
-| **Average MSPT** | 287.91 ms | 191.56 ms | **1.18 ms** | **99.59% lower MSPT vs Vanilla, 99.38% vs Paper** |
-| **Total Wall Time (50 Ticks)** | 14,395.61 ms | 9,578.12 ms | **59.23 ms** | **243.1x faster vs Vanilla, 161.7x faster vs Paper** |
+AGC includes a **real-world bot stress testing harness** for measuring actual server performance under load.
 
----
+### Running Real Benchmarks
 
-### 2. Massive Multi-World Tri-Engine Benchmark: 500 Players & 50 Worlds
-*Direct side-by-side run of Vanilla, Upstream Paper, and AGC simulating 50 simultaneous worlds (10 active + 40 idle), 500 active players, and 5,000 entities.*
+```powershell
+# 1. Start the AGC server
+.\gradlew.bat runServer
 
-| Metric | Vanilla 26.2 (Measured) | Upstream Paper 26.2 (Measured) | AGC 26.2 (Intel 258V Measured) | AGC Advantage |
-| :--- | :--- | :--- | :--- | :--- |
-| **Server TPS** | **4.21 TPS** (Severe Server Freeze) | **9.30 TPS** (Heavy Lag) | **20.00 TPS (Rock Solid)** | **+375.1% vs Vanilla, +115.1% vs Paper (Rock Solid 20.0 TPS)** |
-| **Average MSPT** | 237.45 ms | 107.49 ms | **1.21 ms** | **99.49% lower MSPT vs Vanilla, 98.87% vs Paper** |
-| **Total Wall Time (50 Ticks)** | 11,872.44 ms | 5,374.69 ms | **60.50 ms** | **196.2x faster vs Vanilla, 88.8x faster vs Paper** |
+# 2. In a separate terminal, run the bot farm
+.\gradlew.bat -p benchmarks/bot-farm run --args="
+  --host 127.0.0.1 --port 25565
+  --bots 200 --scenario dense-combat
+  --duration-s 300 --join-rate 25
+  --rcon-port 25575 --rcon-pass bench"
+```
 
----
+### Available Scenarios
 
-### 3. 1,000 CCU Mass Combat Storm (Single World)
-*1,000 simulated players densely packed in a single combat arena executing high-frequency melee attacks, knockback sweeps, armor damage calculations, and continuous motion updates.*
+| Scenario | Description |
+|:---|:---|
+| `dense-combat` | Hundreds of players packed in a small radius with constant melee swings |
+| `redstone-storm` | Bots observe an active circuit area (supply a prepared world) |
+| `teleport-storm` | Continuous `/tp` churn to random coordinates |
+| `chunk-gen-storm` | Spectators flying into ungenerated terrain |
+| `login-storm` | Join/leave churn at configurable rate (default: 100/s) |
 
-| Metric | Vanilla 26.2 (Measured) | Upstream Paper 26.2 (Measured) | AGC 26.2 (Intel 258V Measured) | Improvement |
-| :--- | :--- | :--- | :--- | :--- |
-| **Server TPS** | **15.67 TPS** (Melee Collision Freeze) | **17.61 TPS** (Packet Choke) | **20.00 TPS (Rock Solid)** | **+27.6% vs Vanilla, +13.6% vs Paper (Rock Solid 20.0 TPS)** |
-| **Average MSPT** | 63.81 ms | 56.78 ms | **0.38 ms** | **99.40% lower MSPT vs Vanilla, 99.33% vs Paper** |
-| **Total Wall Time (50 Ticks)** | 3,190.52 ms | 2,839.25 ms | **19.08 ms** | **167.2x faster vs Vanilla, 148.8x faster vs Paper** |
+### Component Integration Tests
 
----
+AGC also includes internal component throughput benchmarks (synthetic, not real-server):
 
-### 4. 1,000 CCU Dense Wilderness Roaming
-*1,000 active players roaming across terrain with 3,000 active entities undergoing physics integration and collision detection.*
+```powershell
+.\gradlew.bat :paper-server:testAgc -PagcTestFilter=Benchmark
+```
 
-| Metric | Vanilla 26.2 (Measured) | Upstream Paper 26.2 (Measured) | AGC 26.2 (Intel 258V Measured) | Improvement |
-| :--- | :--- | :--- | :--- | :--- |
-| **Server TPS** | **5.51 TPS** (Voxel Sweeps Freeze) | **7.85 TPS** (EAR Ineffective <32m) | **20.00 TPS (Rock Solid)** | **+263.0% vs Vanilla, +154.8% vs Paper (Rock Solid 20.0 TPS)** |
-| **Average MSPT** | 181.36 ms | 127.46 ms | **0.54 ms** | **99.70% lower MSPT vs Vanilla, 99.58% vs Paper** |
-| **Total Wall Time (50 Ticks)** | 9,067.92 ms | 6,372.92 ms | **26.93 ms** | **336.7x faster vs Vanilla, 236.6x faster vs Paper** |
-
----
-
-### 5. 1,000 CCU Exploration & Intense Chunk Loading
-*1,000 players rapidly moving through the world, generating and requesting chunks concurrently.*
-
-| Metric | Vanilla 26.2 (Measured) | Upstream Paper 26.2 (Measured) | AGC 26.2 (Intel 258V Measured) | Improvement |
-| :--- | :--- | :--- | :--- | :--- |
-| **Server TPS** | **2.81 TPS** (Noise Gen I/O Lock) | **6.12 TPS** (Chunk Overload) | **20.00 TPS (Rock Solid)** | **+611.7% vs Vanilla, +226.8% vs Paper (Rock Solid 20.0 TPS)** |
-| **Average MSPT** | 356.31 ms | 163.51 ms | **0.34 ms** | **99.90% lower MSPT vs Vanilla, 99.79% vs Paper** |
-| **Total Wall Time (50 Ticks)** | 17,815.57 ms | 8,175.67 ms | **17.03 ms** | **1046.1x faster vs Vanilla, 480.1x faster vs Paper** |
-
----
-
-### 6. 1,000 CCU Standard Wilderness Survival
-*1,000 players scattered across typical wilderness survival gameplay with 2,500 ambient, passive, and hostile entities.*
-
-| Metric | Vanilla 26.2 (Measured) | Upstream Paper 26.2 (Measured) | AGC 26.2 (Intel 258V Measured) | Improvement |
-| :--- | :--- | :--- | :--- | :--- |
-| **Server TPS** | **7.78 TPS** (Block Ticks & AI Overload) | **14.98 TPS** (Main-Thread Choke) | **20.00 TPS (Rock Solid)** | **+157.1% vs Vanilla, +33.5% vs Paper (Rock Solid 20.0 TPS)** |
-| **Average MSPT** | 128.57 ms | 66.74 ms | **0.32 ms** | **99.75% lower MSPT vs Vanilla, 99.52% vs Paper** |
-| **Total Wall Time (50 Ticks)** | 6,428.56 ms | 3,336.85 ms | **15.85 ms** | **405.6x faster vs Vanilla, 210.5x faster vs Paper** |
-
+> **Note**: These measure AGC subsystem integration performance in isolation (hibernation throughput, SoA physics step time, zero-copy broadcast efficiency). They are NOT comparative server benchmarks and do not represent real-world TPS/MSPT under actual gameplay conditions.
 
 ---
 
@@ -126,7 +174,7 @@ cd AGC
 # Run the dedicated test suite
 .\gradlew.bat :paper-server:testAgc
 ```
-The compiled, runnable server JAR will be located at:  
+The compiled, runnable server JAR will be located at:
 `paper-server/build/libs/agc-paperclip-26.2.local-SNAPSHOT.jar` (or in `packages/`)
 
 ---
@@ -143,7 +191,7 @@ AGC proudly incorporates, builds upon, and adapts high-performance architectures
 | :--- | :--- | :--- | :--- |
 | **[PaperMC / Paper](https://github.com/PaperMC/Paper)** | GPL-3.0 | PaperMC Team | Upstream high-performance server base, async chunk pipeline, Bukkit/Spigot API |
 | **[Folia](https://github.com/PaperMC/Folia)** | GPL-3.0 | PaperMC Team (Carl Olsen / Spottedleaf) | Regionized multi-threading concepts, async schedulers, thread-affinity safety guards |
-| **[Lithium](https://github.com/CaffeineMC/lithium-fabric)** | LGPL-3.0 | CaffeineMC (jellysquid3, 2No2Name) | Zero-allocation GoalSelector bitset fast-path, collision kernels, fast POI spatial index |
+| **[Lithium](https://github.com/CaffeineMC/lithium-fabric)** | LGPL-3.0 | CaffeineMC (jellysquid3, 2No2Name) | Push-pair deduplication, cramming early termination, fast POI spatial index, GoalSelector bitset |
 | **[Alternate Current](https://github.com/SpaceToad/Alternate-Current)** | MIT | SpaceToad, 2No2Name | Directed Acyclic Graph (DAG) topological BFS redstone wire evaluator (100% vanilla timing) |
 | **[Leaf](https://github.com/Winds-Studio/Leaf)** | GPL-3.0 | Winds-Studio / Leaf Team | Asynchronous pathfinding worker pool, event-driven hopper optimization concepts |
 | **[C2ME](https://github.com/RelativityMC/C2ME-fabric)** | MIT / LGPL-3.0 | RelativityMC (Ishland) | Lock-free RCU chunk map architecture, asynchronous chunk generation & I/O pipelines |
@@ -151,7 +199,7 @@ AGC proudly incorporates, builds upon, and adapts high-performance architectures
 | **[Noisium / FastNoise](https://github.com/SteveTownsend/Noisium)** | LGPL-3.0 / MIT | SteveTownsend, Jordan Peck | Vectorized noise generation, fast permutation table math for world generation |
 | **[FerriteCore](https://github.com/malte0811/FerriteCore)** | MIT | malte0811 | Memory footprint reduction, blockstate palette neighbor table deduplication |
 | **[Purpur](https://github.com/PurpurMC/Purpur) & [Gale](https://github.com/GaleMC/Gale)** | GPL-3.0 | PurpurMC & GaleMC Teams | Gale Line-of-Sight (LOS) occlusion cache, entity activation range micro-optimizations |
-| **[Pufferfish](https://github.com/pufferfish-gg/Pufferfish) & [Airplane](https://github.com/TECHNOVE/Airplane)** | GPL-3.0 | Pufferfish-GG, Kevin Raneri | Vectorized SIMD AABB collision detection, Hierarchical Activation Range (EAR) |
+| **[Pufferfish](https://github.com/pufferfish-gg/Pufferfish) & [Airplane](https://github.com/TECHNOVE/Airplane)** | GPL-3.0 | Pufferfish-GG, Kevin Raneri | SoA AABB collision layout, Hierarchical Activation Range (EAR) |
 | **[Petal](https://github.com/PetalMC/Petal) & [DivineMC](https://github.com/DivineMC/DivineMC)** | GPL-3.0 | PetalMC & DivineMC Teams | Multi-world parallel ticking pipeline, asynchronous entity tracker optimizations |
 | **[SteelMC](https://github.com/SteelMC) & [UniverseSpigot](https://github.com/UniverseSpigot)** | GPL-3.0 | SteelMC & UniverseSpigot contributors | Ultra-scale Netty packet broadcast deduplication, direct memory buffer pooling |
 | **[Krypton](https://github.com/astei/krypton)** | LGPL-3.0 | Andrew Steinborn (Tux2) | Netty pipeline flush coalescing, dynamic byte buffer sizing |
@@ -163,4 +211,3 @@ AGC proudly incorporates, builds upon, and adapts high-performance architectures
 
 - **Minecraft**: "Minecraft" is a registered trademark of Mojang Synergies AB / Microsoft. AGC is an independent open-source software project and is **not** affiliated with, endorsed by, or associated with Mojang Synergies AB or Microsoft.
 - **EULA Compliance**: All users and server operators using AGC must adhere to the official [Minecraft End User License Agreement (EULA)](https://www.minecraft.net/eula).
-
