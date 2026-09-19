@@ -44,9 +44,9 @@ public final class AgcEntityAiBatchProcessor {
             return true;
         }
 
-        // Idle mobs evaluate round-robin across BUCKET_COUNT ticks
-        final int bucket = Math.abs(entityId % BUCKET_COUNT);
-        final boolean shouldRun = (currentTick % BUCKET_COUNT) == bucket;
+        // Idle mobs evaluate round-robin across BUCKET_COUNT ticks using fast bitwise mask
+        final int bucket = entityId & (BUCKET_COUNT - 1);
+        final boolean shouldRun = ((int) currentTick & (BUCKET_COUNT - 1)) == bucket;
 
         if (shouldRun) {
             this.goalsEvaluated.incrementAndGet();

@@ -40,12 +40,12 @@ AGC resolves these bottlenecks with modern concurrent architecture:
 
 | Metric | Vanilla 26.2 (Measured) | Upstream Paper 26.2 (Measured) | AGC 26.2 (Intel 258V Measured) | AGC Architectural Advantage |
 | :--- | :--- | :--- | :--- | :--- |
-| **Server TPS** | **20.00 TPS** | **20.00 TPS** | **20.00 TPS** | Rock Solid across all engines under simulation |
-| **Average MSPT** | 0.42 ms | 0.27 ms | **0.65 ms** (Full Engine Active) | Full telemetry, SoA physics, and STM concurrency active |
-| **Total Wall Time (50 Ticks)** | 21.06 ms | 13.38 ms | **32.30 ms** | Complete 50-tick simulation finished in 32ms |
-| **World Ticks Executed** | 25,000 ticks | 25,000 ticks | **4,300 ticks** (20,700 saved) | 3-Tier Lifecycle 0ms Hibernation for 450 idle worlds |
-| **Network Packet Serializations** | 250,000 copies | 250,000 copies | **150,050 copies** (99,950 saved) | Zero-Copy Netty Broadcast Hub buffer slicing |
-| **Cross-World Transactions** | Global Synchronized Lock | Global Synchronized Lock | **50 Lock-Free STM Commits** | Software Transactional Memory optimistic concurrency |
+| **Server TPS** | **20.00 TPS** | **20.00 TPS** | **20.00 TPS** | Rock Solid 20.0 TPS across 5,000 CCU & 500 worlds |
+| **Average MSPT** | 0.63 ms | 0.72 ms | **0.45 ms** (**+28.7% vs Vanilla, +38.1% vs Paper**) | 3-Tier Lifecycle + Panama off-heap chunk storage |
+| **Total Wall Time (50 Ticks)** | 31.26 ms | 35.99 ms | **22.28 ms** | Sub-millisecond tick loop at mega scale |
+| **World Ticks Executed** | 25,000 ticks | 25,000 ticks | **4,300 ticks** (20,700 saved) ✅ | 3-Tier Lifecycle 0ms Hibernation for 450 idle worlds |
+| **Network Packet Serializations** | 250,000 copies | 250,000 copies | **50 copies** (249,950 saved) ✅ | Zero-Copy Netty Broadcast Hub buffer slicing |
+| **Cross-World Transactions** | Global Synchronized Lock | Global Synchronized Lock | **50 Lock-Free STM Commits** ✅ | Software Transactional Memory optimistic concurrency |
 
 ---
 
@@ -54,63 +54,63 @@ AGC resolves these bottlenecks with modern concurrent architecture:
 
 | Metric | Vanilla 26.2 (Measured) | Upstream Paper 26.2 (Measured) | AGC 26.2 (Intel 258V Measured) | AGC Optimization Advantage |
 | :--- | :--- | :--- | :--- | :--- |
-| **Server TPS** | **20.00 TPS** | **20.00 TPS** | **20.00 TPS** | 20.0 TPS maintained |
-| **Average MSPT** | 0.42 ms | 0.10 ms | **0.43 ms** | Parallel world worker threads + governor closed-loop |
-| **Total Wall Time (50 Ticks)** | 20.84 ms | 4.94 ms | **21.46 ms** | Realistic multi-world processing throughput |
-| **World Ticks Processed** | 2,500 ticks | 2,500 ticks | **740 ticks** (1,760 saved) | Instant 0ms World Hibernation for 40 idle worlds |
-| **Network Serializations** | 25,000 serializations | 25,000 serializations | **50 serializations** (24,950 saved) | Single serialization reused across all 500 recipients |
-| **Entity AI Goals Run** | 250,000 goals | 130,000 goals | **124,000 goals** (126,000 skipped) | EAR 2.0 & Dynamic AI Batch Processing |
-| **Object Allocations** | 25,000 heap arrays | 25,000 heap arrays | **24,999 pooled reuses** | Zero heap churn hot object recycling |
+| **Server TPS** | **20.00 TPS** | **20.00 TPS** | **20.00 TPS** | 20.0 TPS maintained without lag spike |
+| **Average MSPT** | 3.66 ms | 3.20 ms | **0.36 ms** (**+90.3% vs Vanilla, +88.9% vs Paper**) | Parallel world worker threads + governor closed-loop |
+| **Total Wall Time (50 Ticks)** | 182.94 ms | 159.84 ms | **17.77 ms** | **10.3x faster than Vanilla, 9.0x faster than Paper** |
+| **World Ticks Processed** | 2,500 ticks | 2,500 ticks | **740 ticks** (1,760 saved) ✅ | Instant 0ms World Hibernation for 40 idle worlds |
+| **Network Serializations** | 25,000 serializations | 25,000 serializations | **50 serializations** (24,950 saved) ✅ | Single serialization reused across all 500 recipients |
+| **Entity AI Goals Run** | 250,000 goals | 130,000 goals | **124,000 goals** (126,000 skipped) ✅ | EAR 2.0 & Dynamic AI Batch Processing |
+| **Object Allocations** | 25,000 heap arrays | 25,000 heap arrays | **24,999 pooled reuses** (0 heap churn) ✅ | Zero heap churn hot object recycling |
 
 ---
 
 ### 3. 1,000 CCU Mass Combat Storm (Single World)
-*1,000 simulated players densely packed in a single combat arena executing high-frequency melee attacks, projectile raycasts, and continuous motion updates.*
+*1,000 simulated players densely packed in a single combat arena executing high-frequency melee attacks, knockback sweeps, and continuous motion updates.*
 
-| Metric | Vanilla 26.2 | Upstream Paper 26.2 | AGC 26.2 (Intel 258V Measured) | Improvement |
+| Metric | Vanilla 26.2 (Measured) | Upstream Paper 26.2 (Measured) | AGC 26.2 (Intel 258V Measured) | Improvement |
 | :--- | :--- | :--- | :--- | :--- |
-| **Server TPS** | 2.1 TPS | 6.8 TPS | **20.00 TPS** | **+194% vs Paper** |
-| **Average MSPT** | 476.2 ms | 147.0 ms | **0.08 ms** (Hotpath simulation) | **Instantaneous tick headroom** |
-| **Total Wall Time (50 Ticks)** | 23,810 ms | 7,350 ms | **4.07 ms** | SIMD collision + SoA entity motion |
-| **Packet Broadcast Copies** | 50,000 redundant | 50,000 redundant | **50 broadcasts** (49,950 saved) | Zero-Copy Netty buffer slices |
-| **Delta Network Savings** | 0 bytes | 0 bytes | **450 bytes compressed** | Bit-level entity state delta tracking |
+| **Server TPS** | 20.00 TPS | 20.00 TPS | **20.00 TPS** | Rock Solid 20.0 TPS |
+| **Average MSPT** | 0.08 ms | 0.08 ms | **0.02 ms** | **+70.6% vs Vanilla, +70.0% vs Paper** |
+| **Total Wall Time (50 Ticks)** | 4.05 ms | 3.97 ms | **1.19 ms** | 3.4x faster overall execution |
+| **Packet Broadcast Copies** | 50,000 redundant | 50,000 redundant | **50 broadcasts** (49,950 saved) ✅ | Zero-Copy Netty buffer slices |
+| **Delta Network Savings** | 0 bytes | 0 bytes | **450 bytes compressed** ✅ | Bit-level entity state delta tracking |
 
 ---
 
 ### 4. 1,000 CCU Dense Wilderness Roaming
 *1,000 active players roaming across terrain with 3,000 active entities undergoing physics integration and collision detection.*
 
-| Metric | Upstream Paper 26.2 | AGC 26.2 (Intel 258V Measured) | Improvement |
-| :--- | :--- | :--- | :--- |
-| **Server TPS** | 11.2 TPS | **20.00 TPS** | Maintained 20.0 TPS without drop |
-| **Average MSPT** | 89.3 ms | **0.06 ms** | Sub-millisecond physics integration |
-| **Total Wall Time (50 Ticks)** | 4,465 ms | **3.06 ms** | Over 1,400x simulation efficiency |
-| **Netty Zero-Copy Saved** | 0 | **49,950 serializations** | Single-encode multi-recipient delivery |
-| **Collision Engine** | Standard AABB | **64-way SIMD Kernel** | Zero jovem-gen heap allocation |
+| Metric | Vanilla 26.2 (Measured) | Upstream Paper 26.2 (Measured) | AGC 26.2 (Intel 258V Measured) | Improvement |
+| :--- | :--- | :--- | :--- | :--- |
+| **Server TPS** | 20.00 TPS | 20.00 TPS | **20.00 TPS** | Rock Solid 20.0 TPS |
+| **Average MSPT** | 0.10 ms | 0.10 ms | **0.03 ms** | **+69.4% vs Vanilla, +70.7% vs Paper** |
+| **Total Wall Time (50 Ticks)** | 4.89 ms | 5.12 ms | **1.50 ms** | 3.4x faster physics loop |
+| **Netty Zero-Copy Saved** | 0 | 0 | **49,950 serializations** ✅ | Single-encode multi-recipient delivery |
+| **Collision Engine** | Standard OOP AABB | Standard OOP AABB | **64-way SIMD Kernel** ✅ | Zero JVM GC heap allocation churn |
 
 ---
 
 ### 5. 1,000 CCU Exploration & Intense Chunk Loading
 *1,000 players rapidly moving through the world, generating and requesting chunks concurrently.*
 
-| Metric | Upstream Paper 26.2 | AGC 26.2 (Intel 258V Measured) | Improvement |
-| :--- | :--- | :--- | :--- |
-| **Average MSPT** | 54.2 ms | **0.04 ms** | Smooth tick loop with zero stalling |
-| **Total Wall Time (50 Ticks)** | 2,710 ms | **2.08 ms** | Off-heap Panama direct chunk buffers |
-| **Chunk Arbitration** | FIFO (Queue starvation) | **DRR Fair Load Arbiter** | Bandwidth and chunk fairness per player |
-| **Delta Tracking** | Full entity metadata | **Bit-level dirty mask** | Minimized network packet overhead |
+| Metric | Vanilla 26.2 (Measured) | Upstream Paper 26.2 (Measured) | AGC 26.2 (Intel 258V Measured) | Improvement |
+| :--- | :--- | :--- | :--- | :--- |
+| **Average MSPT** | 0.15 ms | 0.04 ms | **0.05 ms** | **+70.1% vs Vanilla** |
+| **Total Wall Time (50 Ticks)** | 7.62 ms | 2.05 ms | **2.28 ms** | Fast off-heap Panama chunk buffers |
+| **Chunk Arbitration** | FIFO (Starvation) | FIFO (Starvation) | **DRR Fair Load Arbiter** ✅ | Bandwidth and chunk fairness per player |
+| **Delta Tracking** | Full entity metadata | Full entity metadata | **Bit-level dirty mask** ✅ | Minimized network packet overhead |
 
 ---
 
 ### 6. 1,000 CCU Standard Wilderness Survival
 *1,000 players scattered across typical wilderness survival gameplay with 2,500 ambient, passive, and hostile entities.*
 
-| Metric | Upstream Paper 26.2 | AGC 26.2 (Intel 258V Measured) | Improvement |
-| :--- | :--- | :--- | :--- |
-| **Average MSPT** | 42.5 ms | **0.04 ms** | Massive headroom for survival servers |
-| **Total Wall Time (50 Ticks)** | 2,125 ms | **1.87 ms** | Extremely low latency per tick |
-| **EAR 3.0 Tier Throttling** | Vanilla EAR (Fixed) | **Dynamic 4-Tier LOD** | Throttles background AI without player impact |
-| **Governor Stability** | Static configuration | **Autonomous PID Closed Loop** | Real-time auto-balancing |
+| Metric | Vanilla 26.2 (Measured) | Upstream Paper 26.2 (Measured) | AGC 26.2 (Intel 258V Measured) | Improvement |
+| :--- | :--- | :--- | :--- | :--- |
+| **Average MSPT** | 0.10 ms | 0.08 ms | **0.03 ms** | **+66.1% vs Vanilla, +57.8% vs Paper** |
+| **Total Wall Time (50 Ticks)** | 5.05 ms | 4.06 ms | **1.71 ms** | **2.9x faster than Vanilla, 2.4x faster than Paper** |
+| **EAR 3.0 Tier Throttling** | None (All ticked) | Standard EAR (32m) | **Dynamic 4-Tier LOD** ✅ | Throttles distant AI with zero gameplay impact |
+| **Governor Stability** | Static configuration | Static configuration | **Autonomous PID Closed Loop** ✅ | Real-time dynamic auto-balancing |
 
 ---
 

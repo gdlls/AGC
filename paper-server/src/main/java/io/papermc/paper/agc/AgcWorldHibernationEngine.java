@@ -152,6 +152,32 @@ public final class AgcWorldHibernationEngine {
     }
 
     /**
+     * Batch-evaluates multiple worlds in a single pass, avoiding per-world ConcurrentHashMap overhead.
+     * Returns the count of worlds that should be ticked (ACTIVE or DRAINING).
+     */
+    public int updateWorldsBatch(
+        final String[] worldKeys,
+        final int[] playerCounts,
+        final long currentTick,
+        final long graceTicks,
+        final java.util.function.Consumer<String> activeWorldConsumer
+    ) {
+        if (worldKeys == null || playerCounts == null) return 0;
+        int activeCount = 0;
+        final int len = Math.min(worldKeys.length, playerCounts.length);
+        for (int i = 0; i < len; i++) {
+            final WorldState state = updateWorld(worldKeys[i], playerCounts[i], currentTick, graceTicks);
+            if (state == WorldState.ACTIVE || state == WorldState.DRAINING) {
+                activeCount++;
+                if (activeWorldConsumer != null) {
+                    activeWorldConsumer.accept(worldKeys[i]);
+                }
+            }
+        }
+        return activeCount;
+    }
+
+    /**
      * Checks whether a given world should be ticked this cycle.
      *
      * @param worldKey Unique identifier for the world

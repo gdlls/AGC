@@ -90,6 +90,7 @@ public final class AgcSoaEntityPhysicsEngine {
 
     /**
      * Executes parallel/vectorized physics step integration for all active entities.
+     * Caches array references locally to allow maximum C2 auto-vectorization and register reuse.
      */
     public void stepMotionAll(final float deltaSeconds) {
         final int count = this.activeCount;
@@ -100,60 +101,58 @@ public final class AgcSoaEntityPhysicsEngine {
         this.totalPhysicsTicks.incrementAndGet();
         this.totalEntitiesStepped.addAndGet(count);
 
-        // Vectorized streaming loop: 8x unrolled for super-scalar CPU pipelining
-        final int unrollLimit = count & ~7;
-        for (int i = 0; i < unrollLimit; i += 8) {
-            stepEntity(i + 0, deltaSeconds);
-            stepEntity(i + 1, deltaSeconds);
-            stepEntity(i + 2, deltaSeconds);
-            stepEntity(i + 3, deltaSeconds);
-            stepEntity(i + 4, deltaSeconds);
-            stepEntity(i + 5, deltaSeconds);
-            stepEntity(i + 6, deltaSeconds);
-            stepEntity(i + 7, deltaSeconds);
+        final float[] pX = this.posX;
+        final float[] pY = this.posY;
+        final float[] pZ = this.posZ;
+        final float[] vX = this.velX;
+        final float[] vY = this.velY;
+        final float[] vZ = this.velZ;
+        final float[] bMinX = this.aabbMinX;
+        final float[] bMinY = this.aabbMinY;
+        final float[] bMinZ = this.aabbMinZ;
+        final float[] bMaxX = this.aabbMaxX;
+        final float[] bMaxY = this.aabbMaxY;
+        final float[] bMaxZ = this.aabbMaxZ;
+        final float[] grav = this.gravity;
+        final float[] drg = this.drag;
+        final byte[] flg = this.flags;
+
+        for (int i = 0; i < count; i++) {
+            if ((flg[i] & 0x02) == 0) {
+                continue;
+            }
+
+            // Apply gravity if not noGravity
+            if ((flg[i] & 0x04) == 0) {
+                vY[i] -= grav[i] * deltaSeconds;
+            }
+
+            // Apply drag
+            final float d = drg[i];
+            vX[i] *= d;
+            vY[i] *= 0.98f;
+            vZ[i] *= d;
+
+            // Position integration
+            final float nx = pX[i] + vX[i];
+            final float ny = pY[i] + vY[i];
+            final float nz = pZ[i] + vZ[i];
+
+            final float halfWidth = (bMaxX[i] - bMinX[i]) * 0.5f;
+            final float height = bMaxY[i] - bMinY[i];
+
+            pX[i] = nx;
+            pY[i] = ny;
+            pZ[i] = nz;
+
+            // Update AABB
+            bMinX[i] = nx - halfWidth;
+            bMinY[i] = ny;
+            bMinZ[i] = nz - halfWidth;
+            bMaxX[i] = nx + halfWidth;
+            bMaxY[i] = ny + height;
+            bMaxZ[i] = nz + halfWidth;
         }
-
-        // Remainder
-        for (int i = unrollLimit; i < count; i++) {
-            stepEntity(i, deltaSeconds);
-        }
-    }
-
-    private void stepEntity(final int idx, final float dt) {
-        if ((this.flags[idx] & 0x02) == 0) {
-            return;
-        }
-
-        // Apply gravity if not noGravity
-        if ((this.flags[idx] & 0x04) == 0) {
-            this.velY[idx] -= this.gravity[idx] * dt;
-        }
-
-        // Apply drag
-        final float d = this.drag[idx];
-        this.velX[idx] *= d;
-        this.velY[idx] *= 0.98f;
-        this.velZ[idx] *= d;
-
-        // Position integration
-        final float nx = this.posX[idx] + this.velX[idx];
-        final float ny = this.posY[idx] + this.velY[idx];
-        final float nz = this.posZ[idx] + this.velZ[idx];
-
-        final float halfWidth = (this.aabbMaxX[idx] - this.aabbMinX[idx]) * 0.5f;
-        final float height = this.aabbMaxY[idx] - this.aabbMinY[idx];
-
-        this.posX[idx] = nx;
-        this.posY[idx] = ny;
-        this.posZ[idx] = nz;
-
-        // Update AABB
-        this.aabbMinX[idx] = nx - halfWidth;
-        this.aabbMinY[idx] = ny;
-        this.aabbMinZ[idx] = nz - halfWidth;
-        this.aabbMaxX[idx] = nx + halfWidth;
-        this.aabbMaxY[idx] = ny + height;
-        this.aabbMaxZ[idx] = nz + halfWidth;
     }
 
     public float getX(final int idx) { return this.posX[idx]; }

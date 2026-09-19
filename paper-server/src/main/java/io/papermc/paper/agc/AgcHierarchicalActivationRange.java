@@ -60,6 +60,14 @@ public final class AgcHierarchicalActivationRange {
 
     private AgcHierarchicalActivationRange() {}
 
+    public static final double PASSIVE_NEAR_SQ = 256.0;
+    public static final double PASSIVE_MED_SQ = 1024.0;
+    public static final double PASSIVE_FAR_SQ = 4096.0;
+
+    public static final double HOSTILE_NEAR_SQ = 576.0;
+    public static final double HOSTILE_MED_SQ = 1600.0;
+    public static final double HOSTILE_FAR_SQ = 5184.0;
+
     /**
      * Determines the activation tier for an entity based on squared distance to the nearest player.
      *
@@ -72,9 +80,9 @@ public final class AgcHierarchicalActivationRange {
             return ActivationTier.ACTIVE;
         }
 
-        final double nearLimitSq = isHostile ? 24.0 * 24.0 : 16.0 * 16.0;   // 576 or 256
-        final double medLimitSq = isHostile ? 40.0 * 40.0 : 32.0 * 32.0;    // 1600 or 1024
-        final double farLimitSq = isHostile ? 72.0 * 72.0 : 64.0 * 64.0;    // 5184 or 4096
+        final double nearLimitSq = isHostile ? HOSTILE_NEAR_SQ : PASSIVE_NEAR_SQ;
+        final double medLimitSq = isHostile ? HOSTILE_MED_SQ : PASSIVE_MED_SQ;
+        final double farLimitSq = isHostile ? HOSTILE_FAR_SQ : PASSIVE_FAR_SQ;
 
         if (distanceSq <= nearLimitSq) {
             return ActivationTier.ACTIVE;

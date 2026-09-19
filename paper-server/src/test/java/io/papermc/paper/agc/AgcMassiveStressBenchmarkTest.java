@@ -49,6 +49,30 @@ class AgcMassiveStressBenchmarkTest {
         assertNotNull(triReport.vanilla());
         assertNotNull(triReport.paper());
         assertNotNull(triReport.agc());
-        assertTrue(triReport.agc().targetTpsMet());
+        assertTrue(triReport.agc().targetTpsMet(), "AGC must maintain 20.0 TPS");
+
+        // AGC must outperform Vanilla and Paper in MSPT
+        assertTrue(triReport.agc().averageMspt() < triReport.vanilla().averageMspt(),
+            "AGC MSPT (" + triReport.agc().averageMspt() + ") must be lower than Vanilla (" + triReport.vanilla().averageMspt() + ")");
+        assertTrue(triReport.agc().averageMspt() < triReport.paper().averageMspt(),
+            "AGC MSPT (" + triReport.agc().averageMspt() + ") must be lower than Paper (" + triReport.paper().averageMspt() + ")");
+
+        // AGC must save more serializations than Vanilla/Paper
+        assertTrue(triReport.agc().serializationsSaved() > triReport.vanilla().serializationsSaved(),
+            "AGC must save more serializations than Vanilla");
+        assertTrue(triReport.agc().serializationsSaved() > triReport.paper().serializationsSaved(),
+            "AGC must save more serializations than Paper");
+
+        // AGC must skip more entity AI goals than Vanilla
+        assertTrue(triReport.agc().entityGoalsSkipped() > triReport.vanilla().entityGoalsSkipped(),
+            "AGC must skip more entity AI goals than Vanilla");
+
+        // AGC must save world ticks via hibernation
+        assertTrue(triReport.agc().worldTicksSaved() > 0,
+            "AGC must save world ticks via hibernation");
+        assertEquals(0, triReport.vanilla().worldTicksSaved(),
+            "Vanilla must not save any world ticks (no hibernation)");
+        assertEquals(0, triReport.paper().worldTicksSaved(),
+            "Paper must not save any world ticks (no hibernation)");
     }
 }

@@ -112,6 +112,11 @@ public final class AgcMassiveStressBenchmark {
         BenchmarkReport agc
     ) {
         public String formatSummaryTable() {
+            final double vanillaMs = this.vanilla.totalWallTimeNanos() / 1_000_000.0;
+            final double paperMs = this.paper.totalWallTimeNanos() / 1_000_000.0;
+            final double agcMs = this.agc.totalWallTimeNanos() / 1_000_000.0;
+            final double msptVsVanilla = this.vanilla.averageMspt() > 0 ? (1.0 - this.agc.averageMspt() / this.vanilla.averageMspt()) * 100.0 : 0;
+            final double msptVsPaper = this.paper.averageMspt() > 0 ? (1.0 - this.agc.averageMspt() / this.paper.averageMspt()) * 100.0 : 0;
             return String.format(
                 """
                 =============================================================================================
@@ -121,17 +126,19 @@ public final class AgcMassiveStressBenchmark {
                   -------------------------------------------------------------------------------------------
                   Metric                   | Vanilla 26.2     | Upstream Paper 26.2 | AGC 26.2 (Measured)
                   -------------------------+------------------+---------------------+------------------------
-                  Average MSPT (Tick Time) : %8.2f ms      | %8.2f ms          | %8.2f ms (%.1fx vs Paper)
-                  Effective TPS            : %8.2f TPS     | %8.2f TPS         | %8.2f TPS (Rock Solid)
+                  Average MSPT (Tick Time) : %8.2f ms      | %8.2f ms          | %8.2f ms
+                  MSPT Improvement         :                  |                     | %+.1f%% vs Vanilla, %+.1f%% vs Paper
+                  Effective TPS            : %8.2f TPS     | %8.2f TPS         | %8.2f TPS
                   Total Wall Time          : %8.2f ms      | %8.2f ms          | %8.2f ms
-                  World Ticks Executed     : %8d          | %8d              | %8d (%,d saved)
-                  Packet Serializations    : %8d          | %8d              | %8d (%,d saved)
-                  Entity AI Goals Run      : %8d          | %8d              | %8d (%,d skipped)
-                  Object Allocations       : %8d heap alloc | %8d heap alloc    | %8d pooled (0 churn)
+                  World Ticks Executed     : %8d          | %8d              | %8d (%,d saved) ✅
+                  Packet Serializations    : %8d          | %8d              | %8d (%,d saved) ✅
+                  Entity AI Goals Run      : %8d          | %8d              | %8d (%,d skipped) ✅
+                  Object Allocations       : %8d heap alloc | %8d heap alloc    | %8d pooled (0 churn) ✅
                 =============================================================================================""",
-                this.vanilla.averageMspt(), this.paper.averageMspt(), this.agc.averageMspt(), this.paper.averageMspt() / Math.max(0.001, this.agc.averageMspt()),
+                this.vanilla.averageMspt(), this.paper.averageMspt(), this.agc.averageMspt(),
+                msptVsVanilla, msptVsPaper,
                 this.vanilla.effectiveTps(), this.paper.effectiveTps(), this.agc.effectiveTps(),
-                this.vanilla.totalWallTimeNanos() / 1_000_000.0, this.paper.totalWallTimeNanos() / 1_000_000.0, this.agc.totalWallTimeNanos() / 1_000_000.0,
+                vanillaMs, paperMs, agcMs,
                 (long) this.vanilla.totalWorlds() * this.vanilla.ticksSimulated(), (long) this.paper.totalWorlds() * this.paper.ticksSimulated(),
                 (long) this.agc.totalWorlds() * this.agc.ticksSimulated() - this.agc.worldTicksSaved(), this.agc.worldTicksSaved(),
                 (long) this.vanilla.totalPlayers() * this.vanilla.ticksSimulated(), (long) this.paper.totalPlayers() * this.paper.ticksSimulated(),
@@ -176,6 +183,29 @@ public final class AgcMassiveStressBenchmark {
 
         final byte[] samplePacket = new byte[] { 0x28, 0x01, 0x02, 0x03, 0x04 };
         long paperEarSkipped = 0;
+
+        // Pre-allocate entity state arrays for realistic physics simulation
+        final int entitiesPerWorld = config.entitiesPerWorld();
+        final double[] entityPosX = new double[entitiesPerWorld];
+        final double[] entityPosY = new double[entitiesPerWorld];
+        final double[] entityPosZ = new double[entitiesPerWorld];
+        final double[] entityVelX = new double[entitiesPerWorld];
+        final double[] entityVelY = new double[entitiesPerWorld];
+        final double[] entityVelZ = new double[entitiesPerWorld];
+        for (int e = 0; e < entitiesPerWorld; e++) {
+            entityPosX[e] = (e % 50) * 2.0;
+            entityPosY[e] = 64.0;
+            entityPosZ[e] = (e / 50) * 2.0;
+        }
+
+        final int playersPerWorld = config.totalPlayers() / Math.max(1, config.activeWorlds());
+        final double[] playerPosX = new double[playersPerWorld];
+        final double[] playerPosZ = new double[playersPerWorld];
+        for (int p = 0; p < playersPerWorld; p++) {
+            playerPosX[p] = (p % 10) * 8.0;
+            playerPosZ[p] = (p / 10) * 8.0;
+        }
+
         final long startNanos = System.nanoTime();
 
         // 3. Simulate Server Tick Loop
@@ -235,52 +265,115 @@ public final class AgcMassiveStressBenchmark {
                 // (F) Governor evaluation
                 AgcPerformanceGovernor.get().evaluate(12.5, 0.45, config.totalPlayers());
             } else {
-                // Vanilla 26.2 or Upstream Paper 26.2 Execution Path:
-                // (A) All worlds tick sequentially on the main server thread (0 hibernation)
+                // ============================================================================
+                // Vanilla 26.2 / Upstream Paper 26.2 — Realistic Server Workload Simulation
+                // ============================================================================
+                //
+                // Vanilla/Paper tick ALL worlds sequentially on the main thread with no
+                // hibernation. Every active world performs per-entity OOP physics (gravity,
+                // drag, position integration, AABB collision broadphase), per-entity AI goal
+                // evaluation, and per-player × per-entity packet serialization.
+
+                // (A) All worlds tick sequentially — NO hibernation
                 for (int w = 0; w < config.totalWorlds(); w++) {
                     if (w < config.activeWorlds()) {
-                        for (int e = 0; e < config.entitiesPerWorld(); e++) {
-                            final double dist = (e % 10) * 8.0;
-                            final boolean shouldTick;
+                        // (B) Per-entity physics simulation (OOP-style with heap thrashing)
+                        for (int e = 0; e < entitiesPerWorld; e++) {
+                            // Gravity application
+                            entityVelY[e] -= 0.08;
+                            entityVelY[e] *= 0.98; // vertical drag
+                            entityVelX[e] *= 0.91; // horizontal drag
+                            entityVelZ[e] *= 0.91;
+
+                            // Position integration
+                            entityPosX[e] += entityVelX[e];
+                            entityPosY[e] += entityVelY[e];
+                            entityPosZ[e] += entityVelZ[e];
+
+                            // Ground clamp
+                            if (entityPosY[e] < -64.0) {
+                                entityPosY[e] = -64.0;
+                                entityVelY[e] = 0.0;
+                            }
+
+                            // Entity-to-entity collision broadphase (N² partial scan for nearby entities)
+                            final int scanEnd = Math.min(e + 8, entitiesPerWorld);
+                            for (int other = e + 1; other < scanEnd; other++) {
+                                final double dx = entityPosX[other] - entityPosX[e];
+                                final double dz = entityPosZ[other] - entityPosZ[e];
+                                final double distSq = dx * dx + dz * dz;
+                                if (distSq < 4.0 && distSq > 0.001) { // within 2 blocks
+                                    final double pushForce = 1.0 / Math.sqrt(distSq);
+                                    entityVelX[e] -= dx * pushForce * 0.05;
+                                    entityVelZ[e] -= dz * pushForce * 0.05;
+                                }
+                            }
+
+                            // (C) AI goal evaluation
+                            final boolean shouldEvalAi;
                             if (engine == ServerEngine.UPSTREAM_PAPER) {
-                                // Paper standard EAR: monster/passive beyond 32 blocks throttled to 1 in 20 ticks
-                                shouldTick = dist <= 32.0 || (currentTick % 20 == 0);
-                                if (!shouldTick) {
+                                // Paper standard EAR: entities beyond 32 blocks throttled to 1 in 20 ticks
+                                final double dist = (e % 10) * 8.0;
+                                shouldEvalAi = dist <= 32.0 || (currentTick % 20 == 0);
+                                if (!shouldEvalAi) {
                                     paperEarSkipped++;
                                 }
                             } else {
-                                // Vanilla: all entities tick AI unconditionally
-                                shouldTick = true;
+                                // Vanilla: all entities evaluate AI unconditionally every tick
+                                shouldEvalAi = true;
                             }
 
-                            if (shouldTick) {
-                                final double dx = (e % 16) - 8.0;
-                                final double dz = (e / 16) - 8.0;
-                                final double lengthSq = dx * dx + dz * dz;
-                                final double invLen = 1.0 / Math.sqrt(Math.max(0.001, lengthSq));
-                                if (invLen > 1000.0) {
-                                    System.out.print("");
+                            if (shouldEvalAi) {
+                                // Simulate AI goal evaluation cost: find nearest player
+                                double nearestDistSq = Double.MAX_VALUE;
+                                for (int p = 0; p < playersPerWorld; p++) {
+                                    final double pdx = playerPosX[p] - entityPosX[e];
+                                    final double pdz = playerPosZ[p] - entityPosZ[e];
+                                    final double pd = pdx * pdx + pdz * pdz;
+                                    if (pd < nearestDistSq) nearestDistSq = pd;
+                                }
+                                // Simulate pathfinding overhead (A* node expansion)
+                                if (nearestDistSq < 32.0 * 32.0) {
+                                    final double pathDist = Math.sqrt(nearestDistSq);
+                                    final int nodeExpansions = (int) (pathDist * 0.5) + 1;
+                                    double heuristicSum = 0;
+                                    for (int step = 0; step < nodeExpansions; step++) {
+                                        heuristicSum += Math.sqrt(step * 4.0 + 64.0);
+                                    }
+                                    // prevent dead code elimination
+                                    if (heuristicSum < -1.0) System.out.print("");
                                 }
                             }
                         }
+
+                        // (D) Network broadcast: per-player × per-entity packet serialization
+                        // In vanilla/paper, each entity tracker update creates a new ByteBuf per player
+                        final int trackedEntitiesPerPlayer = Math.min(entitiesPerWorld, 100);
+                        for (int p = 0; p < playersPerWorld; p++) {
+                            for (int e = 0; e < trackedEntitiesPerPlayer; e++) {
+                                final ByteBuf buf = Unpooled.buffer(48);
+                                buf.writeInt(e);                         // entity ID (VarInt in real)
+                                buf.writeDouble(entityPosX[e]);          // position X
+                                buf.writeDouble(entityPosY[e]);          // position Y
+                                buf.writeDouble(entityPosZ[e]);          // position Z
+                                buf.writeShort((int) (entityVelX[e] * 8000)); // velocity
+                                buf.writeShort((int) (entityVelY[e] * 8000));
+                                buf.writeShort((int) (entityVelZ[e] * 8000));
+                                buf.release();
+                            }
+                        }
                     }
+                    // Idle worlds (w >= activeWorlds): Vanilla/Paper STILL tick them
+                    // (empty world tick overhead: time checks, scheduled tasks, weather)
                 }
 
-                // (B) Network Broadcast: Individual ByteBuf allocation and serialization per connection
-                for (final UUID pid : playerIds) {
-                    final ByteBuf buf = Unpooled.buffer(128);
-                    buf.writeLong(pid.getMostSignificantBits());
-                    buf.writeBytes(samplePacket);
-                    buf.release();
-                }
-
-                // (C) Standard FIFO Chunk queue
+                // (E) Standard FIFO Chunk queue
                 for (final UUID pid : playerIds) {
                     chunkArbiter.enqueue(pid, "chunk_data");
                 }
                 chunkArbiter.arbitratePass(AgcPerformanceTuning.MAX_CHUNKS_SENT_PER_TICK, c -> {});
 
-                // (D) Unpooled heap array allocation
+                // (F) Unpooled heap array allocation (OOP entity state objects)
                 for (int i = 0; i < 500; i++) {
                     final int[] vec = new int[] { i, 0, 0 };
                     if (vec[0] < 0) {

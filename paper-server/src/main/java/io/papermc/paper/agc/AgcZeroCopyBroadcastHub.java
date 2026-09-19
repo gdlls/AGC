@@ -27,6 +27,7 @@ public final class AgcZeroCopyBroadcastHub {
     private final AtomicLong totalSubscribersReached = new AtomicLong();
     private final AtomicLong serializationsSaved = new AtomicLong();
     private final AtomicLong totalBytesBroadcasted = new AtomicLong();
+    private final AtomicLong totalBytesAvoidedByZeroCopy = new AtomicLong();
 
     public static AgcZeroCopyBroadcastHub get() {
         return INSTANCE;
@@ -61,6 +62,7 @@ public final class AgcZeroCopyBroadcastHub {
 
         if (subscriberCount > 1) {
             this.serializationsSaved.addAndGet(subscriberCount - 1);
+            this.totalBytesAvoidedByZeroCopy.addAndGet((long) payloadBytes.length * (subscriberCount - 1));
         }
 
         if (sender != null) {
@@ -123,6 +125,7 @@ public final class AgcZeroCopyBroadcastHub {
         this.totalSubscribersReached.set(0);
         this.serializationsSaved.set(0);
         this.totalBytesBroadcasted.set(0);
+        this.totalBytesAvoidedByZeroCopy.set(0);
     }
 
     public HubMetrics metrics() {
@@ -130,7 +133,8 @@ public final class AgcZeroCopyBroadcastHub {
             this.totalBroadcasts.get(),
             this.totalSubscribersReached.get(),
             this.serializationsSaved.get(),
-            this.totalBytesBroadcasted.get()
+            this.totalBytesBroadcasted.get(),
+            this.totalBytesAvoidedByZeroCopy.get()
         );
     }
 
@@ -138,7 +142,8 @@ public final class AgcZeroCopyBroadcastHub {
         long totalBroadcasts,
         long totalSubscribersReached,
         long serializationsSaved,
-        long totalBytesBroadcasted
+        long totalBytesBroadcasted,
+        long totalBytesAvoidedByZeroCopy
     ) {
     }
 }
