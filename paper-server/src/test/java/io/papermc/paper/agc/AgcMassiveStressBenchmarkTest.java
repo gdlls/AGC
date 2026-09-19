@@ -51,6 +51,12 @@ class AgcMassiveStressBenchmarkTest {
         assertNotNull(triReport.agc());
         assertTrue(triReport.agc().targetTpsMet(), "AGC must maintain 20.0 TPS");
 
+        // Vanilla and Paper must collapse below 20 TPS
+        assertTrue(triReport.vanilla().effectiveTps() < 20.0,
+            "Vanilla must collapse under 20 TPS (got " + triReport.vanilla().effectiveTps() + ")");
+        assertTrue(triReport.paper().effectiveTps() < 20.0,
+            "Paper must collapse under 20 TPS (got " + triReport.paper().effectiveTps() + ")");
+
         // AGC must outperform Vanilla and Paper in MSPT
         assertTrue(triReport.agc().averageMspt() < triReport.vanilla().averageMspt(),
             "AGC MSPT (" + triReport.agc().averageMspt() + ") must be lower than Vanilla (" + triReport.vanilla().averageMspt() + ")");

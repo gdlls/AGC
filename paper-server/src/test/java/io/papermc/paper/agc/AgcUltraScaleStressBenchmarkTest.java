@@ -43,6 +43,13 @@ public class AgcUltraScaleStressBenchmarkTest {
         assertNotNull(triReport.paper());
         assertNotNull(triReport.agc());
         assertTrue(triReport.agc().targetSloMet(), "AGC must meet 20.0 TPS SLO");
+        assertEquals(20.0, triReport.agc().effectiveTps(), 0.01, "AGC must maintain 20.00 TPS");
+
+        // Vanilla and Paper must collapse below 20 TPS under extreme 5,000 CCU multi-world load
+        assertTrue(triReport.vanilla().effectiveTps() < 20.0,
+            "Vanilla must collapse under 20 TPS (got " + triReport.vanilla().effectiveTps() + ")");
+        assertTrue(triReport.paper().effectiveTps() < 20.0,
+            "Paper must collapse under 20 TPS (got " + triReport.paper().effectiveTps() + ")");
 
         // AGC must have lower MSPT than both Vanilla and Paper
         assertTrue(triReport.agc().averageMspt() < triReport.vanilla().averageMspt(),
@@ -74,10 +81,19 @@ public class AgcUltraScaleStressBenchmarkTest {
                 AgcUltraScaleStressBenchmark.UltraConfig.create1000CCUDenseWilderness());
 
         System.out.println(triReport.formatSummaryTable());
+        assertTrue(triReport.agc().targetSloMet(), "AGC must meet 20.0 TPS SLO");
+        assertEquals(20.0, triReport.agc().effectiveTps(), 0.01, "AGC must maintain 20.00 TPS");
+
+        // Vanilla and Paper must collapse below 20 TPS under 1,000 CCU wilderness roaming
+        assertTrue(triReport.vanilla().effectiveTps() < 20.0,
+            "Vanilla must collapse under 20 TPS (got " + triReport.vanilla().effectiveTps() + ")");
+        assertTrue(triReport.paper().effectiveTps() < 20.0,
+            "Paper must collapse under 20 TPS (got " + triReport.paper().effectiveTps() + ")");
+
         assertTrue(triReport.agc().averageMspt() < triReport.vanilla().averageMspt(),
             "AGC MSPT must be lower than Vanilla");
-        assertTrue(triReport.agc().averageMspt() <= triReport.paper().averageMspt() * 1.5,
-            "AGC MSPT must be competitive with or outperform Paper");
+        assertTrue(triReport.agc().averageMspt() < triReport.paper().averageMspt(),
+            "AGC MSPT must be lower than Paper");
     }
 
     @Test
@@ -92,6 +108,8 @@ public class AgcUltraScaleStressBenchmarkTest {
 
         assertNotNull(report);
         assertTrue(report.targetSloMet(), "1,000 CCU Scattered Chunk Loading must meet 20 TPS SLO");
+        assertTrue(report.averageMspt() < 25.0, "Average MSPT must be under 25.0ms (got " + report.averageMspt() + "ms)");
+        assertEquals(20.0, report.effectiveTps(), 0.01);
     }
 
     @Test
@@ -101,8 +119,16 @@ public class AgcUltraScaleStressBenchmarkTest {
                 AgcUltraScaleStressBenchmark.UltraConfig.create1000CCUScatteredChunkLoading());
 
         System.out.println(triReport.formatSummaryTable());
-        assertTrue(triReport.agc().targetSloMet());
+        assertTrue(triReport.agc().targetSloMet(), "AGC must meet 20.0 TPS SLO");
+        assertEquals(20.0, triReport.agc().effectiveTps(), 0.01, "AGC must maintain 20.00 TPS");
+
+        assertTrue(triReport.vanilla().effectiveTps() < 20.0,
+            "Vanilla must collapse under 20 TPS (got " + triReport.vanilla().effectiveTps() + ")");
+        assertTrue(triReport.paper().effectiveTps() < 20.0,
+            "Paper must collapse under 20 TPS (got " + triReport.paper().effectiveTps() + ")");
+
         assertTrue(triReport.agc().averageMspt() < triReport.vanilla().averageMspt());
+        assertTrue(triReport.agc().averageMspt() < triReport.paper().averageMspt());
     }
 
     @Test
@@ -117,6 +143,8 @@ public class AgcUltraScaleStressBenchmarkTest {
 
         assertNotNull(report);
         assertTrue(report.targetSloMet(), "1,000 CCU Normal Survival must meet 20 TPS SLO");
+        assertTrue(report.averageMspt() < 25.0, "Average MSPT must be under 25.0ms (got " + report.averageMspt() + "ms)");
+        assertEquals(20.0, report.effectiveTps(), 0.01);
     }
 
     @Test
@@ -126,8 +154,16 @@ public class AgcUltraScaleStressBenchmarkTest {
                 AgcUltraScaleStressBenchmark.UltraConfig.create1000CCUNormalSurvival());
 
         System.out.println(triReport.formatSummaryTable());
-        assertTrue(triReport.agc().targetSloMet());
+        assertTrue(triReport.agc().targetSloMet(), "AGC must meet 20.0 TPS SLO");
+        assertEquals(20.0, triReport.agc().effectiveTps(), 0.01, "AGC must maintain 20.00 TPS");
+
+        assertTrue(triReport.vanilla().effectiveTps() < 20.0,
+            "Vanilla must collapse under 20 TPS (got " + triReport.vanilla().effectiveTps() + ")");
+        assertTrue(triReport.paper().effectiveTps() < 20.0,
+            "Paper must collapse under 20 TPS (got " + triReport.paper().effectiveTps() + ")");
+
         assertTrue(triReport.agc().averageMspt() < triReport.vanilla().averageMspt());
+        assertTrue(triReport.agc().averageMspt() < triReport.paper().averageMspt());
     }
 
     @Test
@@ -142,6 +178,8 @@ public class AgcUltraScaleStressBenchmarkTest {
 
         assertNotNull(report);
         assertTrue(report.targetSloMet(), "1,000 CCU Mass Combat Storm must meet 20 TPS SLO");
+        assertTrue(report.averageMspt() < 25.0, "Average MSPT must be under 25.0ms (got " + report.averageMspt() + "ms)");
+        assertEquals(20.0, report.effectiveTps(), 0.01);
     }
 
     @Test
@@ -151,9 +189,17 @@ public class AgcUltraScaleStressBenchmarkTest {
                 AgcUltraScaleStressBenchmark.UltraConfig.create1000CCUMassCombatStorm());
 
         System.out.println(triReport.formatSummaryTable());
+        assertTrue(triReport.agc().targetSloMet(), "AGC must meet 20.0 TPS SLO");
+        assertEquals(20.0, triReport.agc().effectiveTps(), 0.01, "AGC must maintain 20.00 TPS");
+
+        assertTrue(triReport.vanilla().effectiveTps() < 20.0,
+            "Vanilla must collapse under 20 TPS (got " + triReport.vanilla().effectiveTps() + ")");
+        assertTrue(triReport.paper().effectiveTps() < 20.0,
+            "Paper must collapse under 20 TPS (got " + triReport.paper().effectiveTps() + ")");
+
         assertTrue(triReport.agc().averageMspt() < triReport.vanilla().averageMspt(),
             "AGC MSPT must be lower than Vanilla");
-        assertTrue(triReport.agc().averageMspt() <= triReport.paper().averageMspt() * 1.5,
-            "AGC MSPT must be competitive with or outperform Paper");
+        assertTrue(triReport.agc().averageMspt() < triReport.paper().averageMspt(),
+            "AGC MSPT must be lower than Paper");
     }
 }

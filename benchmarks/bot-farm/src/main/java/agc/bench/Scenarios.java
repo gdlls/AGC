@@ -45,8 +45,8 @@ public final class Scenarios {
                 final double angle = ThreadLocalRandom.current().nextDouble(Math.PI * 2);
                 bot.moveToward(64 + Math.cos(angle) * 8, 64 + Math.sin(angle) * 8);
                 bot.setLook((float) (angle * 180 / Math.PI), (float) ThreadLocalRandom.current().nextDouble(-90, 90));
-                
-                // Extremely frequent interactions
+
+                // Extremely frequent interactions (combat swings)
                 if (tick % 2 == 0) {
                     bot.swingArm();
                 }
@@ -94,7 +94,7 @@ public final class Scenarios {
                     bot.runCommand("tp " + String.format(Locale.ROOT, "%.1f", x) + " 128 "
                         + String.format(Locale.ROOT, "%.1f", z));
                 }
-                
+
                 // Move wildly between teleports to generate extra chunk loading/unloading pressure
                 bot.moveToward(ThreadLocalRandom.current().nextDouble(-RADIUS, RADIUS), ThreadLocalRandom.current().nextDouble(-RADIUS, RADIUS));
             }
