@@ -150,16 +150,33 @@ The compiled, runnable server JAR will be located at:
 
 AGC is open-source software licensed under the **GNU General Public License v3.0 (GPL-3.0)**. See the [LICENSE](LICENSE) file for the full license text.
 
-AGC incorporates, builds upon, and adapts high-performance architectures from the open-source Minecraft community:
+For a comprehensive breakdown of all third-party components, copyright notices, and license compliance details, refer to **[ATTRIBUTIONS.md](ATTRIBUTIONS.md)** and **[NOTICE](NOTICE)**.
 
-| Project | License | Upstream Author(s) | Key Innovations Adapted |
+AGC proudly incorporates, builds upon, and adapts high-performance architectures, algorithms, and concepts from the open-source Minecraft community:
+
+| Project | License | Upstream Author(s) / Organization | Key Innovations Adapted in AGC |
 | :--- | :--- | :--- | :--- |
-| **[PaperMC / Paper](https://github.com/PaperMC/Paper)** | GPL-3.0 | PaperMC Team | High-performance server base, async chunk pipeline, Bukkit API |
-| **[Lithium](https://github.com/CaffeineMC/lithium-fabric)** | LGPL-3.0 | CaffeineMC (jellysquid3, 2No2Name) | Optimized collision kernels, AI POI search, fast chunk iteration patterns |
-| **[C2ME](https://github.com/RelativityMC/C2ME-fabric)** | MIT / LGPL-3.0 | RelativityMC (Ishland) | Asynchronous chunk generation, serialization pipeline, I/O backpressure |
-| **[FastNoise / Noisium](https://github.com/SteveTownsend/Noisium)** | LGPL-3.0 / MIT | SteveTownsend & contributors | Vectorized noise generation and fast permutation math |
-| **[KnockbackSync](https://github.com/casimir-dev/KnockbackSync)** | GPL-3.0 | Casimir, caseload | Client prediction & network sync concepts |
-| **[FerriteCore](https://github.com/malte0811/FerriteCore)** | MIT | malte0811 | Memory footprint reduction and blockstate palette compaction |
-| **[Purpur](https://github.com/PurpurMC/Purpur) & [Gale](https://github.com/GaleMC/Gale)** | GPL-3.0 | Purpur & Gale Teams | Hotpath micro-optimizations and server stability improvements |
+| **[PaperMC / Paper](https://github.com/PaperMC/Paper)** | GPL-3.0 | PaperMC Team | Upstream high-performance server base, async chunk pipeline, Bukkit/Spigot API |
+| **[Folia](https://github.com/PaperMC/Folia)** | GPL-3.0 | PaperMC Team (Carl Olsen / Spottedleaf) | Regionized multi-threading concepts, async schedulers, thread-affinity safety guards |
+| **[Lithium](https://github.com/CaffeineMC/lithium-fabric)** | LGPL-3.0 | CaffeineMC (jellysquid3, 2No2Name) | Zero-allocation GoalSelector bitset fast-path, collision kernels, fast POI spatial index |
+| **[Alternate Current](https://github.com/SpaceToad/Alternate-Current)** | MIT | SpaceToad, 2No2Name | Directed Acyclic Graph (DAG) topological BFS redstone wire evaluator (100% vanilla timing) |
+| **[Leaf](https://github.com/Winds-Studio/Leaf)** | GPL-3.0 | Winds-Studio / Leaf Team | Asynchronous pathfinding worker pool, event-driven hopper optimization concepts |
+| **[C2ME](https://github.com/RelativityMC/C2ME-fabric)** | MIT / LGPL-3.0 | RelativityMC (Ishland) | Lock-free RCU chunk map architecture, asynchronous chunk generation & I/O pipelines |
+| **[VMP](https://github.com/RelativityMC/VMP-fabric)** | MIT | RelativityMC (Ishland) | Zero-copy Netty broadcast hub concepts, bit-level delta entity tracking dirty masks |
+| **[Noisium / FastNoise](https://github.com/SteveTownsend/Noisium)** | LGPL-3.0 / MIT | SteveTownsend, Jordan Peck | Vectorized noise generation, fast permutation table math for world generation |
+| **[FerriteCore](https://github.com/malte0811/FerriteCore)** | MIT | malte0811 | Memory footprint reduction, blockstate palette neighbor table deduplication |
+| **[Purpur](https://github.com/PurpurMC/Purpur) & [Gale](https://github.com/GaleMC/Gale)** | GPL-3.0 | PurpurMC & GaleMC Teams | Gale Line-of-Sight (LOS) occlusion cache, entity activation range micro-optimizations |
+| **[Pufferfish](https://github.com/pufferfish-gg/Pufferfish) & [Airplane](https://github.com/TECHNOVE/Airplane)** | GPL-3.0 | Pufferfish-GG, Kevin Raneri | Vectorized SIMD AABB collision detection, Hierarchical Activation Range (EAR) |
+| **[Petal](https://github.com/PetalMC/Petal) & [DivineMC](https://github.com/DivineMC/DivineMC)** | GPL-3.0 | PetalMC & DivineMC Teams | Multi-world parallel ticking pipeline, asynchronous entity tracker optimizations |
+| **[SteelMC](https://github.com/SteelMC) & [UniverseSpigot](https://github.com/UniverseSpigot)** | GPL-3.0 | SteelMC & UniverseSpigot contributors | Ultra-scale Netty packet broadcast deduplication, direct memory buffer pooling |
+| **[Krypton](https://github.com/astei/krypton)** | LGPL-3.0 | Andrew Steinborn (Tux2) | Netty pipeline flush coalescing, dynamic byte buffer sizing |
+| **[Slice](https://github.com/Cryptite/Slice)** | GPL-3.0 | Cryptite | Entity tick optimizations, memory allocation reduction in world time & weather loops |
+| **[KnockbackSync](https://github.com/casimir-dev/KnockbackSync)** | GPL-3.0 | Casimir, caseload | Client prediction & network knockback synchronization concepts |
 
-Minecraft is a registered trademark of Mojang Synergies AB / Microsoft. AGC is not affiliated with, endorsed by, or associated with Mojang Synergies AB or Microsoft.
+---
+
+### 🛡️ Legal & Trademark Disclaimers
+
+- **Minecraft**: "Minecraft" is a registered trademark of Mojang Synergies AB / Microsoft. AGC is an independent open-source software project and is **not** affiliated with, endorsed by, or associated with Mojang Synergies AB or Microsoft.
+- **EULA Compliance**: All users and server operators using AGC must adhere to the official [Minecraft End User License Agreement (EULA)](https://www.minecraft.net/eula).
+
