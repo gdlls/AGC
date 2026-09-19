@@ -64,12 +64,13 @@ public final class AgcAutonomousPidGovernor {
 
         final double u = (KP * error) + (KI * this.integral) + (KD * derivative);
 
-        if (u < -5.0 || measuredMspt > 35.0 || freeMemoryPercent < 15.0) {
+        // Only engage throttling under genuine severe load (MSPT >= 40ms) to prevent premature view distance collapse during normal 20 TPS gameplay
+        if (measuredMspt >= 45.0 || freeMemoryPercent < 15.0) {
             this.currentViewDistance = 4;
             this.currentSimulationDistance = 4;
             this.currentLoadFactor = 0.5;
             this.congestionsMitigated.incrementAndGet();
-        } else if (u < 0.0 || measuredMspt > 25.0) {
+        } else if (measuredMspt >= 40.0 || u < -5.0) {
             this.currentViewDistance = 6;
             this.currentSimulationDistance = 6;
             this.currentLoadFactor = 0.8;

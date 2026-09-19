@@ -435,12 +435,12 @@ public class GlobalConfiguration extends ConfigurationPart {
             public boolean serverLevelSnapshotIterationFastPath = true;
             @Comment("Rotates incremental player autosave scans through the online player list instead of starting at index zero every autosave tick.")
             public boolean playerAutosaveRoundRobinFastPath = true;
-            @Comment("Skips the periodic every-60-tick entity position packet when the entity has not moved since its last sent position. That packet carries a zero movement delta the client applies as nothing (on-ground changes already force a full teleport), so sending it to every viewer is pure waste - a large share of broadcast traffic in entity-dense areas. The forced-teleport interval still fires a full position resync, so there is no drift, and output to vanilla clients is unchanged.")
-            public boolean skipIdlePositionSyncFastPath = true;
+            @Comment("Skips the periodic every-60-tick entity position packet when the entity has not moved since its last sent position. Default false: keeping periodic resyncs guarantees 100% client-server synchronization and prevents positional drift or ghost entities.")
+            public boolean skipIdlePositionSyncFastPath = false;
             @Comment("Skips periodic player .dat autosaves when no tracked mutation was recorded since the last save. Default false: dirty tracking cannot observe every mutation path (plugin NBT edits, external tools), so skipping widens the crash-rollback window versus vanilla Paper. The off-tick ordered writer still removes autosave from the tick loop. Enable only if you accept vanilla-differs-on-crash semantics for less disk I/O.")
             public boolean differentialPlayerSave = false;
-            @Comment("Merges same-tick nearby explosions into a single blast. Default true for 500-scale burst stability (explosion coalescing preserves parity while preventing explosion cascade TPS collapse).")
-            public boolean explosionCoalescing = true;
+            @Comment("Merges same-tick nearby explosions into a single blast. Default false to preserve 100% vanilla Crystal PvP damage mechanics and technical TNT cannon trajectories. Operators may enable for high-scale explosion storm defense.")
+            public boolean explosionCoalescing = false;
             @Comment("Ticks far-away trivial entities (boats, minecarts, item frames) at reduced cadence. Default false: reduced cadence changes observable behavior (minecart throughput, despawn timing) versus vanilla Paper.")
             public boolean entityStrideBalancing = false;
             // AGC start - hit rewind and adaptive view distance config
@@ -448,8 +448,8 @@ public class GlobalConfiguration extends ConfigurationPart {
             public boolean hitRewindEnabled = false;
             @Comment("Maximum ticks to rewind target position for hit rewind (hitRewindEnabled). 1 tick = 50ms. Default 6 = 300ms max compensation. Higher values help more extreme pings but allow more server-side positional divergence.")
             public int hitRewindMaxTicks = 6;
-            @Comment("Scales entity tracking range for high-ping players to reduce their packet load without affecting chunk loading. RTT>150ms=90%, RTT>300ms=80%, RTT>500ms=60%. Chunk view distance is unaffected.")
-            public boolean adaptiveViewDistanceFastPath = true;
+            @Comment("Scales entity tracking range for high-ping players to reduce their packet load without affecting chunk loading. Default false: preserves equal render and combat distance for all players.")
+            public boolean adaptiveViewDistanceFastPath = false;
             // AGC end - hit rewind and adaptive view distance config
             @Comment("Enables multi-core parallel world ticking with wave dispatch. The server tick loop executes independent worlds concurrently on dedicated worker threads, with cross-world operations safely deferred to post-barrier main thread execution. Default true.")
             public boolean parallelWorldTick = true;

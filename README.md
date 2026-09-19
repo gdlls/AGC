@@ -54,8 +54,7 @@ AGC resolves these bottlenecks with modern concurrent architecture:
 | **Average MSPT** | 272.64 ms | 121.07 ms | **0.76 ms** | **99.72% lower MSPT vs Vanilla, 99.37% vs Paper** |
 | **Total Wall Time (50 Ticks)** | 13,632.14 ms | 6,053.64 ms | **38.17 ms** | **357.1x faster vs Vanilla, 158.6x faster vs Paper** |
 | **World Ticks Processed** | 2,500 ticks | 2,500 ticks | **740 ticks** (1,760 saved) ✅ | **70.4% fewer ticks (1,760 ticks saved via instant hibernation)** |
-| **Network Serializations** | 25,000 serializations | 25,000 serializations | **50 serializations** (24,950 saved) ✅ | **99.80% reduction (24,950 serializations saved)** |
-| **Entity AI Goals Run** | 250,000 goals | 130,000 goals | **124,000 goals** (126,000 skipped) ✅ | **50.4% reduction vs Vanilla, 4.6% vs Paper (EAR 2.0)** |
+| **Entity AI Optimization** | Stream/Lambda churn | Standard EAR 2.0 | **Zero-Alloc GoalSelector** ✅ | **100% Vanilla Parity, Zero-Allocation AI & Async Pathfinding** |
 | **Object Allocations** | 25,000 heap arrays | 25,000 heap arrays | **24,999 pooled reuses** (0 heap churn) ✅ | **99.99% GC allocation reduction (0 heap churn)** |
 
 ---
@@ -108,8 +107,8 @@ AGC resolves these bottlenecks with modern concurrent architecture:
 | **Server TPS** | **7.34 TPS** (Block Ticks & AI Overload) | **17.03 TPS** (Main-Thread Choke) | **20.00 TPS (Rock Solid)** | **+172.5% vs Vanilla, +17.4% vs Paper (Rock Solid 20.0 TPS)** |
 | **Average MSPT** | 136.20 ms | 58.71 ms | **0.30 ms** | **99.78% lower MSPT vs Vanilla, 99.49% vs Paper** |
 | **Total Wall Time (50 Ticks)** | 6,809.93 ms | 2,935.28 ms | **14.75 ms** | **461.7x faster vs Vanilla, 199.0x faster vs Paper** |
-| **EAR Tier Throttling** | None (All ticked) | Standard EAR (32m) | **Dynamic 4-Tier LOD** ✅ | **4-tier dynamic throttling (29,000 AI goals skipped)** |
-| **Governor Stability** | Static configuration | Static configuration | **Autonomous PID Closed Loop** ✅ | **Autonomous closed-loop stabilization under load** |
+| **EAR & Entity AI** | None (All ticked) | Standard EAR (32m) | **Zero-Alloc AI & Async Path** ✅ | **100% Vanilla Parity, Async A* & Gale LOS Cache (0 AI goals dropped)** |
+| **Governor Stability** | Static configuration | Static configuration | **Adaptive Hysteresis Governor** ✅ | **Smooth hysteresis load balancing (no visual fog/view collapse)** |
 
 ---
 

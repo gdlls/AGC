@@ -23,7 +23,7 @@ public final class AgcSleepableHopperEngine {
     private static final AgcSleepableHopperEngine INSTANCE = new AgcSleepableHopperEngine();
 
     public static final int BASE_COOLDOWN = 8;
-    public static final int MAX_SLEEP_TICKS = 40; // 2 seconds max sleep before sanity check
+    public static final int MAX_SLEEP_TICKS = 8; // Strictly 8 ticks: guarantees 100% vanilla item transfer timing
 
     private final AtomicLong sleepSkips = new AtomicLong();
     private final AtomicLong wakeups = new AtomicLong();
@@ -35,22 +35,16 @@ public final class AgcSleepableHopperEngine {
     private AgcSleepableHopperEngine() {}
 
     /**
-     * Calculates adaptive sleep cooldown for an idle hopper that failed to transfer items.
+     * Calculates sleep cooldown for an idle hopper.
+     * Enforces strict vanilla 8-tick timing (8 ticks/item = 2.5 items/sec)
+     * to guarantee item sorter synchronization, prevent inventory overflow,
+     * and preserve redstone clock compatibility.
      *
      * @param consecutiveFailures Number of consecutive failed push/pull attempts
-     * @return Number of ticks to sleep
+     * @return Number of ticks to sleep (strictly BASE_COOLDOWN)
      */
     public int calculateSleepTicks(final int consecutiveFailures) {
-        if (consecutiveFailures <= 1) {
-            return BASE_COOLDOWN;
-        } else if (consecutiveFailures <= 4) {
-            return 16;
-        } else if (consecutiveFailures <= 8) {
-            return 24;
-        } else {
-            this.sleepSkips.incrementAndGet();
-            return MAX_SLEEP_TICKS;
-        }
+        return BASE_COOLDOWN;
     }
 
     /**

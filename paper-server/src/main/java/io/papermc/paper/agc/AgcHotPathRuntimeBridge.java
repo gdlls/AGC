@@ -401,6 +401,34 @@ public final class AgcHotPathRuntimeBridge {
     }
 
     /**
+     * Line-of-sight raycast cache query (Gale / Purpur port).
+     */
+    public int getCachedLos(final net.minecraft.world.entity.LivingEntity source, final net.minecraft.world.entity.Entity target, final long currentTick) {
+        return io.papermc.paper.agc.entity.AgcLineOfSightCache.get().getCachedLos(source, target, currentTick);
+    }
+
+    /**
+     * Records line-of-sight determination into raycast cache.
+     */
+    public void putCachedLos(final net.minecraft.world.entity.LivingEntity source, final net.minecraft.world.entity.Entity target, final boolean visible, final long currentTick) {
+        io.papermc.paper.agc.entity.AgcLineOfSightCache.get().putCachedLos(source, target, visible, currentTick);
+    }
+
+    /**
+     * High-density lossless XP orb merge (Clumps port).
+     */
+    public boolean tryMergeXp(final net.minecraft.world.entity.ExperienceOrb primary, final net.minecraft.world.entity.ExperienceOrb secondary) {
+        return io.papermc.paper.agc.entity.AgcEntityMergeOptimizer.get().tryMergeXp(primary, secondary);
+    }
+
+    /**
+     * High-density lossless ItemEntity merge (ServerCore port).
+     */
+    public boolean tryMergeItems(final net.minecraft.world.entity.item.ItemEntity primary, final net.minecraft.world.entity.item.ItemEntity secondary) {
+        return io.papermc.paper.agc.entity.AgcEntityMergeOptimizer.get().tryMergeItems(primary, secondary);
+    }
+
+    /**
      * Synchronizes a block state change across Project Panama off-heap storage and lock-free RCU chunk map.
      */
     public void onBlockStateChanged(
