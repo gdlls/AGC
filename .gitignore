@@ -84,3 +84,4 @@ libraries/
 paper-server/cache/
 paper-server/libraries/
 .nms_backup/
+packages/*.jar
