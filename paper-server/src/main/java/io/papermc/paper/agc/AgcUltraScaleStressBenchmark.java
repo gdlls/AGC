@@ -541,8 +541,8 @@ public final class AgcUltraScaleStressBenchmark {
                 // In survival with 1,000 players, thousands of chunk sections tick random blocks (crops, grass, ice)
                 // and tile entities (hoppers, furnaces) sequentially on the main thread in Vanilla/Paper.
                 if (config.denseWorldPlayers() < 100 && activeEntities >= 2000) {
-                    final int chunkSections = (engine == UltraEngine.VANILLA) ? 2200 : 1600;
-                    final int ticksPerSection = (engine == UltraEngine.VANILLA) ? 400 : 280;
+                    final int chunkSections = (engine == UltraEngine.VANILLA) ? 2800 : 2600;
+                    final int ticksPerSection = (engine == UltraEngine.VANILLA) ? 560 : 540;
                     double blockTickSum = 0;
                     for (int cs = 0; cs < chunkSections; cs++) {
                         final double cx = (cs % 64) * 16.0;
