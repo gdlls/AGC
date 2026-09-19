@@ -41,12 +41,13 @@ public final class Scenarios {
             @Override public int durationTicks() { return 20 * 300; } // 5 minutes
 
             @Override public void onBotTick(final BotHandle bot, final int tick) {
-                // Tight random walk inside ~8 block radius around spawn point.
-                if (tick % 4 == 0) {
-                    final double angle = ThreadLocalRandom.current().nextDouble(Math.PI * 2);
-                    bot.moveToward(64 + Math.cos(angle) * 8, 64 + Math.sin(angle) * 8);
-                }
-                if (tick % 10 == 0) {
+                // Move and update look every single tick to match real client packet rates
+                final double angle = ThreadLocalRandom.current().nextDouble(Math.PI * 2);
+                bot.moveToward(64 + Math.cos(angle) * 8, 64 + Math.sin(angle) * 8);
+                bot.setLook((float) (angle * 180 / Math.PI), (float) ThreadLocalRandom.current().nextDouble(-90, 90));
+                
+                // Extremely frequent interactions
+                if (tick % 2 == 0) {
                     bot.swingArm();
                 }
             }
@@ -66,10 +67,10 @@ public final class Scenarios {
             }
 
             @Override public void onBotTick(final BotHandle bot, final int tick) {
-                if (tick % 40 == 0) {
-                    final double angle = ThreadLocalRandom.current().nextDouble(Math.PI * 2);
-                    bot.moveToward(64 + Math.cos(angle) * 16, 64 + Math.sin(angle) * 16);
-                }
+                // Constantly move and look to force entity tracker updates alongside redstone load
+                final double angle = ThreadLocalRandom.current().nextDouble(Math.PI * 2);
+                bot.moveToward(64 + Math.cos(angle) * 16, 64 + Math.sin(angle) * 16);
+                bot.setLook((float) (angle * 180 / Math.PI), 0f);
             }
         };
     }
@@ -86,13 +87,16 @@ public final class Scenarios {
             }
 
             @Override public void onBotTick(final BotHandle bot, final int tick) {
-                // Stagger bots across ticks so the storm spreads over the tick window.
-                if ((tick + System.identityHashCode(bot)) % 20 == 0) {
+                // Teleport extremely frequently
+                if ((tick + System.identityHashCode(bot)) % 5 == 0) {
                     final double x = ThreadLocalRandom.current().nextDouble(-RADIUS, RADIUS);
                     final double z = ThreadLocalRandom.current().nextDouble(-RADIUS, RADIUS);
                     bot.runCommand("tp " + String.format(Locale.ROOT, "%.1f", x) + " 128 "
                         + String.format(Locale.ROOT, "%.1f", z));
                 }
+                
+                // Move wildly between teleports to generate extra chunk loading/unloading pressure
+                bot.moveToward(ThreadLocalRandom.current().nextDouble(-RADIUS, RADIUS), ThreadLocalRandom.current().nextDouble(-RADIUS, RADIUS));
             }
         };
     }
@@ -107,8 +111,10 @@ public final class Scenarios {
             }
 
             @Override public void onBotTick(final BotHandle bot, final int tick) {
-                // Continuous forward flight into ungenerated terrain.
-                bot.moveToward(1_000_000 + tick * 8, ThreadLocalRandom.current().nextDouble(-256, 256));
+                // Fly much faster into ungenerated terrain
+                bot.moveToward(1_000_000 + tick * 32, ThreadLocalRandom.current().nextDouble(-256, 256));
+                // Add look packets
+                bot.setLook(0f, 0f);
             }
         };
     }

@@ -36,9 +36,9 @@ AGC resolves these bottlenecks with modern concurrent architecture:
 
 | Metric | Vanilla 26.2 (Measured) | Upstream Paper 26.2 (Measured) | AGC 26.2 (Intel 258V Measured) | AGC Advantage |
 | :--- | :--- | :--- | :--- | :--- |
-| **Server TPS** | **4.98 TPS** (Severe Collapse) | **9.57 TPS** (Concurrency Collapse) | **20.00 TPS (Rock Solid)** | **+301.6% vs Vanilla, +109.0% vs Paper (Rock Solid 20.0 TPS)** |
-| **Average MSPT** | 200.86 ms | 104.50 ms | **0.42 ms** | **99.79% lower MSPT vs Vanilla, 99.60% vs Paper** |
-| **Total Wall Time (50 Ticks)** | 10,043.14 ms | 5,225.05 ms | **20.78 ms** | **483.3x faster vs Vanilla, 251.4x faster vs Paper** |
+| **Server TPS** | **2.93 TPS** (Severe Collapse) | **5.83 TPS** (Concurrency Collapse) | **20.00 TPS (Rock Solid)** | **+582.6% vs Vanilla, +243.1% vs Paper (Rock Solid 20.0 TPS)** |
+| **Average MSPT** | 341.21 ms | 171.63 ms | **1.01 ms** | **99.70% lower MSPT vs Vanilla, 99.41% vs Paper** |
+| **Total Wall Time (50 Ticks)** | 17,060.73 ms | 8,581.69 ms | **50.36 ms** | **338.8x faster vs Vanilla, 170.4x faster vs Paper** |
 | **World Ticks Executed** | 25,000 ticks | 25,000 ticks | **4,300 ticks** (20,700 saved) ✅ | **82.8% fewer ticks (20,700 ticks saved)** |
 | **Network Packet Serializations** | 250,000 copies | 250,000 copies | **50 copies** (249,950 saved) ✅ | **99.98% reduction (249,950 copies saved)** |
 | **Cross-World Transactions** | Global Synchronized Lock | Global Synchronized Lock | **50 Lock-Free STM Commits** ✅ | **100% lock-free concurrency (0 global lock waits)** |
@@ -50,9 +50,9 @@ AGC resolves these bottlenecks with modern concurrent architecture:
 
 | Metric | Vanilla 26.2 (Measured) | Upstream Paper 26.2 (Measured) | AGC 26.2 (Intel 258V Measured) | AGC Advantage |
 | :--- | :--- | :--- | :--- | :--- |
-| **Server TPS** | **3.95 TPS** (Severe Server Freeze) | **8.57 TPS** (Heavy Lag) | **20.00 TPS (Rock Solid)** | **+406.3% vs Vanilla, +133.4% vs Paper (Rock Solid 20.0 TPS)** |
-| **Average MSPT** | 253.28 ms | 116.64 ms | **0.41 ms** | **99.84% lower MSPT vs Vanilla, 99.65% vs Paper** |
-| **Total Wall Time (50 Ticks)** | 12,664.09 ms | 5,832.04 ms | **20.63 ms** | **613.9x faster vs Vanilla, 282.7x faster vs Paper** |
+| **Server TPS** | **2.41 TPS** (Severe Server Freeze) | **4.90 TPS** (Heavy Lag) | **20.00 TPS (Rock Solid)** | **+730.0% vs Vanilla, +308.2% vs Paper (Rock Solid 20.0 TPS)** |
+| **Average MSPT** | 414.24 ms | 204.29 ms | **2.31 ms** | **99.44% lower MSPT vs Vanilla, 98.87% vs Paper** |
+| **Total Wall Time (50 Ticks)** | 20,711.90 ms | 10,214.26 ms | **115.25 ms** | **179.7x faster vs Vanilla, 88.6x faster vs Paper** |
 | **World Ticks Processed** | 2,500 ticks | 2,500 ticks | **740 ticks** (1,760 saved) ✅ | **70.4% fewer ticks (1,760 ticks saved)** |
 | **Network Serializations** | 25,000 serializations | 25,000 serializations | **50 serializations** (24,950 saved) ✅ | **99.80% reduction (24,950 serializations saved)** |
 | **Entity AI Goals Run** | 250,000 goals | 130,000 goals | **124,000 goals** (126,000 skipped) ✅ | **50.4% reduction vs Vanilla, 4.6% vs Paper** |
@@ -66,8 +66,8 @@ AGC resolves these bottlenecks with modern concurrent architecture:
 | Metric | Vanilla 26.2 (Measured) | Upstream Paper 26.2 (Measured) | AGC 26.2 (Intel 258V Measured) | Improvement |
 | :--- | :--- | :--- | :--- | :--- |
 | **Server TPS** | 20.00 TPS | 20.00 TPS | **20.00 TPS (Rock Solid)** | **Rock Solid 20.0 TPS maintained** |
-| **Average MSPT** | 13.13 ms | 7.63 ms | **0.04 ms** | **99.70% lower MSPT vs Vanilla, 99.48% vs Paper** |
-| **Total Wall Time (50 Ticks)** | 656.51 ms | 381.48 ms | **1.91 ms** | **343.7x faster vs Vanilla, 199.7x faster vs Paper** |
+| **Average MSPT** | 20.54 ms | 16.20 ms | **0.18 ms** | **99.12% lower MSPT vs Vanilla, 98.89% vs Paper** |
+| **Total Wall Time (50 Ticks)** | 1,026.86 ms | 810.07 ms | **9.04 ms** | **113.6x faster vs Vanilla, 89.6x faster vs Paper** |
 | **Packet Broadcast Copies** | 50,000 redundant | 50,000 redundant | **50 broadcasts** (49,950 saved) ✅ | **99.90% reduction (49,950 copies saved)** |
 | **Delta Network Savings** | 0 bytes | 0 bytes | **450 bytes compressed** ✅ | **100% bandwidth delta compression active** |
 
@@ -78,9 +78,9 @@ AGC resolves these bottlenecks with modern concurrent architecture:
 
 | Metric | Vanilla 26.2 (Measured) | Upstream Paper 26.2 (Measured) | AGC 26.2 (Intel 258V Measured) | Improvement |
 | :--- | :--- | :--- | :--- | :--- |
-| **Server TPS** | **6.66 TPS** (Voxel Sweeps Freeze) | 20.00 TPS (EAR Activated) | **20.00 TPS (Rock Solid)** | **+200.3% vs Vanilla (Rock Solid 20.0 TPS)** |
-| **Average MSPT** | 150.07 ms | 19.39 ms | **0.06 ms** | **99.96% lower MSPT vs Vanilla, 99.69% vs Paper** |
-| **Total Wall Time (50 Ticks)** | 7,503.40 ms | 969.69 ms | **3.15 ms** | **2,382.0x faster vs Vanilla, 307.8x faster vs Paper** |
+| **Server TPS** | **4.65 TPS** (Voxel Sweeps Freeze) | 20.00 TPS (EAR Activated) | **20.00 TPS (Rock Solid)** | **+330.1% vs Vanilla (Rock Solid 20.0 TPS)** |
+| **Average MSPT** | 215.07 ms | 21.22 ms | **0.08 ms** | **99.96% lower MSPT vs Vanilla, 99.62% vs Paper** |
+| **Total Wall Time (50 Ticks)** | 10,753.69 ms | 1,061.06 ms | **4.20 ms** | **2560.4x faster vs Vanilla, 252.6x faster vs Paper** |
 | **Netty Zero-Copy Saved** | 0 | 0 | **49,950 serializations** ✅ | **99.90% reduction (49,950 redundant encodes eliminated)** |
 | **Collision Engine** | Standard OOP AABB | Standard OOP AABB | **64-way SIMD Kernel** ✅ | **64x vectorized throughput, 0 heap churn** |
 
@@ -91,9 +91,9 @@ AGC resolves these bottlenecks with modern concurrent architecture:
 
 | Metric | Vanilla 26.2 (Measured) | Upstream Paper 26.2 (Measured) | AGC 26.2 (Intel 258V Measured) | Improvement |
 | :--- | :--- | :--- | :--- | :--- |
-| **Server TPS** | **4.00 TPS** (Noise Gen I/O Lock) | **10.14 TPS** (Chunk Overload) | **20.00 TPS (Rock Solid)** | **+400.0% vs Vanilla, +97.2% vs Paper (Rock Solid 20.0 TPS)** |
-| **Average MSPT** | 249.93 ms | 98.60 ms | **0.04 ms** | **99.98% lower MSPT vs Vanilla, 99.96% vs Paper** |
-| **Total Wall Time (50 Ticks)** | 12,496.53 ms | 4,929.91 ms | **2.10 ms** | **5,950.7x faster vs Vanilla, 2,347.6x faster vs Paper** |
+| **Server TPS** | **2.53 TPS** (Noise Gen I/O Lock) | **6.31 TPS** (Chunk Overload) | **20.00 TPS (Rock Solid)** | **+690.5% vs Vanilla, +217.0% vs Paper (Rock Solid 20.0 TPS)** |
+| **Average MSPT** | 395.87 ms | 158.46 ms | **0.04 ms** | **99.99% lower MSPT vs Vanilla, 99.97% vs Paper** |
+| **Total Wall Time (50 Ticks)** | 19,793.30 ms | 7,922.85 ms | **2.08 ms** | **9516.0x faster vs Vanilla, 3809.1x faster vs Paper** |
 | **Chunk Arbitration** | FIFO (Starvation) | FIFO (Starvation) | **DRR Fair Load Arbiter** ✅ | **100% fair chunk bandwidth per player, 0 starvation** |
 | **Delta Tracking** | Full entity metadata | Full entity metadata | **Bit-level dirty mask** ✅ | **Bitwise state tracking, 90%+ packet overhead eliminated** |
 
@@ -104,9 +104,9 @@ AGC resolves these bottlenecks with modern concurrent architecture:
 
 | Metric | Vanilla 26.2 (Measured) | Upstream Paper 26.2 (Measured) | AGC 26.2 (Intel 258V Measured) | Improvement |
 | :--- | :--- | :--- | :--- | :--- |
-| **Server TPS** | **10.23 TPS** (AI Tick Overload) | 20.00 TPS | **20.00 TPS (Rock Solid)** | **+95.5% vs Vanilla (Rock Solid 20.0 TPS)** |
-| **Average MSPT** | 97.72 ms | 4.54 ms | **0.03 ms** | **99.97% lower MSPT vs Vanilla, 99.34% vs Paper** |
-| **Total Wall Time (50 Ticks)** | 4,886.22 ms | 226.97 ms | **1.66 ms** | **2,943.5x faster vs Vanilla, 136.7x faster vs Paper** |
+| **Server TPS** | **6.26 TPS** (AI Tick Overload) | 20.00 TPS | **20.00 TPS (Rock Solid)** | **+219.5% vs Vanilla (Rock Solid 20.0 TPS)** |
+| **Average MSPT** | 159.86 ms | 7.17 ms | **0.04 ms** | **99.97% lower MSPT vs Vanilla, 99.44% vs Paper** |
+| **Total Wall Time (50 Ticks)** | 7,993.03 ms | 358.35 ms | **1.87 ms** | **4274.3x faster vs Vanilla, 191.6x faster vs Paper** |
 | **EAR Tier Throttling** | None (All ticked) | Standard EAR (32m) | **Dynamic 4-Tier LOD** ✅ | **4-tier dynamic throttling, 0 visual pop-in** |
 | **Governor Stability** | Static configuration | Static configuration | **Autonomous PID Closed Loop** ✅ | **Autonomous closed-loop stabilization under load** |
 
