@@ -39,8 +39,6 @@ AGC resolves these bottlenecks with modern concurrent architecture:
 | **Server TPS** | **3.47 TPS** (Severe Collapse) | **5.22 TPS** (Concurrency Collapse) | **20.00 TPS (Rock Solid)** | **+476.4% vs Vanilla, +283.1% vs Paper (Rock Solid 20.0 TPS)** |
 | **Average MSPT** | 287.91 ms | 191.56 ms | **1.18 ms** | **99.59% lower MSPT vs Vanilla, 99.38% vs Paper** |
 | **Total Wall Time (50 Ticks)** | 14,395.61 ms | 9,578.12 ms | **59.23 ms** | **243.1x faster vs Vanilla, 161.7x faster vs Paper** |
-| **World Ticks Executed** | 25,000 ticks | 25,000 ticks | **4,300 ticks** (20,700 saved) ✅ | **82.8% fewer ticks (20,700 ticks saved via 3-tier hibernation)** |
-| **Network Packet Serializations** | 250,000 copies | 250,000 copies | **50 copies** (2,499,500 saved) ✅ | **99.98% reduction (2,499,500 copies saved via zero-copy)** |
 
 ---
 
@@ -52,8 +50,6 @@ AGC resolves these bottlenecks with modern concurrent architecture:
 | **Server TPS** | **4.21 TPS** (Severe Server Freeze) | **9.30 TPS** (Heavy Lag) | **20.00 TPS (Rock Solid)** | **+375.1% vs Vanilla, +115.1% vs Paper (Rock Solid 20.0 TPS)** |
 | **Average MSPT** | 237.45 ms | 107.49 ms | **1.21 ms** | **99.49% lower MSPT vs Vanilla, 98.87% vs Paper** |
 | **Total Wall Time (50 Ticks)** | 11,872.44 ms | 5,374.69 ms | **60.50 ms** | **196.2x faster vs Vanilla, 88.8x faster vs Paper** |
-| **World Ticks Processed** | 2,500 ticks | 2,500 ticks | **740 ticks** (1,760 saved) ✅ | **70.4% fewer ticks (1,760 ticks saved via instant hibernation)** |
-| **Object Allocations** | 25,000 heap arrays | 25,000 heap arrays | **24,999 pooled reuses** (0 heap churn) ✅ | **99.99% GC allocation reduction (0 heap churn)** |
 
 ---
 
@@ -65,7 +61,6 @@ AGC resolves these bottlenecks with modern concurrent architecture:
 | **Server TPS** | **15.67 TPS** (Melee Collision Freeze) | **17.61 TPS** (Packet Choke) | **20.00 TPS (Rock Solid)** | **+27.6% vs Vanilla, +13.6% vs Paper (Rock Solid 20.0 TPS)** |
 | **Average MSPT** | 63.81 ms | 56.78 ms | **0.38 ms** | **99.40% lower MSPT vs Vanilla, 99.33% vs Paper** |
 | **Total Wall Time (50 Ticks)** | 3,190.52 ms | 2,839.25 ms | **19.08 ms** | **167.2x faster vs Vanilla, 148.8x faster vs Paper** |
-| **Packet Broadcast Copies** | 50,000 redundant | 50,000 redundant | **50 broadcasts** (499,500 saved) ✅ | **99.90% reduction via Zero-Copy Broadcast Hub** |
 
 ---
 
@@ -77,7 +72,6 @@ AGC resolves these bottlenecks with modern concurrent architecture:
 | **Server TPS** | **5.51 TPS** (Voxel Sweeps Freeze) | **7.85 TPS** (EAR Ineffective <32m) | **20.00 TPS (Rock Solid)** | **+263.0% vs Vanilla, +154.8% vs Paper (Rock Solid 20.0 TPS)** |
 | **Average MSPT** | 181.36 ms | 127.46 ms | **0.54 ms** | **99.70% lower MSPT vs Vanilla, 99.58% vs Paper** |
 | **Total Wall Time (50 Ticks)** | 9,067.92 ms | 6,372.92 ms | **26.93 ms** | **336.7x faster vs Vanilla, 236.6x faster vs Paper** |
-| **Netty Zero-Copy Saved** | 0 | 0 | **499,500 serializations** ✅ | **99.90% reduction (499,500 redundant encodes eliminated)** |
 
 ---
 
