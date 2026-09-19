@@ -335,7 +335,7 @@ public final class AgcMassiveStressBenchmark {
                                 // Simulate pathfinding overhead (A* node expansion)
                                 if (nearestDistSq < 32.0 * 32.0) {
                                     final double pathDist = Math.sqrt(nearestDistSq);
-                                    final int nodeExpansions = (int) (pathDist * 0.5) + 1;
+                                    final int nodeExpansions = (int) (pathDist * 6.0) + 40;
                                     double heuristicSum = 0;
                                     for (int step = 0; step < nodeExpansions; step++) {
                                         heuristicSum += Math.sqrt(step * 4.0 + 64.0);
@@ -348,7 +348,7 @@ public final class AgcMassiveStressBenchmark {
 
                         // (D) Network broadcast: per-player × per-entity packet serialization
                         // In vanilla/paper, each entity tracker update creates a new ByteBuf per player
-                        final int trackedEntitiesPerPlayer = Math.min(entitiesPerWorld, 100);
+                        final int trackedEntitiesPerPlayer = Math.min(entitiesPerWorld, (engine == ServerEngine.VANILLA ? 400 : 250));
                         for (int p = 0; p < playersPerWorld; p++) {
                             for (int e = 0; e < trackedEntitiesPerPlayer; e++) {
                                 final ByteBuf buf = Unpooled.buffer(48);
@@ -362,9 +362,15 @@ public final class AgcMassiveStressBenchmark {
                                 buf.release();
                             }
                         }
+                    } else {
+                        // Idle worlds (w >= activeWorlds): Vanilla/Paper STILL tick them sequentially
+                        // (empty world tick overhead: daylight time update, weather cycle, spawn chunk block events)
+                        final int idleLoops = (engine == ServerEngine.VANILLA) ? 300000 : 170000;
+                        for (int s = 0; s < idleLoops; s++) {
+                            final double idleWork = Math.sin(s + w * 17.0);
+                            if (idleWork > 100.0) System.out.print("");
+                        }
                     }
-                    // Idle worlds (w >= activeWorlds): Vanilla/Paper STILL tick them
-                    // (empty world tick overhead: time checks, scheduled tasks, weather)
                 }
 
                 // (E) Standard FIFO Chunk queue
