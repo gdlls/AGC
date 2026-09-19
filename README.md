@@ -25,94 +25,63 @@ AGC resolves these bottlenecks with modern concurrent architecture:
 
 ## 📊 Benchmark Comparisons
 
-> **Strict Testing Methodology & Environmental Parity**:  
-> All benchmarks were executed directly on the local benchmark machine under **strictly identical conditions**:
-> - **Hardware**: Intel® Core™ Ultra 7 258V (8 Cores: 4P + 4E, 32 GB LPDDR5X on-package memory) Laptop
-> - **Runtime & JVM**: Eclipse Adoptium JDK 25 (`25.0.3.9-hotspot`) with identical heap allocation (`-Xms16G -Xmx16G`) and identical GC settings across all runs
-> - **Game & Protocol Target**: Minecraft & Paper 26.2
-> - **Zero External Bias**: No GC switching (G1GC vs ZGC) or external cheats. The only variable measured is the server architecture (Vanilla 26.2 vs Upstream Paper 26.2 vs AGC 26.2).
-> - **Reproducibility**: Anyone can reproduce these benchmarks locally by running `.\gradlew.bat :paper-server:testAgc -PagcTestFilter=Benchmark`.
+### 1. 5,000 CCU & 500 Worlds (Mega Multi-World Server)
+
+| Engine | Server TPS | Average MSPT | Total Wall Time (50 Ticks) | AGC Advantage |
+| :--- | :--- | :--- | :--- | :--- |
+| **Vanilla 26.2** | 4.98 TPS | 200.86 ms | 10,043.14 ms | **AGC is 483.3x faster** (99.79% MSPT reduction) |
+| **Paper 26.2** | 9.57 TPS | 104.50 ms | 5,225.05 ms | **AGC is 251.4x faster** (99.60% MSPT reduction) |
+| **AGC 26.2** | **20.00 TPS** | **0.42 ms** | **20.78 ms** | **Baseline (20.0 TPS Maintained)** |
 
 ---
 
-### 1. Ultra-Scale Tri-Engine Benchmark: 5,000 CCU & 500 Worlds (Mega Multi-World Server)
-*All three engines (Vanilla 26.2, Upstream Paper 26.2, and AGC 26.2) executed under the exact same harsh multi-world benchmark harness on this machine.*
+### 2. 500 Players & 50 Worlds (Massive Multi-World Server)
 
-| Metric | Vanilla 26.2 (Measured) | Upstream Paper 26.2 (Measured) | AGC 26.2 (Intel 258V Measured) | AGC Architectural Advantage |
+| Engine | Server TPS | Average MSPT | Total Wall Time (50 Ticks) | AGC Advantage |
 | :--- | :--- | :--- | :--- | :--- |
-| **Server TPS** | **4.98 TPS** (Severe Collapse) | **9.57 TPS** (Concurrency Collapse) | **20.00 TPS (Rock Solid)** | Complete immunity to multi-world lag collapse |
-| **Average MSPT** | 200.86 ms | 104.50 ms | **0.42 ms** (**99.79% 단축 vs Vanilla, 99.60% 단축 vs Paper**) | 3-Tier Lifecycle + Panama off-heap chunk storage |
-| **Total Wall Time (50 Ticks)** | 10,043.14 ms | 5,225.05 ms | **20.78 ms** | **483.3배 빠름 vs Vanilla, 251.4배 빠름 vs Paper** |
-| **World Ticks Executed** | 25,000 ticks | 25,000 ticks | **4,300 ticks** (20,700 saved) ✅ | 3-Tier Lifecycle 0ms Hibernation for 450 idle worlds |
-| **Network Packet Serializations** | 250,000 copies | 250,000 copies | **50 copies** (249,950 saved) ✅ | Zero-Copy Netty Broadcast Hub buffer slicing |
-| **Cross-World Transactions** | Global Synchronized Lock | Global Synchronized Lock | **50 Lock-Free STM Commits** ✅ | Software Transactional Memory optimistic concurrency |
+| **Vanilla 26.2** | 3.95 TPS | 253.28 ms | 12,664.09 ms | **AGC is 613.9x faster** (99.84% MSPT reduction) |
+| **Paper 26.2** | 8.57 TPS | 116.64 ms | 5,832.04 ms | **AGC is 282.7x faster** (99.65% MSPT reduction) |
+| **AGC 26.2** | **20.00 TPS** | **0.41 ms** | **20.63 ms** | **Baseline (20.0 TPS Maintained)** |
 
 ---
 
-### 2. Massive Multi-World Tri-Engine Benchmark: 500 Players & 50 Worlds
-*Direct side-by-side run of Vanilla, Upstream Paper, and AGC simulating 50 simultaneous worlds (10 active + 40 idle), 500 active players, and 5,000 entities.*
+### 3. 1,000 CCU Exploration & Intense Chunk Loading
 
-| Metric | Vanilla 26.2 (Measured) | Upstream Paper 26.2 (Measured) | AGC 26.2 (Intel 258V Measured) | AGC Optimization Advantage |
+| Engine | Server TPS | Average MSPT | Total Wall Time (50 Ticks) | AGC Advantage |
 | :--- | :--- | :--- | :--- | :--- |
-| **Server TPS** | **3.95 TPS** (Severe Server Freeze) | **8.57 TPS** (Heavy Lag) | **20.00 TPS (Rock Solid)** | 20.0 TPS maintained without lag spike |
-| **Average MSPT** | 253.28 ms | 116.64 ms | **0.41 ms** (**99.84% 단축 vs Vanilla, 99.65% 단축 vs Paper**) | Parallel world worker threads + governor closed-loop |
-| **Total Wall Time (50 Ticks)** | 12,664.09 ms | 5,832.04 ms | **20.63 ms** | **613.9배 빠름 vs Vanilla, 282.7배 빠름 vs Paper** |
-| **World Ticks Processed** | 2,500 ticks | 2,500 ticks | **740 ticks** (1,760 saved) ✅ | Instant 0ms World Hibernation for 40 idle worlds |
-| **Network Serializations** | 25,000 serializations | 25,000 serializations | **50 serializations** (24,950 saved) ✅ | Single serialization reused across all 500 recipients |
-| **Entity AI Goals Run** | 250,000 goals | 130,000 goals | **124,000 goals** (126,000 skipped) ✅ | EAR 2.0 & Dynamic AI Batch Processing |
-| **Object Allocations** | 25,000 heap arrays | 25,000 heap arrays | **24,999 pooled reuses** (0 heap churn) ✅ | Zero heap churn hot object recycling |
+| **Vanilla 26.2** | 4.00 TPS | 249.93 ms | 12,496.53 ms | **AGC is 5,950.7x faster** (99.98% MSPT reduction) |
+| **Paper 26.2** | 10.14 TPS | 98.60 ms | 4,929.91 ms | **AGC is 2,347.6x faster** (99.96% MSPT reduction) |
+| **AGC 26.2** | **20.00 TPS** | **0.04 ms** | **2.10 ms** | **Baseline (20.0 TPS Maintained)** |
 
 ---
 
-### 3. 1,000 CCU Mass Combat Storm (Single World)
-*1,000 simulated players densely packed in a single combat arena executing high-frequency melee attacks, knockback sweeps, and continuous motion updates.*
+### 4. 1,000 CCU Dense Wilderness Roaming (3,000 Entities)
 
-| Metric | Vanilla 26.2 (Measured) | Upstream Paper 26.2 (Measured) | AGC 26.2 (Intel 258V Measured) | Improvement |
+| Engine | Server TPS | Average MSPT | Total Wall Time (50 Ticks) | AGC Advantage |
 | :--- | :--- | :--- | :--- | :--- |
-| **Server TPS** | 20.00 TPS | 20.00 TPS | **20.00 TPS (Rock Solid)** | Rock Solid 20.0 TPS |
-| **Average MSPT** | 13.13 ms | 7.63 ms | **0.04 ms** (**99.70% 단축 vs Vanilla, 99.48% 단축 vs Paper**) | Sub-millisecond tick loop at mega scale |
-| **Total Wall Time (50 Ticks)** | 656.51 ms | 381.48 ms | **1.91 ms** | **343.7배 빠름 vs Vanilla, 199.7배 빠름 vs Paper** |
-| **Packet Broadcast Copies** | 50,000 redundant | 50,000 redundant | **50 broadcasts** (49,950 saved) ✅ | Zero-Copy Netty buffer slices |
-| **Delta Network Savings** | 0 bytes | 0 bytes | **450 bytes compressed** ✅ | Bit-level entity state delta tracking |
+| **Vanilla 26.2** | 6.66 TPS | 150.07 ms | 7,503.40 ms | **AGC is 2,382.0x faster** (99.96% MSPT reduction) |
+| **Paper 26.2** | 20.00 TPS | 19.39 ms | 969.69 ms | **AGC is 307.8x faster** (99.69% MSPT reduction) |
+| **AGC 26.2** | **20.00 TPS** | **0.06 ms** | **3.15 ms** | **Baseline (20.0 TPS Maintained)** |
 
 ---
 
-### 4. 1,000 CCU Dense Wilderness Roaming
-*1,000 active players roaming across terrain with 3,000 active entities undergoing physics integration and collision detection.*
+### 5. 1,000 CCU Standard Wilderness Survival (2,500 Entities)
 
-| Metric | Vanilla 26.2 (Measured) | Upstream Paper 26.2 (Measured) | AGC 26.2 (Intel 258V Measured) | Improvement |
+| Engine | Server TPS | Average MSPT | Total Wall Time (50 Ticks) | AGC Advantage |
 | :--- | :--- | :--- | :--- | :--- |
-| **Server TPS** | **6.66 TPS** (Voxel Sweeps Freeze) | 20.00 TPS (EAR Activated) | **20.00 TPS (Rock Solid)** | Rock Solid 20.0 TPS |
-| **Average MSPT** | 150.07 ms | 19.39 ms | **0.06 ms** (**99.96% 단축 vs Vanilla, 99.69% 단축 vs Paper**) | SIMD collision kernel + SoA physics |
-| **Total Wall Time (50 Ticks)** | 7,503.40 ms | 969.69 ms | **3.15 ms** | **2,382.0배 빠름 vs Vanilla, 307.8배 빠름 vs Paper** |
-| **Netty Zero-Copy Saved** | 0 | 0 | **49,950 serializations** ✅ | Single-encode multi-recipient delivery |
-| **Collision Engine** | Standard OOP AABB | Standard OOP AABB | **64-way SIMD Kernel** ✅ | Zero JVM GC heap allocation churn |
+| **Vanilla 26.2** | 10.23 TPS | 97.72 ms | 4,886.22 ms | **AGC is 2,943.5x faster** (99.97% MSPT reduction) |
+| **Paper 26.2** | 20.00 TPS | 4.54 ms | 226.97 ms | **AGC is 136.7x faster** (99.34% MSPT reduction) |
+| **AGC 26.2** | **20.00 TPS** | **0.03 ms** | **1.66 ms** | **Baseline (20.0 TPS Maintained)** |
 
 ---
 
-### 5. 1,000 CCU Exploration & Intense Chunk Loading
-*1,000 players rapidly moving through the world, generating and requesting chunks concurrently.*
+### 6. 1,000 CCU Mass Combat Storm (Single World Arena)
 
-| Metric | Vanilla 26.2 (Measured) | Upstream Paper 26.2 (Measured) | AGC 26.2 (Intel 258V Measured) | Improvement |
+| Engine | Server TPS | Average MSPT | Total Wall Time (50 Ticks) | AGC Advantage |
 | :--- | :--- | :--- | :--- | :--- |
-| **Server TPS** | **4.00 TPS** (Noise Gen I/O Lock) | **10.14 TPS** (Chunk Overload) | **20.00 TPS (Rock Solid)** | Rock Solid 20.0 TPS |
-| **Average MSPT** | 249.93 ms | 98.60 ms | **0.04 ms** (**99.98% 단축 vs Vanilla, 99.96% 단축 vs Paper**) | Off-heap Panama chunk buffers |
-| **Total Wall Time (50 Ticks)** | 12,496.53 ms | 4,929.91 ms | **2.10 ms** | **5,950.7배 빠름 vs Vanilla, 2,347.6배 빠름 vs Paper** |
-| **Chunk Arbitration** | FIFO (Starvation) | FIFO (Starvation) | **DRR Fair Load Arbiter** ✅ | Bandwidth and chunk fairness per player |
-| **Delta Tracking** | Full entity metadata | Full entity metadata | **Bit-level dirty mask** ✅ | Minimized network packet overhead |
-
----
-
-### 6. 1,000 CCU Standard Wilderness Survival
-*1,000 players scattered across typical wilderness survival gameplay with 2,500 ambient, passive, and hostile entities.*
-
-| Metric | Vanilla 26.2 (Measured) | Upstream Paper 26.2 (Measured) | AGC 26.2 (Intel 258V Measured) | Improvement |
-| :--- | :--- | :--- | :--- | :--- |
-| **Server TPS** | **10.23 TPS** (AI Tick Overload) | 20.00 TPS | **20.00 TPS (Rock Solid)** | Rock Solid 20.0 TPS |
-| **Average MSPT** | 97.72 ms | 4.54 ms | **0.03 ms** (**99.97% 단축 vs Vanilla, 99.34% 단축 vs Paper**) | 4-Tier LOD + PID closed loop |
-| **Total Wall Time (50 Ticks)** | 4,886.22 ms | 226.97 ms | **1.66 ms** | **2,943.5배 빠름 vs Vanilla, 136.7배 빠름 vs Paper** |
-| **EAR 3.0 Tier Throttling** | None (All ticked) | Standard EAR (32m) | **Dynamic 4-Tier LOD** ✅ | Throttles distant AI with zero gameplay impact |
-| **Governor Stability** | Static configuration | Static configuration | **Autonomous PID Closed Loop** ✅ | Real-time dynamic auto-balancing |
+| **Vanilla 26.2** | 20.00 TPS | 13.13 ms | 656.51 ms | **AGC is 343.7x faster** (99.70% MSPT reduction) |
+| **Paper 26.2** | 20.00 TPS | 7.63 ms | 381.48 ms | **AGC is 199.7x faster** (99.48% MSPT reduction) |
+| **AGC 26.2** | **20.00 TPS** | **0.04 ms** | **1.91 ms** | **Baseline (20.0 TPS Maintained)** |
 
 ---
 
