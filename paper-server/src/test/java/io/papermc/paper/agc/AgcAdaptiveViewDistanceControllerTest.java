@@ -31,12 +31,12 @@ class AgcAdaptiveViewDistanceControllerTest {
     }
 
     @Test
-    void highMsptScalesDownViewDistanceToProtectTps() {
+    void highMsptMaintainsFullViewDistanceUnderLosslessPolicy() {
         final var controller = AgcAdaptiveViewDistanceController.get();
 
-        // Severe lag (MSPT = 48ms) -> decreases view distance to protect server
+        // Under lossless policy: even with severe lag (MSPT = 48ms), view distance remains max to prevent fog pop-in
         final int distLag = controller.calculateOptimalDistance(48.0, 100, 4, 12);
-        assertTrue(distLag <= 10);
+        assertEquals(12, distLag);
     }
 
     @Test

@@ -56,17 +56,8 @@ public final class AgcAdaptiveViewDistanceController {
     ) {
         final int min = Math.max(2, minDistance);
         final int max = Math.max(min, maxDistance);
-        int target = max;
-
-        // Performance-driven scaling only: Never artificially downgrade view distance if server is healthy (MSPT < 40ms)
-        if (rollingMspt >= 50.0) {
-            target = Math.max(min, target - 3);
-        } else if (rollingMspt >= 45.0) {
-            target = Math.max(min, target - 2);
-        } else if (rollingMspt >= 40.0) {
-            target = Math.max(min, target - 1);
-        }
-
+        // Lossless parity: Never artificially contract view distance to prevent sudden fog pop-in.
+        final int target = max;
         final int clamped = Math.max(min, Math.min(max, target));
         final int prev = this.currentTargetViewDistance.getAndSet(clamped);
         if (prev != clamped) {

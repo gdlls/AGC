@@ -43,9 +43,11 @@ public final class AgcHierarchicalActivationRangeV3 {
         TIER_4_VIRTUAL_OFFHEAP
     }
 
-    public static final double TIER_0_MAX_DIST_SQ = 16.0 * 16.0;   // 256.0
-    public static final double TIER_1_MAX_DIST_SQ = 32.0 * 32.0;   // 1024.0
-    public static final double TIER_2_MAX_DIST_SQ = 64.0 * 64.0;   // 4096.0
+    // Lossless parity: 48m and 64m thresholds guarantee full 20Hz execution across entire player visual
+    // and mob farm engagement radius (preventing mobs from freezing or breaking pathfinding in farms)
+    public static final double TIER_0_MAX_DIST_SQ = 48.0 * 48.0;   // 2304.0 (Full 20Hz combat & visual radius)
+    public static final double TIER_1_MAX_DIST_SQ = 64.0 * 64.0;   // 4096.0 (Full 20Hz physics & navigation)
+    public static final double TIER_2_MAX_DIST_SQ = 96.0 * 96.0;   // 9216.0
     public static final double TIER_3_MAX_DIST_SQ = 128.0 * 128.0; // 16384.0
 
     private final AtomicLong tier0Count = new AtomicLong();

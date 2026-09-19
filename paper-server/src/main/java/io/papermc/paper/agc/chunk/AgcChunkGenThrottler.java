@@ -27,33 +27,12 @@ public final class AgcChunkGenThrottler {
     }
 
     public boolean canGenerate() {
-        int budget = 50; // Default budget
-        PerformanceLevel level = AgcAdaptiveGovernor.get().getLevel();
-        if (level == PerformanceLevel.LEVEL_1_ELEVATED) {
-            budget = 25;
-        } else if (level == PerformanceLevel.LEVEL_2_CONGESTED) {
-            budget = 10;
-        } else if (level == PerformanceLevel.LEVEL_3_SEVERE) {
-            budget = 2;
-        } else if (level == PerformanceLevel.LEVEL_4_CRITICAL) {
-            budget = 0;
-        }
-
-        return this.generatedThisTick.incrementAndGet() <= budget;
+        // Lossless parity: Always guarantee chunk generation to prevent Elytra flight freezes and transparent world boundaries.
+        return true;
     }
 
     public double getEffectiveGenRate(final double baseRate) {
-        final PerformanceLevel level = AgcAdaptiveGovernor.get().getLevel();
-        if (level == PerformanceLevel.LEVEL_1_ELEVATED) {
-            return Math.min(baseRate, 20.0);
-        } else if (level == PerformanceLevel.LEVEL_2_CONGESTED) {
-            return Math.min(baseRate, 10.0);
-        } else if (level == PerformanceLevel.LEVEL_3_SEVERE) {
-            return Math.min(baseRate, 4.0);
-        } else if (level == PerformanceLevel.LEVEL_4_CRITICAL) {
-            return 1.0;
-        }
-        return Math.min(baseRate, 25.0);
+        return Math.max(baseRate, 25.0);
     }
 
     public int getGeneratedThisTick() {

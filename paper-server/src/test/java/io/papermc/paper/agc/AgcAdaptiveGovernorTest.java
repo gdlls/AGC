@@ -36,14 +36,14 @@ public class AgcAdaptiveGovernorTest {
             gov.evaluate(36.0, 19.0, 0.80, 200);
         }
         assertEquals(PerformanceLevel.LEVEL_1_ELEVATED, gov.getLevel());
-        assertEquals(0.80, gov.getEntityActivationMultiplier());
+        assertEquals(1.0, gov.getEntityActivationMultiplier()); // Lossless parity: strictly 1.0
 
         // 3. Simulate Critical Emergency (Level 4) -> Immediate escalation
         gov.evaluate(60.0, 10.0, 0.96, 1000);
         assertEquals(PerformanceLevel.LEVEL_4_CRITICAL, gov.getLevel());
-        assertEquals(0.35, gov.getEntityActivationMultiplier());
-        assertEquals(4, gov.getBlockEntityTickInterval());
-        assertFalse(gov.isChunkGenAllowed());
+        assertEquals(1.0, gov.getEntityActivationMultiplier()); // Lossless parity: strictly 1.0 (no mob freezing)
+        assertEquals(1, gov.getBlockEntityTickInterval()); // Lossless parity: strictly 1 tick (8-tick vanilla hopper timing)
+        assertTrue(gov.isChunkGenAllowed()); // Lossless parity: always allowed (no Elytra collision)
         assertFalse(gov.isMobSpawningAllowed());
 
         // 4. Test Manual Override

@@ -501,7 +501,7 @@ public class WorldConfiguration extends ConfigurationPart {
         public boolean allowVehicleCollisions = true;
         public boolean fixClimbingBypassingCrammingRule = false;
         @RequiresSpigotInitialization(MaxEntityCollisionsInitializer.class)
-        public int maxEntityCollisions = 8;
+        public int maxEntityCollisions = 24;
         public boolean allowPlayerCrammingDamage = false;
     }
 
@@ -512,8 +512,8 @@ public class WorldConfiguration extends ConfigurationPart {
         public int maxAutoSaveChunksPerTick = 24;
         public int fixedChunkInhabitedTime = -1;
         public boolean preventMovingIntoUnloadedChunks = false;
-        // AGC - reduce chunk unload delay default from 10s to 1s to prevent memory blowup under 500 CCU
-        public Duration delayChunkUnloadsBy = Duration.of("1s");
+        // Lossless parity: 15s buffer prevents chunk churning and avoids projectile/minecart evaporation at boundaries
+        public Duration delayChunkUnloadsBy = Duration.of("15s");
         public Reference2IntMap<EntityType<?>> entityPerChunkSaveLimit = Util.make(new Reference2IntOpenHashMap<>(BuiltInRegistries.ENTITY_TYPE.size()), map -> {
             map.defaultReturnValue(-1);
             map.put(EntityTypes.EXPERIENCE_ORB, -1);

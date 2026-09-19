@@ -165,18 +165,27 @@ public final class AgcHotPathRuntimeBridge {
             final int players = playerExtractor.applyAsInt(world);
 
             if (hibernationEnabled) {
-                final AgcWorldHibernationEngine.WorldState state =
-                    AgcWorldHibernationEngine.get().updateWorld(worldName, players, tick, 5L);
+                // Protect primary survival worlds (overworld, nether, the_end) from hibernation to guarantee
+                // 20 TPS for portal chunk loaders, iron farms, and automated factories.
+                final boolean isPrimaryDimension = worldName != null && (
+                    worldName.equals("world") || worldName.equals("world_nether") || worldName.equals("world_the_end")
+                    || worldName.endsWith("_nether") || worldName.endsWith("_the_end")
+                );
 
-                if (state == AgcWorldHibernationEngine.WorldState.COLD) {
-                    // 0ms CPU time: completely skipped
-                    this.totalWorldTicksHibernated.incrementAndGet();
-                    continue;
-                } else if (state == AgcWorldHibernationEngine.WorldState.HIBERNATING) {
-                    // Throttled: ticked once every 20 ticks (1 Hz)
-                    if (tick % 20 != 0) {
+                if (!isPrimaryDimension) {
+                    final AgcWorldHibernationEngine.WorldState state =
+                        AgcWorldHibernationEngine.get().updateWorld(worldName, players, tick, 600L); // 30-second graceful countdown
+
+                    if (state == AgcWorldHibernationEngine.WorldState.COLD) {
+                        // 0ms CPU time: completely skipped for purely dormant arena worlds
                         this.totalWorldTicksHibernated.incrementAndGet();
                         continue;
+                    } else if (state == AgcWorldHibernationEngine.WorldState.HIBERNATING) {
+                        // Throttled: ticked once every 20 ticks (1 Hz)
+                        if (tick % 20 != 0) {
+                            this.totalWorldTicksHibernated.incrementAndGet();
+                            continue;
+                        }
                     }
                 }
             }

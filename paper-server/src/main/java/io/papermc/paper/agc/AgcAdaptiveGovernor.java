@@ -159,40 +159,27 @@ public final class AgcAdaptiveGovernor {
 
     /**
      * Multiplier to scale Entity Activation Ranges (EAR).
+     * Strictly 1.0 to preserve 100% vanilla parity and prevent mobs from freezing or breaking mob farms.
      */
     public double getEntityActivationMultiplier() {
-        if (!this.isPolicyEnabled()) {
-            return 1.0;
-        }
-        return switch (this.currentLevel.get()) {
-            case LEVEL_0_OPTIMAL -> 1.0;
-            case LEVEL_1_ELEVATED -> 0.80;
-            case LEVEL_2_CONGESTED -> 0.65;
-            case LEVEL_3_SEVERE -> 0.50;
-            case LEVEL_4_CRITICAL -> 0.35;
-        };
+        return 1.0;
     }
 
     /**
      * Stride interval for ticking non-essential block entities (hoppers, furnaces).
+     * Strictly 1 tick to guarantee 100% vanilla item transfer timing (8 ticks/item)
+     * and prevent item sorter overflow.
      */
     public int getBlockEntityTickInterval() {
-        if (!this.isPolicyEnabled()) {
-            return 1;
-        }
-        return switch (this.currentLevel.get()) {
-            case LEVEL_0_OPTIMAL, LEVEL_1_ELEVATED -> 1;
-            case LEVEL_2_CONGESTED, LEVEL_3_SEVERE -> 2;
-            case LEVEL_4_CRITICAL -> 4;
-        };
+        return 1;
     }
 
     /**
-     * Whether asynchronous chunk generation should be allowed or paused.
+     * Whether asynchronous chunk generation should be allowed.
+     * Always true to prevent Elytra flight freezes and transparent world boundaries.
      */
     public boolean isChunkGenAllowed() {
-        return !this.isPolicyEnabled()
-            || this.currentLevel.get().severity() <= PerformanceLevel.LEVEL_2_CONGESTED.severity();
+        return true;
     }
 
     /**
@@ -205,10 +192,11 @@ public final class AgcAdaptiveGovernor {
 
     /**
      * Whether redstone tick coalescing and batching should be engaged.
+     * Strictly false to guarantee 100% vanilla 0-tick pulse timing, flying machines,
+     * quasi-connectivity, and TNT cannon stability.
      */
     public boolean isRedstoneBatchingEnabled() {
-        return this.isPolicyEnabled()
-            && this.currentLevel.get().severity() >= PerformanceLevel.LEVEL_2_CONGESTED.severity();
+        return false;
     }
 
     public void setManualOverride(final PerformanceLevel level) {

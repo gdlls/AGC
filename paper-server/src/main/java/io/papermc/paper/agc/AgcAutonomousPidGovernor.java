@@ -64,21 +64,10 @@ public final class AgcAutonomousPidGovernor {
 
         final double u = (KP * error) + (KI * this.integral) + (KD * derivative);
 
-        // Only engage throttling under genuine severe load (MSPT >= 40ms) to prevent premature view distance collapse during normal 20 TPS gameplay
-        if (measuredMspt >= 45.0 || freeMemoryPercent < 15.0) {
-            this.currentViewDistance = 4;
-            this.currentSimulationDistance = 4;
-            this.currentLoadFactor = 0.5;
-            this.congestionsMitigated.incrementAndGet();
-        } else if (measuredMspt >= 40.0 || u < -5.0) {
-            this.currentViewDistance = 6;
-            this.currentSimulationDistance = 6;
-            this.currentLoadFactor = 0.8;
-        } else {
-            this.currentViewDistance = 8;
-            this.currentSimulationDistance = 8;
-            this.currentLoadFactor = 1.0;
-        }
+        // Lossless parity: Never degrade view distance or simulation distance to avoid fog pop-in and farm breakage.
+        this.currentViewDistance = 8;
+        this.currentSimulationDistance = 8;
+        this.currentLoadFactor = 1.0;
 
         return new GovernorAdjustment(
             measuredMspt,

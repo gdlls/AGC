@@ -23,22 +23,20 @@ public class AgcChunkGenThrottlerTest {
     }
 
     @Test
-    public void testThrottlerBudget() {
+    public void testThrottlerGuaranteesGenerationUnderLosslessPolicy() {
         AgcChunkGenThrottler throttler = AgcChunkGenThrottler.get();
-        for (int i = 0; i < 50; i++) {
-            assertTrue(throttler.canGenerate(), "Should allow up to 50 under optimal");
+        for (int i = 0; i < 100; i++) {
+            assertTrue(throttler.canGenerate(), "Must always allow chunk generation to prevent Elytra flight freezes");
         }
-        assertFalse(throttler.canGenerate(), "Should throttle after 50");
     }
 
     @Test
-    public void testThrottlerCongested() {
+    public void testThrottlerCongestedPreservesGeneration() {
         AgcAdaptiveGovernor.get().setManualOverride(PerformanceLevel.LEVEL_2_CONGESTED);
         AgcChunkGenThrottler throttler = AgcChunkGenThrottler.get();
         throttler.onTickStart();
-        for (int i = 0; i < 10; i++) {
-            assertTrue(throttler.canGenerate(), "Should allow up to 10 under congested");
+        for (int i = 0; i < 50; i++) {
+            assertTrue(throttler.canGenerate(), "Must preserve chunk generation even under congested level");
         }
-        assertFalse(throttler.canGenerate(), "Should throttle after 10");
     }
 }
