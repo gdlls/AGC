@@ -41,7 +41,6 @@ AGC resolves these bottlenecks with modern concurrent architecture:
 | **Total Wall Time (50 Ticks)** | 14,395.61 ms | 9,578.12 ms | **59.23 ms** | **243.1x faster vs Vanilla, 161.7x faster vs Paper** |
 | **World Ticks Executed** | 25,000 ticks | 25,000 ticks | **4,300 ticks** (20,700 saved) ✅ | **82.8% fewer ticks (20,700 ticks saved via 3-tier hibernation)** |
 | **Network Packet Serializations** | 250,000 copies | 250,000 copies | **50 copies** (2,499,500 saved) ✅ | **99.98% reduction (2,499,500 copies saved via zero-copy)** |
-| **Cross-World Transactions** | Global Synchronized Lock | Global Synchronized Lock | **50 Lock-Free STM Commits** ✅ | **100% lock-free concurrency (0 global lock waits)** |
 
 ---
 
@@ -54,7 +53,6 @@ AGC resolves these bottlenecks with modern concurrent architecture:
 | **Average MSPT** | 237.45 ms | 107.49 ms | **1.21 ms** | **99.49% lower MSPT vs Vanilla, 98.87% vs Paper** |
 | **Total Wall Time (50 Ticks)** | 11,872.44 ms | 5,374.69 ms | **60.50 ms** | **196.2x faster vs Vanilla, 88.8x faster vs Paper** |
 | **World Ticks Processed** | 2,500 ticks | 2,500 ticks | **740 ticks** (1,760 saved) ✅ | **70.4% fewer ticks (1,760 ticks saved via instant hibernation)** |
-| **Entity AI Optimization** | Stream/Lambda churn | Standard EAR 2.0 | **Zero-Alloc GoalSelector** ✅ | **100% Vanilla Parity, Zero-Allocation AI & Async Pathfinding** |
 | **Object Allocations** | 25,000 heap arrays | 25,000 heap arrays | **24,999 pooled reuses** (0 heap churn) ✅ | **99.99% GC allocation reduction (0 heap churn)** |
 
 ---
@@ -68,8 +66,6 @@ AGC resolves these bottlenecks with modern concurrent architecture:
 | **Average MSPT** | 63.81 ms | 56.78 ms | **0.38 ms** | **99.40% lower MSPT vs Vanilla, 99.33% vs Paper** |
 | **Total Wall Time (50 Ticks)** | 3,190.52 ms | 2,839.25 ms | **19.08 ms** | **167.2x faster vs Vanilla, 148.8x faster vs Paper** |
 | **Packet Broadcast Copies** | 50,000 redundant | 50,000 redundant | **50 broadcasts** (499,500 saved) ✅ | **99.90% reduction via Zero-Copy Broadcast Hub** |
-| **Delta Network Savings** | 0 bytes | 0 bytes | **135,000 bytes compressed** ✅ | **Bit-level delta compression active** |
-| **Collision Engine** | Standard OOP AABB | Standard OOP AABB | **64-way SIMD Kernel** ✅ | **Vectorized hitboxes, 0 heap churn** |
 
 ---
 
@@ -82,7 +78,6 @@ AGC resolves these bottlenecks with modern concurrent architecture:
 | **Average MSPT** | 181.36 ms | 127.46 ms | **0.54 ms** | **99.70% lower MSPT vs Vanilla, 99.58% vs Paper** |
 | **Total Wall Time (50 Ticks)** | 9,067.92 ms | 6,372.92 ms | **26.93 ms** | **336.7x faster vs Vanilla, 236.6x faster vs Paper** |
 | **Netty Zero-Copy Saved** | 0 | 0 | **499,500 serializations** ✅ | **99.90% reduction (499,500 redundant encodes eliminated)** |
-| **Collision Engine** | Standard OOP AABB | Standard OOP AABB | **64-way SIMD Kernel** ✅ | **64x vectorized throughput, 0 heap churn** |
 
 ---
 
@@ -94,8 +89,6 @@ AGC resolves these bottlenecks with modern concurrent architecture:
 | **Server TPS** | **2.81 TPS** (Noise Gen I/O Lock) | **6.12 TPS** (Chunk Overload) | **20.00 TPS (Rock Solid)** | **+611.7% vs Vanilla, +226.8% vs Paper (Rock Solid 20.0 TPS)** |
 | **Average MSPT** | 356.31 ms | 163.51 ms | **0.34 ms** | **99.90% lower MSPT vs Vanilla, 99.79% vs Paper** |
 | **Total Wall Time (50 Ticks)** | 17,815.57 ms | 8,175.67 ms | **17.03 ms** | **1046.1x faster vs Vanilla, 480.1x faster vs Paper** |
-| **Chunk Arbitration** | FIFO (Starvation) | FIFO (Starvation) | **DRR Fair Load Arbiter** ✅ | **100% fair chunk bandwidth per player, 0 starvation** |
-| **Delta Tracking** | Full entity metadata | Full entity metadata | **Bit-level dirty mask** ✅ | **Bitwise state tracking, 90%+ packet overhead eliminated** |
 
 ---
 
@@ -107,8 +100,6 @@ AGC resolves these bottlenecks with modern concurrent architecture:
 | **Server TPS** | **7.78 TPS** (Block Ticks & AI Overload) | **14.98 TPS** (Main-Thread Choke) | **20.00 TPS (Rock Solid)** | **+157.1% vs Vanilla, +33.5% vs Paper (Rock Solid 20.0 TPS)** |
 | **Average MSPT** | 128.57 ms | 66.74 ms | **0.32 ms** | **99.75% lower MSPT vs Vanilla, 99.52% vs Paper** |
 | **Total Wall Time (50 Ticks)** | 6,428.56 ms | 3,336.85 ms | **15.85 ms** | **405.6x faster vs Vanilla, 210.5x faster vs Paper** |
-| **EAR & Entity AI** | None (All ticked) | Standard EAR (32m) | **Zero-Alloc AI & Async Path** ✅ | **100% Vanilla Parity, Async A* & Gale LOS Cache (0 AI goals dropped)** |
-| **Governor Stability** | Static configuration | Static configuration | **Adaptive Hysteresis Governor** ✅ | **Smooth hysteresis load balancing (no visual fog/view collapse)** |
 
 
 ---
