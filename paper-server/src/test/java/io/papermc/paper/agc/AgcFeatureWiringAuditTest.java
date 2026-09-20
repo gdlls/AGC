@@ -399,9 +399,7 @@ public class AgcFeatureWiringAuditTest {
         // must update this test too (deliberate, reviewable change — never an accident).
         final Set<String> documented = Set.of(
             "NETWORK_ZSTD_COMPRESSION",
-            "DEFAULT_VIEW_DISTANCE",
-            "OFFHEAP_SLAB_ALLOCATOR",
-            "JIT_TYPE_DISPATCHER"
+            "DEFAULT_VIEW_DISTANCE"
         );
         final Set<String> actual = new HashSet<>();
         for (final AgcCapabilityMatrix.Feature f : AgcCapabilityMatrix.dormantFeatures()) {

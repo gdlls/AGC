@@ -28,7 +28,7 @@ public class AgcConfigSyncTest {
             final var config = io.papermc.paper.configuration.AgcConfigurations.load(directory, org.spongepowered.configurate.BasicConfigurationNode.root());
             org.junit.jupiter.api.Assertions.assertEquals("agc_aggressive", config.mode);
             assertFalse(config.performance.parallelWorldTickForceUnsafe);
-            assertFalse(config.singleplayerFeelCombat);
+            assertTrue(config.singleplayerFeelCombat);
             assertFalse(config.performance.hitRewindEnabled);
             final var node = org.spongepowered.configurate.yaml.YamlConfigurationLoader.builder()
                 .path(directory.resolve("agc.yml")).build().load();
@@ -85,7 +85,7 @@ public class AgcConfigSyncTest {
             var config = io.papermc.paper.configuration.AgcConfigurations.load(directory, legacy);
             AgcConfigSync.get().syncLoadedConfiguration(config);
             assertTrue(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.PARALLEL_WORLD_TICK));
-            assertFalse(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.SINGLEPLAYER_FEEL_COMBAT));
+            assertTrue(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.SINGLEPLAYER_FEEL_COMBAT));
             java.nio.file.Files.writeString(directory.resolve("agc.yml"), "performance:\n  fast-noise-engine: false\n  parallel-world-tick: false\n  parallel-world-tick-min-worlds: 4\n");
             config = io.papermc.paper.configuration.AgcConfigurations.load(directory, legacy);
             AgcConfigSync.get().syncLoadedConfiguration(config);

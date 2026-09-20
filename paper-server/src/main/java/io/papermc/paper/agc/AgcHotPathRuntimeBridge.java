@@ -120,6 +120,14 @@ public final class AgcHotPathRuntimeBridge {
         AgcFlushCoalescer.get().flushPendingChannels();
         io.papermc.paper.agc.explosion.AgcExplosionOptimizer.get().onTickEnd();
 
+        // AGC — OFFHEAP_SLAB_ALLOCATOR production maintenance: once per maintenance window
+        // (every 1200 ticks / 60s) trim idle slab buffers above the prewarm baseline so burst
+        // traffic cannot pin direct memory forever. Gated — zero cost when disabled.
+        if ((tickCount % 1200 == 0)
+            && AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.OFFHEAP_SLAB_ALLOCATOR)) {
+            io.papermc.paper.agc.memory.AgcOffHeapSlabAllocator.get().trimToFit();
+        }
+
         // 3. Record Periodic Telemetry
         if (tickCount % 100 == 0) {
             final AgcPerformanceGovernor.State govState = AgcPerformanceGovernor.get().getState();

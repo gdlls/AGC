@@ -123,6 +123,35 @@ public final class AgcOffHeapSlabAllocator {
         this.totalReleases.set(0);
     }
 
+    /**
+     * AGC — Periodic off-heap pool maintenance, invoked once per maintenance window from the
+     * NMS-wired server tick tail ({@code AgcHotPathRuntimeBridge#onServerTickEnd}, gated by
+     * {@code OFFHEAP_SLAB_ALLOCATOR}). Drops pooled buffers above the prewarm baseline so an
+     * elytra/teleport burst cannot pin hundreds of megabytes of direct memory forever.
+     * Behavior-preserving: only idle pooled buffers are dropped; live buffers are untouched.
+     *
+     * @return number of buffers dropped
+     */
+    public int trimToFit() {
+        int dropped = 0;
+        dropped += trimTier(this.pool1k, 32);
+        dropped += trimTier(this.pool4k, 16);
+        dropped += trimTier(this.pool16k, 8);
+        dropped += trimTier(this.pool64k, 4);
+        return dropped;
+    }
+
+    private static int trimTier(final ConcurrentLinkedDeque<ByteBuffer> pool, final int keep) {
+        int dropped = 0;
+        while (pool.size() > keep) {
+            if (pool.poll() == null) {
+                break;
+            }
+            dropped++;
+        }
+        return dropped;
+    }
+
     public record SlabAllocatorMetrics(
         int pooled1k,
         int pooled4k,

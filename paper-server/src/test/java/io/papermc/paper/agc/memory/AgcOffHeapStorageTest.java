@@ -38,4 +38,22 @@ public class AgcOffHeapStorageTest {
         int miss = storage.readChunkDirect("world_nether", 12, -34, buffer);
         assertEquals(-1, miss);
     }
+
+    @Test
+    public void testSlabBackedRoundTripIsByteIdentical() {
+        // OFFHEAP_SLAB_ALLOCATOR is enabled by default: small payloads ride the slab pool.
+        assertTrue(io.papermc.paper.agc.AgcCapabilityMatrix.isEnabled(
+            io.papermc.paper.agc.AgcCapabilityMatrix.Feature.OFFHEAP_SLAB_ALLOCATOR));
+        final AgcOffHeapStorage storage = AgcOffHeapStorage.get();
+        final byte[] original = new byte[1024];
+        for (int i = 0; i < original.length; i++) {
+            original[i] = (byte) (i * 31);
+        }
+        storage.storeChunkDirect("world", 1, 2, original);
+        final byte[] buffer = new byte[1024];
+        assertEquals(1024, storage.readChunkDirect("world", 1, 2, buffer));
+        assertArrayEquals(original, buffer);
+        storage.evictChunk("world", 1, 2);
+        assertEquals(0, storage.metrics().totalStoredChunks());
+    }
 }

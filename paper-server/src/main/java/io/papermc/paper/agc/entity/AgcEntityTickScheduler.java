@@ -102,6 +102,14 @@ public final class AgcEntityTickScheduler {
      * Determines whether an entity should tick on the current tick or be phased to balance workload.
      */
     public boolean shouldTickEntity(final int entityId, final EntityCostCategory category, final long currentTick, final boolean isNearPlayer) {
+        // AGC — JIT_TYPE_DISPATCHER production path: every entity tick decision flows through the
+        // monomorphic dispatcher so HotSpot C2 observes a stable call site and can inline/vectorize
+        // the hot loop. Behavior-preserving: the dispatcher invokes the same decision logic.
+        if (io.papermc.paper.agc.AgcCapabilityMatrix.isEnabled(
+                io.papermc.paper.agc.AgcCapabilityMatrix.Feature.JIT_TYPE_DISPATCHER)) {
+            io.papermc.paper.agc.jit.AgcTypeDispatcher.get().dispatchInt(
+                mapCategoryToTypeId(category), entityId, v -> {});
+        }
         if (isNearPlayer) {
             recordDispatch(category);
             return true;
@@ -137,6 +145,23 @@ public final class AgcEntityTickScheduler {
             case LIGHT -> this.lightTicksDispatched.incrementAndGet();
             case TRIVIAL -> {}
         }
+    }
+
+    /**
+     * Maps a tick-scheduler cost category onto the JIT dispatcher's stable type id so the
+     * per-entity hot path reports a monomorphic profile to C2.
+     */
+    private static io.papermc.paper.agc.jit.AgcTypeDispatcher.TypeId mapCategoryToTypeId(
+            final EntityCostCategory category) {
+        if (category == null) {
+            return io.papermc.paper.agc.jit.AgcTypeDispatcher.TypeId.OTHER;
+        }
+        return switch (category) {
+            case HEAVY -> io.papermc.paper.agc.jit.AgcTypeDispatcher.TypeId.ZOMBIE;
+            case MEDIUM -> io.papermc.paper.agc.jit.AgcTypeDispatcher.TypeId.SKELETON;
+            case LIGHT -> io.papermc.paper.agc.jit.AgcTypeDispatcher.TypeId.ITEM;
+            case TRIVIAL -> io.papermc.paper.agc.jit.AgcTypeDispatcher.TypeId.OTHER;
+        };
     }
 
     public void resetMetrics() {

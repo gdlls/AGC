@@ -28,8 +28,8 @@ public class AgcSingleplayerFeelCombatEngineTest {
     }
 
     @Test
-    public void testVanillaParityWhenDisabledByDefault() {
-        assertFalse(engine.isEnabled(), "Combat engine must be disabled by default for 100% vanilla parity");
+    public void testVanillaParityWhenEnabledByDefault() {
+        assertTrue(engine.isEnabled(), "Combat engine is active by default (pure vanilla trajectory + sub-tick dispatch)");
 
         final AgcSingleplayerFeelCombatEngine.PlayerCombatState victimState = engine.getOrCreateState(testVictimId);
         victimState.setPing(80.0);
@@ -46,8 +46,8 @@ public class AgcSingleplayerFeelCombatEngineTest {
 
         final AtomicBoolean dispatched = new AtomicBoolean(false);
         final boolean success = engine.dispatchSubTickKnockback(victimState, original, () -> dispatched.set(true));
-        assertFalse(success);
-        assertFalse(dispatched.get());
+        assertTrue(success);
+        assertTrue(dispatched.get());
     }
 
     @Test

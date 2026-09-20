@@ -101,7 +101,7 @@ public final class AgcPerformanceTuning {
     public static final int WORLD_HIBERNATION_GRACE_PERIOD_TICKS = 100;
 
     public static final Safety SINGLEPLAYER_FEEL_COMBAT_SAFETY = Safety.AGGRESSIVE_BUT_SAFE;
-    public static final boolean DEFAULT_SINGLEPLAYER_FEEL_COMBAT = false;
+    public static final boolean DEFAULT_SINGLEPLAYER_FEEL_COMBAT = true;
 
     public static List<String> validate() {
         final List<String> issues = new ArrayList<>();

@@ -37,10 +37,7 @@ public final class AgcCapabilityMatrix {
         // Network: zstd requires 1.21+ client handshake negotiation
         Feature.NETWORK_ZSTD_COMPRESSION,
         // Chunk: view distance is owned by Paper's own config
-        Feature.DEFAULT_VIEW_DISTANCE,
-        // Memory / JIT engines: internal routing
-        Feature.OFFHEAP_SLAB_ALLOCATOR,
-        Feature.JIT_TYPE_DISPATCHER
+        Feature.DEFAULT_VIEW_DISTANCE
     );
 
     private AgcCapabilityMatrix() {}
@@ -307,8 +304,7 @@ public final class AgcCapabilityMatrix {
     }
 
     private static boolean defaultEnabled(final Feature feature) {
-        return feature != Feature.SINGLEPLAYER_FEEL_COMBAT
-            && !DORMANT_FEATURES.contains(feature)
+        return !DORMANT_FEATURES.contains(feature)
             && feature.safety != AgcPerformanceTuning.Safety.EXPERIMENTAL;
     }
 

@@ -27,10 +27,9 @@ class AgcCapabilityMatrixTest {
     @Test
     void allValidOptimizationsEnabledByDefault() {
         for (final AgcCapabilityMatrix.Feature f : AgcCapabilityMatrix.Feature.values()) {
-            if (AgcCapabilityMatrix.isDormant(f)
-                || f == AgcCapabilityMatrix.Feature.SINGLEPLAYER_FEEL_COMBAT) {
+            if (AgcCapabilityMatrix.isDormant(f)) {
                 assertFalse(AgcCapabilityMatrix.isEnabled(f),
-                    "Dormant or gameplay-feel feature must stay disabled by default: " + f);
+                    "Dormant feature must stay disabled by default: " + f);
             } else {
                 assertTrue(AgcCapabilityMatrix.isEnabled(f),
                     "Optimization feature should be enabled by default: " + f);

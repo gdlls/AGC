@@ -55,6 +55,25 @@ public class AgcOffHeapSlabAllocatorTest {
     }
 
     @Test
+    public void testTrimToFitKeepsPrewarmBaseline() {
+        final AgcOffHeapSlabAllocator allocator = AgcOffHeapSlabAllocator.get();
+
+        // Flood the 1K pool well beyond the prewarm baseline (32).
+        final java.util.List<ByteBuffer> held = new java.util.ArrayList<>();
+        for (int i = 0; i < 40; i++) {
+            held.add(allocator.acquire(512));
+        }
+        for (final ByteBuffer buf : held) {
+            allocator.release(buf);
+        }
+        assertTrue(allocator.metrics().pooled1k() > 32);
+
+        final int dropped = allocator.trimToFit();
+        assertTrue(dropped > 0);
+        assertEquals(32, allocator.metrics().pooled1k());
+    }
+
+    @Test
     public void testRecycledBufferIsCleared() {
         final AgcOffHeapSlabAllocator allocator = AgcOffHeapSlabAllocator.get();
 

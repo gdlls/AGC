@@ -41,4 +41,29 @@ public class AgcEntityTickSchedulerTest {
         assertTrue(m.heavyDispatched() >= 1);
         assertTrue(m.trivialSkipped() >= 1);
     }
+
+    @Test
+    void jitDispatcherPathExecutesWithoutChangingDecisions() {
+        final var scheduler = AgcEntityTickScheduler.get();
+        final var dispatcher = io.papermc.paper.agc.jit.AgcTypeDispatcher.get();
+        dispatcher.clear();
+        try {
+            // JIT gate is enabled by default: the per-entity decision must flow through it.
+            assertTrue(io.papermc.paper.agc.AgcCapabilityMatrix.isEnabled(
+                io.papermc.paper.agc.AgcCapabilityMatrix.Feature.JIT_TYPE_DISPATCHER));
+            assertTrue(scheduler.shouldTickEntity(7, AgcEntityTickScheduler.EntityCostCategory.HEAVY, 3, true));
+            assertTrue(dispatcher.metrics().primitiveDispatches() >= 1,
+                "entity tick decision must exercise the JIT dispatcher when the gate is on");
+
+            // Gate off: identical decisions, dispatcher untouched.
+            dispatcher.clear();
+            io.papermc.paper.agc.AgcCapabilityMatrix.setRuntimeOverride(
+                io.papermc.paper.agc.AgcCapabilityMatrix.Feature.JIT_TYPE_DISPATCHER, Boolean.FALSE);
+            assertTrue(scheduler.shouldTickEntity(7, AgcEntityTickScheduler.EntityCostCategory.HEAVY, 3, true));
+            assertEquals(0, dispatcher.metrics().primitiveDispatches());
+        } finally {
+            io.papermc.paper.agc.AgcCapabilityMatrix.clearRuntimeOverrides();
+            dispatcher.clear();
+        }
+    }
 }

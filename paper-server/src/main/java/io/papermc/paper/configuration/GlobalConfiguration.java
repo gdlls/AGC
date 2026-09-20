@@ -79,7 +79,7 @@ public class GlobalConfiguration extends ConfigurationPart {
 
     public static class Agc extends ConfigurationPart {
         public String mode = "agc_aggressive";
-        public boolean singleplayerFeelCombat = false;
+        public boolean singleplayerFeelCombat = true;
         public boolean networkReadTimeout = true;
         public boolean multiworldUnload = true;
         public Performance performance = new Performance();

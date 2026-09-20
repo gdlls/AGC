@@ -1,0 +1,59 @@
+name: AGC Benchmarks
+
+on:
+  push:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+
+jobs:
+  benchmarks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: JDK 25
+        uses: actions/setup-java@v4
+        with:
+          java-version: 25
+          distribution: 'zulu'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/heads/dev/') }}
+
+      - name: Apply Patches
+        run: |
+          git config --global user.email "no-reply@github.com"
+          git config --global user.name "GitHub Actions"
+          ./gradlew applyPatches --stacktrace
+
+      - name: Run AGC Component Benchmarks
+        id: bench
+        run: |
+          set -o pipefail
+          ./gradlew :paper-server:testAgc -PagcTestFilter=Benchmark --console=plain --stacktrace 2>&1 | tee agc-benchmark.log
+          echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Publish summary to Step Summary
+        if: always()
+        run: |
+          {
+            echo "## AGC Benchmark Results (\`${{ github.sha }}\`)"
+            echo ""
+            echo '```'
+            grep -E "BENCHMARK REPORT|Simulated|Ticks Simulated|Total Wall Time|Average MSPT|Effective TPS|World Ticks Saved|Netty Zero-Copy|Entity AI|Hot Objects|Delta Network|BRAINS|STM Transactions|Status|PASSED|FAILED|RESULTS" agc-benchmark.log | tail -80
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload Benchmark Log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agc-benchmark-log
+          path: agc-benchmark.log
