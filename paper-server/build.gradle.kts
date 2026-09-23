@@ -231,10 +231,19 @@ tasks.jar {
 
 tasks.test {
     dependsOn(testAgc)
+    // AGC (2026-09-21): this task used to select only `*TestSuite` classes, so the ~255 individual
+    // JUnit test classes in this module (including every AGC unit test) were never run by
+    // `./gradlew test`. Run the suites *and* the individual tests, so "tests pass" means the tests
+    // actually ran.
     include("**/**TestSuite.class")
+    include("**/*Test.class")
     workingDir = temporaryDir
     useJUnitPlatform {
-        forkEvery = 1
+        // forkEvery was 1 (a fresh JVM per class). With ~260 test classes — most of which
+        // bootstrap a full registry server — that made one `test` run take hours. 10 keeps
+        // cross-class state pollution bounded (every 10th class is a fresh JVM) while making
+        // the task actually finish; AGC unit tests additionally run in their own task (testAgc).
+        forkEvery = 10
         excludeTags("Slow")
     }
 
