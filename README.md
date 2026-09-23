@@ -1,7 +1,7 @@
 # AGC (Advanced Gamedev Craft)
 
 > **High-Performance Paper Fork for Minecraft 26.2**
-> Integrates 200+ production-wired NMS patches with lossless algorithmic optimizations from Lithium, Alternate Current, FastNoise, Krypton, and more — all preserving 100% vanilla gameplay parity.
+> Integrates production-wired NMS patches with lossless algorithmic optimizations from Lithium, Alternate Current, FastNoise, Krypton, and more — behavior-changing features are opt-in, every claim in this file is traceable to code or a test.
 
 [![License: GPL-3.0](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Java](https://img.shields.io/badge/Java-25-orange.svg)](https://adoptium.net/)
@@ -14,24 +14,32 @@
 
 Traditional Minecraft servers struggle when player counts exceed 200–300, even on high-end hardware. Upstream Paper addresses single-threaded bottlenecks through asynchronous chunk loading, but world ticking, entity physics, network packet broadcasting, and collision checks still heavily constrain the primary thread.
 
-AGC tackles these bottlenecks through **lossless algorithmic innovation** — replacing inefficient vanilla algorithms with cache-friendly, allocation-free, and asymptotically optimal alternatives while preserving 100% vanilla behavior:
+AGC tackles these bottlenecks through **lossless algorithmic innovation** — replacing inefficient vanilla algorithms with cache-friendly, allocation-free, and asymptotically optimal alternatives while preserving Paper behavior. The honesty rules of this fork (enforced by tests, see `AgcFeatureWiringAuditTest` and `scripts/agc-wiring-census.py`):
+
+- **Every feature flag must have a live production call site** — a flag that "reports enabled but executes nowhere" fails CI (dormant features are declared in code with justification).
+- **Behavior-affecting features ship OFF by default** — parallel world ticking, multi-world hibernation, the tracker throttle, combat sub-tick dispatch, orb physics sleep, chunk queue budgeting are explicit opt-ins with the deviation documented at each config key.
+- **`mode: vanilla` in `config/agc.yml` is a real Paper-path control arm** — it forces every AGC performance flag off at load time, for A/B measurement and triage.
+- **Performance claims are labeled** — synthetic component benchmarks are marked synthetic; no real-server CCU/MSPT number is published without a bot-farm run artifact.
+
+Highlights:
 
 - **170 Meteus NMS Fast-Path Patches**: Surgical micro-optimizations across entity tracking, chunk broadcasting, player list iteration, command dispatch, scoreboard updates, and more — each gated by individual config flags.
 - **Lithium Collision Engine Port**: Push-pair deduplication, cramming early termination, and projectile same-class skip — eliminating redundant entity collision calculations.
-- **Alternate Current Redstone Engine**: DAG topological BFS wire solver replacing vanilla's recursive 32-hop cascade, delivering 10–20x redstone performance.
+- **Alternate Current Redstone Engine**: DAG topological BFS wire solver replacing vanilla's recursive 32-hop cascade (100% vanilla timing).
 - **Zero-Copy Network Broadcast Hub**: Netty `retain()`-based buffer sharing — serialize once, broadcast to N players without N allocations.
-- **Netty Flush Coalescing**: Consolidated per-tick channel flushes reducing OS socket syscalls by up to 80%.
-- **3-Tier World Hibernation**: Active → Draining → Hibernated lifecycle — idle worlds consume 0ms tick time.
-- **FastNoise Engine**: Zero-allocation Perlin sampler with doubled permutation tables and SIMD-friendly bit-level gradient noise.
-- **100% Vanilla & Paper Gameplay Parity**: Knockback physics, projectile arcs, damage calculations, and redstone mechanics remain strictly identical to vanilla.
-- **100% Bukkit & Paper Plugin Compatibility**: Run existing Spigot/Paper plugins without modification.
+- **Netty Flush Coalescing**: Consolidated per-tick channel flushes reducing OS socket syscalls.
+- **FastNoise Engine**: Zero-allocation Perlin sampler with doubled permutation tables.
+- **Paper & Plugin Compatibility**: Run existing Spigot/Paper plugins without modification; synchronous Bukkit events run on the real primary thread, and `Bukkit.isPrimaryThread()` never lies.
+- **Full wiring census**: [`docs/WIRING.md`](docs/WIRING.md) is generated from source on every change — every feature's config binding and every production call site, including dormant ones.
 
 ---
 
 ## 📋 Feature Implementation Status
 
 > Features marked ✅ are production-wired with confirmed NMS call sites.
+> Features marked 💤 are dormant (declared in `AgcCapabilityMatrix.DORMANT_FEATURES` with justification, provably unconsumed).
 > Features marked 🧪 are experimental or in development.
+> The full generated census (config binding + every production call site per feature) is [`docs/WIRING.md`](docs/WIRING.md).
 
 ### Network Pipeline
 
@@ -65,20 +73,19 @@ AGC tackles these bottlenecks through **lossless algorithmic innovation** — re
 
 | Feature | Status | NMS Integration Point | Capability Gate |
 |:---|:---|:---|:---|
-| 3-Tier World Hibernation | ✅ Production | `MinecraftServer.java:1896` | `MULTIWORLD_UNLOAD` |
-| Chunk Send Budget | ✅ Production | `PlayerChunkSender.java:115` | `CHUNK_SEND_BUDGET` |
-| Chunk Load Budget | ✅ Production | `RegionizedPlayerChunkLoader.java:646,844` | `CHUNK_LOAD_BUDGET` |
-| Batched Chunk Unload Drain | ✅ Production | `ChunkHolderManager.java:1189` | `CHUNK_UNLOAD_DRAIN` |
+| 3-Tier World Hibernation | ✅ Production (opt-in, default OFF) | `MinecraftServer.java:1896` | `MULTIWORLD_UNLOAD` |
+| Adaptive Tracker Throttle | ✅ Production (opt-in via `universe-net-engine`) | `ServerEntity.java:179` | `ENTITY_TRACKING_INTERVAL` |
+| Chunk Send Budget | ✅ Production (opt-in) | `PlayerChunkSender.java:115` | `CHUNK_SEND_BUDGET` |
 | Chunk Packet Cache | ✅ Production | `AgcChunkSendCacheSupport.java:62` | `CHUNK_PACKET_CACHE` |
 | Lithium Hot Chunk Cache | ✅ Production | `ServerChunkCache.java:126,147` | `LITHIUM_CHUNK_REGISTER` |
-| Cross-World Queue | ✅ Production | `CraftScheduler.java:457` | `CROSS_WORLD_QUEUE` |
-| Parallel World Tick | ✅ Production | `MinecraftServer.java:1916` via `AgcParallelWorldTickEngine` | `PARALLEL_WORLD_TICK` |
+| Cross-World Queue | ✅ Production (INFRA) | drained every tick from `MinecraftServer.tickChildren` | `CROSS_WORLD_QUEUE` |
+| Parallel World Tick | ✅ Production (opt-in, auto-off with plugins) | `MinecraftServer.java:1916` via `AgcParallelWorldTickEngine` | `PARALLEL_WORLD_TICK` |
 
 ### Memory & JIT
 
 | Feature | Status | NMS Integration Point | Capability Gate |
 |:---|:---|:---|:---|
-| Off-Heap Slab Allocator | ✅ Production | `AgcOffHeapStorage` slab path + per-tick `trimToFit()` via `AgcHotPathRuntimeBridge` | `OFFHEAP_SLAB_ALLOCATOR` |
+| Off-Heap Slab Allocator | ✅ Production (maintenance via `universe-net-engine`) | `AgcOffHeapStorage` slab path + per-tick `trimToFit()` via `AgcHotPathRuntimeBridge` | `OFFHEAP_SLAB_ALLOCATOR` |
 | JIT Type Dispatcher | ✅ Production | `AgcEntityTickScheduler.shouldTickEntity` (every entity tick decision) | `JIT_TYPE_DISPATCHER` |
 
 ### World Generation
@@ -95,7 +102,7 @@ AGC tackles these bottlenecks through **lossless algorithmic innovation** — re
 
 | Feature | Status | NMS Integration Point | Capability Gate |
 |:---|:---|:---|:---|
-| Alternate Current DAG Engine | ✅ Production | `DefaultRedstoneWireEvaluator.java:31` | `FAST_REDSTONE_ENGINE` |
+| Alternate Current DAG Engine | ✅ Production (INFRA) | `DefaultRedstoneWireEvaluator` wire evaluator + `ObserverBlock` chain limiter | `FAST_REDSTONE_ENGINE` |
 | Hopper Destination Cache & Dormancy | ✅ Production | `HopperBlockEntity.java:474,497,661,710` | `HOPPER_OPTIMIZER` |
 | Explosion Exposure Raycast Cache | ✅ Production | `ServerLevel.java:2162` | `EXPLOSION_COALESCER` |
 | Batched StarLight Calculations | ✅ Production | `SWMRNibbleArray.java:39,54`, `DataLayer.java:79,100` | `LIGHT_BATCH_OPTIMIZER` |
@@ -107,7 +114,7 @@ AGC tackles these bottlenecks through **lossless algorithmic innovation** — re
 | SoA Entity Physics Engine | 🧪 Prototype | Batch helper via `AgcHotPathRuntimeBridge`; not connected to `Entity.move()` |
 | Panama FFM Off-Heap Chunk Storage | 🧪 Prototype | Java FFM API demo; not wired to `LevelChunk`/`ChunkAccess` |
 | 8x Unrolled AABB Collision Kernel | 🧪 Internal | Pure Java loop unrolling; JIT auto-vectorization dependent |
-| Singleplayer-Feel Combat Engine | ✅ Production (default ON) | `LivingEntity.java:2119` sub-tick dispatch, 100% vanilla trajectory | `SINGLEPLAYER_FEEL_COMBAT` |
+| Singleplayer-Feel Combat Engine | ✅ Production (opt-in, default OFF) | `LivingEntity.java:2119` sub-tick dispatch; sends an extra mid-tick velocity packet — changes client prediction vs Paper, so it is opt-in |
 | C2ME Async Chunk Pipeline | 🧪 Prototype | Bootstrap-only; no NMS chunk I/O dispatch |
 | Parallel Light Engine | ✅ Production | `StarLightInterface.java:639` task split + `AgcStarLightBatchOptimizer` coalescing | `PARALLEL_LIGHT_ENGINE` |
 
@@ -141,7 +148,7 @@ AGC includes a **real-world bot stress testing harness** for measuring actual se
 | `chunk-gen-storm` | Spectators flying into ungenerated terrain |
 | `login-storm` | Join/leave churn at configurable rate (default: 100/s) |
 
-### Component Integration Tests
+### Component Integration Benchmarks (synthetic)
 
 AGC also includes internal component throughput benchmarks (synthetic, not real-server):
 
@@ -151,29 +158,35 @@ AGC also includes internal component throughput benchmarks (synthetic, not real-
 
 > **Note**: These measure AGC subsystem integration performance in isolation (hibernation throughput, SoA physics step time, zero-copy broadcast efficiency). They are NOT comparative server benchmarks and do not represent real-world TPS/MSPT under actual gameplay conditions.
 
-### 📈 Latest Measured Results (2026-09-20, local dev machine — Win/x64/8-core/AVX2/JDK 25)
+### 📈 Verification Status (2026-09-21 honesty pass)
 
-Full suite on the same commit: **569 tests, 569 passed, 0 failed.**
-Full reports: [`benchmarks/RESULTS.md`](benchmarks/RESULTS.md). Every push re-runs them in CI (`.github/workflows/benchmark.yml`) and uploads the log as a GitHub artifact.
+**Real-server (Vanilla / Paper / AGC) comparative bot-farm benchmark results are not yet published.** The harness exists (`benchmarks/bot-farm`, scenarios below), but no run artifacts for this commit have been recorded yet, so no CCU/MSPT/TPS claims are made in this README.
 
-| Scenario | Scale | Total wall (50 ticks) | Avg MSPT | TPS | Status |
-|:---|:---|:---|:---|:---|:---|
-| 1,000 CCU Mass Combat Storm | 1 world / 1,000 players / 1,000 entities | 4.79 ms | 0.10 ms | 20.00 | PASS |
-| 1,000 CCU Dense Wilderness Roaming | 1 world / 1,000 players / 3,000 entities | 9.13 ms | 0.18 ms | 20.00 | PASS |
-| 1,000 CCU Exploration & Chunk Loading | 1 world / 1,000 players / 2,000 entities | 30.76 ms | 0.62 ms | 20.00 | PASS |
-| 1,000 CCU Wilderness Survival | 1 world / 1,000 players / 2,500 entities | 16.64 ms | 0.33 ms | 20.00 | PASS |
-| 5,000 CCU & 500 Worlds (Mega Server) | 500 worlds / 5,000 players / 50,000 entities | 34.91 ms | 0.70 ms | 20.00 | PASS |
-| 500 Players / 50 Worlds | 50 worlds / 500 players / 5,000 entities | 138.17 ms | 2.76 ms | 20.00 | PASS |
+What is verified on every CI run:
+
+- **Full AGC unit-test suite** via `:paper-server:testAgc` (currently 571 passing tests; count printed in the CI log, not asserted as a marketing number).
+- **Wiring audit** — every feature flag must have a live production gate reader (`AgcFeatureWiringAuditTest`), and the dormancy census is pinned (`docs/WIRING.md` regenerated by `scripts/agc-wiring-census.py`).
+- **Parity suite** — bit-identical math across feature gates (noise, redstone timing, collision predicates) where applicable.
+- **Synthetic component benchmarks** (`-PagcTestFilter=Benchmark`) — labeled synthetic, never presented as server TPS/MSPT.
+
+When a real comparative run (Vanilla vs Paper vs AGC, same world/bots/hardware) lands, its raw log artifact and methodology will be linked here — including the weak spots, not just the wins.
+
+<details>
+<summary>Why the previously published CCU table was removed</summary>
+
+Earlier revisions of this README presented numbers like "1,000 CCU @ 0.10 ms MSPT / 20.00 TPS" from `AgcUltraScaleStressBenchmark` / `AgcMassiveStressBenchmark`. Those benchmarks never start a server, create players, entities, chunks or network traffic — they loop over in-memory data structures. Presenting their output as server performance was wrong. The numbers remain visible in [`benchmarks/RESULTS.md`](benchmarks/RESULTS.md) with synthetic labels for what they actually measure.
+</details>
 
 ---
 
 ## 🚀 Quick Start & Installation
 
-AGC is a **100% drop-in replacement** for Paper 26.2.
+AGC is a **drop-in replacement target** for Paper 26.2: same jar layout, same config surfaces, plugins load unmodified.
 
 1. Download the latest `agc-paperclip-26.2.local-SNAPSHOT.jar` from [Releases](https://github.com/gdlls/AGC/releases).
 2. Replace your existing `paper.jar` or `server.jar` with the AGC jar.
-3. Start the server as you normally would. All optimizations are active automatically.
+3. Start the server as you normally would. Lossless optimizations are active automatically; behavior-affecting ones are opt-ins in `config/agc.yml` (all default OFF, documented at each key).
+4. To compare AGC against exact Paper behavior, set `mode: vanilla` in `config/agc.yml` — every AGC performance path is forced off.
 
 ---
 
