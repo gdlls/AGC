@@ -158,3 +158,29 @@ Every performance PR must answer, in the PR body:
 ---
 
 *This plan is itself subject to the honesty rules: progress is tracked by the gates above, and any phase that slips gets its status written down, not quietly edited away.*
+
+---
+
+## Execution log
+
+### 2026-09-23 — Phase 0.1 landed; CI archaeology uncovered a deeper Phase 0.2
+
+**Done (pushed to `origin/master`):**
+- `c68eee93b` build(gradle): wrapper 9.7.0, `:paper-server:test` now runs the real unit tests
+- `131c55de6` refactor(agc): the honesty pass (mode policy, lossless gating, thread-guard truth)
+- `f4002f81c` docs(honesty): census tooling, NMS honesty-fix guard, README/RESULTS truth-sync, this plan
+- `255d0bbdc` build(ci): restored the `gradlew` executable bit (was lost in the 9.7.0 wrapper bump committed from Windows)
+- `100575620` build(ci): `updatingMinecraft=false` (26.2 update had landed; flag was masking remote resolution locally)
+- `a283b63d1` build(ci): dropped stale `oldPaperCommit` (pointed at `711c5de2`, a commit never pushed to origin — fresh clones died in `setupMacheSources` with `MissingObjectException`)
+
+**Findings that redefine Phase 0.2:**
+1. **CI was already red before this session.** The 2026-09-20 runs for `acb848009` failed in ~20s (`./gradlew: Permission denied`). The README's "CI green as of 2026-09-21" was drift, not a measurement — exactly the class of problem this plan exists to stop.
+2. **The mache/MC pair is inconsistent:** `mcVersion=26.2` (release) with `mache("io.papermc:mache:26.2-snapshot-6+build.1")`. A fresh machine decompiles the *release* jar, so 20 mache patches fail. Local builds were masked by the paperweight cache (and by `updatingMinecraft=true` using a different resolution path).
+3. **Bumping to the release-paired `26.2+build.1` fixes the mache patches (105/105 applied) but 158 of the 1,164 feature-patch files hit failed hunks** — the checked-in patch set was rebased onto 26.2-snapshot-6, not the release. paperweight tolerates hunk failures into a syntactically broken tree (9 compile errors), so "BUILD SUCCESSFUL" can never be trusted without a compile+test gate. (Note: `:paper-server:testAgc` does not depend on `applyPatches`; the setup tasks only re-run when `applyPatches` is invoked explicitly.)
+4. **AGC's NMS edits are not in the applied patch set.** All `AGC-*` patches live in `patches/features-quarantined/` (inert by design). The live NMS surface exists only in the untracked tree plus `scripts/agc-honesty-fixes.py`.
+5. Local tree was regenerated during diagnosis and then **restored from backup** (`.minecraft-tree-backup-20260923/`, gitignored); `testAgc` is green again (571/571) on the restored tree with the committed config.
+
+**Pending decision (blocks CI green):** how to rebase the NMS surface onto the release-paired mache —
+- **A. Adopt upstream's `ver/26.2` patch set** (guaranteed-consistent), re-apply `agc-honesty-fixes.py`, and mark tree-only consumers dormant until re-implemented as proper patches. Fastest honest path; temporarily sheds tree-only features.
+- **B. Export the tree-only AGC delta as real feature patches** on the release base (full patch workflow). Preserves every feature; largest effort; turns `features-quarantined` into either real patches or deleted code.
+- **C. Defer** — document CI as known-red at `applyPatches` and proceed with Phase 1 work that doesn't touch the NMS tree.
