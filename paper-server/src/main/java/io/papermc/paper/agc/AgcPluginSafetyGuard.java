@@ -40,6 +40,7 @@ public final class AgcPluginSafetyGuard {
     private final java.util.concurrent.locks.ReentrantLock pluginExecutionLock = new java.util.concurrent.locks.ReentrantLock();
     private final AtomicLong pluginLockWaitNanos = new AtomicLong();
     private final AtomicLong pluginInvocationsProtected = new AtomicLong();
+    private final java.util.concurrent.atomic.AtomicBoolean offPrimaryListenerWarning = new java.util.concurrent.atomic.AtomicBoolean();
 
     public static AgcPluginSafetyGuard get() {
         return INSTANCE;
@@ -62,17 +63,11 @@ public final class AgcPluginSafetyGuard {
      */
     public boolean isPrimaryThread() {
         final Thread main = this.primaryThread;
-        // AGC start - gate the virtualizer probe behind the one-way latch
-        // (TickThread#agc$virtualPossible). While no virtual context has ever been entered the
-        // probe would evaluate false anyway, so skipping the ThreadLocal walk preserves semantics
-        // while removing a hash-probe from every Bukkit event dispatch / scheduler check.
-        final Thread current = Thread.currentThread();
-        if (main == null || current == main || current instanceof ca.spottedleaf.moonrise.common.util.TickThread) {
-            return true;
-        }
-        return ca.spottedleaf.moonrise.common.util.TickThread.agc$virtualPossible()
-            && AgcPluginVirtualizer.isVirtualPrimary();
-        // AGC end
+        // AGC - honesty fix: this used to report true for *any* TickThread (every parallel-world
+        // worker is one) and for any thread inside a virtual-primary context, which made
+        // Bukkit.isPrimaryThread() a lie on worker threads. The primary thread is the bound server
+        // thread and nothing else; off-primary callers must defer through #ensurePrimaryThread.
+        return main == null || Thread.currentThread() == main;
     }
 
     /**
@@ -100,9 +95,14 @@ public final class AgcPluginSafetyGuard {
         }
 
         this.pluginInvocationsProtected.incrementAndGet();
+        if (this.offPrimaryListenerWarning.compareAndSet(false, true)) {
+            LOGGER.warn("AGC: a synchronous Bukkit event listener is executing on a non-primary thread (parallelWorldTick). "
+                + "AGC serializes these invocations, but the Bukkit contract (isPrimaryThread()) is NOT satisfied for plugins. "
+                + "Keep parallelWorldTick disabled when plugins are installed.");
+        }
         final long start = System.nanoTime();
         this.pluginExecutionLock.lock();
-        try (final AgcPluginVirtualizer.ContextScope ignored = AgcPluginVirtualizer.get().enterContext("plugin-listener", 0L)) {
+        try {
             this.pluginLockWaitNanos.addAndGet(System.nanoTime() - start);
             action.run();
         } finally {

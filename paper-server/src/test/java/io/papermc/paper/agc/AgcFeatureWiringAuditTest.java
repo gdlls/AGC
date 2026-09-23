@@ -66,11 +66,11 @@ public class AgcFeatureWiringAuditTest {
      *       {@code AgcOptimisticTransactionManager}; an empty queue is a no-op, so there is
      *       nothing to gate off.</li>
      *   <li>{@code FAST_REDSTONE_ENGINE}: {@code AgcRedstoneOptimizer} is NMS-wired
-     *       ({@code DefaultRedstoneWireEvaluator} + {@code ObserverBlock}) but never reads its
-     *       gate. Both behaviors are parity-neutral: an equality filter that only skips work
-     *       vanilla skips anyway (the remaining update body is guarded by
-     *       {@code previousStrength != targetStrength}), and a bounded observer-chain depth
-     *       safety limiter. Nothing to switch off, so the gate is decorative.</li>
+     *       ({@code DefaultRedstoneWireEvaluator} + {@code ObserverBlock}). The equality filter in
+     *       the wire evaluator was removed (2026-09-21) because it duplicated the vanilla
+     *       {@code previousStrength != targetStrength} guard verbatim; the observer-chain depth
+     *       limiter remains NMS-wired but never reads its gate, so there is nothing to switch
+     *       off — the gate is decorative.</li>
      * </ul>
      * Any future member must carry the same kind of justification or be made dormant instead.
      */
@@ -399,7 +399,8 @@ public class AgcFeatureWiringAuditTest {
         // must update this test too (deliberate, reviewable change — never an accident).
         final Set<String> documented = Set.of(
             "NETWORK_ZSTD_COMPRESSION",
-            "DEFAULT_VIEW_DISTANCE"
+            "DEFAULT_VIEW_DISTANCE",
+            "CHUNK_LOAD_BUDGET"
         );
         final Set<String> actual = new HashSet<>();
         for (final AgcCapabilityMatrix.Feature f : AgcCapabilityMatrix.dormantFeatures()) {

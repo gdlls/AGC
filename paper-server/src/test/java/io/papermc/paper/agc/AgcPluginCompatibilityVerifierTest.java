@@ -74,7 +74,11 @@ public class AgcPluginCompatibilityVerifierTest {
             assertTrue(latch.await(5, java.util.concurrent.TimeUnit.SECONDS));
             pool.shutdownNow();
 
-            assertEquals(0, errors.get(), "No errors or concurrency violations should occur");
+            // Honest contract: all of these dispatches happen off-primary, so the guard reports them
+            // as violations instead of faking a primary identity. What it still guarantees is
+            // serialization - the non-thread-safe list receives every element exactly once.
+            assertEquals(workerCount * eventsPerWorker, errors.get(),
+                "off-primary synchronous dispatch must be reported, never masked by a fake primary thread");
             assertEquals(workerCount * eventsPerWorker, nonThreadSafeList.size(), "All listener executions must complete safely into the non-thread-safe collection");
             assertEquals(workerCount * eventsPerWorker, AgcPluginSafetyGuard.get().metrics().pluginInvocationsProtected());
         } finally {
@@ -126,10 +130,13 @@ public class AgcPluginCompatibilityVerifierTest {
 
             pool.shutdownNow();
 
-            assertEquals(0, errors.get(), "Zero concurrency errors under simultaneous primary + worker listener dispatches");
+            assertEquals(0, errors.get(), "Listeners must run on the primary thread, so no off-primary dispatch may be reported");
             final int expectedTotal = (workerCount + 1) * eventsPerThread;
             assertEquals(expectedTotal, nonThreadSafeLog.size(), "All operations must land in non-thread-safe collection without data loss or corruption");
-            assertTrue(AgcPluginSafetyGuard.get().metrics().pluginInvocationsProtected() > 0, "Guard must protect invocations during parallel phase");
+            // The plugin guard refuses to tick worlds in parallel while a plugin may be loaded, so
+            // every listener ran on the real primary thread and none needed mailbox protection.
+            assertEquals(0, AgcPluginSafetyGuard.get().metrics().pluginInvocationsProtected(),
+                "sequential world ticking must not need off-primary listener protection");
         } finally {
             AgcParallelWorldTickEngine.get().shutdown();
             AgcCapabilityMatrix.clearRuntimeOverrides();

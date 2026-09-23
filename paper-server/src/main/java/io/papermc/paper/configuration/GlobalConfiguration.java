@@ -78,10 +78,14 @@ public class GlobalConfiguration extends ConfigurationPart {
     public transient Agc agc = new Agc();
 
     public static class Agc extends ConfigurationPart {
+        @Comment("AGC operating policy. 'vanilla' forces every AGC performance flag off at load time (exact Paper path, useful as an A/B control). 'lossless' (alias: 'agc_baseline', 'unified') keeps the shipped lossless defaults. 'agc_aggressive' (alias: 'experimental') additionally allows the documented non-lossless opt-ins that are still switched on in this file.")
         public String mode = "agc_aggressive";
-        public boolean singleplayerFeelCombat = true;
-        public boolean networkReadTimeout = true;
-        public boolean multiworldUnload = true;
+        @Comment("Enables the non-lossless singleplayer-feel combat dispatch: the melee knockback path additionally sends a ClientboundSetEntityMotionPacket mid-tick (vanilla sends the authoritative motion update through the entity tracker) and suppresses a repeat within 45ms. Default false: the extra mid-tick velocity packet changes client prediction and knockback feel versus Paper. Opt in only if you accept that deviation.")
+        public boolean singleplayerFeelCombat = false;
+        @Comment("Adds an extra Netty read-timeout handler on top of Paper's own configured timeout (explicit aggressive opt-in only). Default false: baseline channels keep the stock Paper pipeline.")
+        public boolean networkReadTimeout = false;
+        @Comment("Non-lossless multi-world hibernation: a non-primary world with no players is ticked only every 20th tick (and stops entirely once cold). Default false because that changes farms, spawners, redstone, hopper chains and crop growth in player-less worlds versus Paper. Opt in only for survival-server setups that accept the change.")
+        public boolean multiworldUnload = false;
         public Performance performance = new Performance();
 
         public class Performance extends ConfigurationPart {
@@ -285,8 +289,8 @@ public class GlobalConfiguration extends ConfigurationPart {
             public boolean playerPickupOrbAllocFastPath = true;
             @Comment("Encodes an entity movement packet once when it is broadcast to many tracking players and reuses the bytes for the remaining recipients, instead of re-encoding per connection (helps crowded areas with hundreds of viewers). Wire output is identical; compression and encryption still run per connection.")
             public boolean packetEncodingCacheFastPath = true;
-            @Comment("In the entity tracker, a stationary entity only re-evaluates tracking for players that moved this tick (instead of every nearby player every tick), with a staggered full refresh every trackerIdleSkipRefreshTicks ticks. Turns the O(players^2) per-tick tracker cost into O(movers x players) for idle crowds.")
-            public boolean trackerIdleSkipFastPath = true;
+            @Comment("In the entity tracker, a stationary entity only re-evaluates tracking for players that moved this tick (instead of every nearby player every tick), with a staggered full refresh every trackerIdleSkipRefreshTicks ticks. Turns the O(players^2) per-tick tracker cost into O(movers x players) for idle crowds. Default false until the non-positional invalidation hooks (gamemode/spectator/vanish/view-distance/tracking-range changes and player join/leave) are wired and differential-tested: until then the full refresh is the only thing that reflects those changes, up to trackerIdleSkipRefreshTicks ticks late.")
+            public boolean trackerIdleSkipFastPath = false;
             @Comment("Full-refresh interval (ticks) for trackerIdleSkipFastPath: every N ticks a stationary entity re-evaluates all nearby players (staggered per entity) to catch rare non-positional tracking changes. Higher = cheaper for very dense crowds but slower to reflect those rare changes. 1 disables the idle skip. Default 32 (1.6s worst case per entity, 1/32 of entities re-evaluated per tick).")
             public int trackerIdleSkipRefreshTicks = 32;
             @Comment("Opt-in for extreme density. Re-evaluates WHICH players can see each entity only every N ticks (staggered per entity) while still broadcasting movement every tick, cutting the O(movers x viewers) tracking re-eval cost when thousands move in a tiny area. The trade-off is that entities entering/leaving view-distance range appear/disappear up to N ticks late (imperceptible in a packed area; vanish/hide stays immediate). 1 = off (default, preserves vanilla feel); high-pop servers can set 3-4.")
@@ -443,6 +447,14 @@ public class GlobalConfiguration extends ConfigurationPart {
             public boolean explosionCoalescing = false;
             @Comment("Ticks far-away trivial entities (boats, minecarts, item frames) at reduced cadence. Default false: reduced cadence changes observable behavior (minecart throughput, despawn timing) versus vanilla Paper.")
             public boolean entityStrideBalancing = false;
+            @Comment("Skips the motion step of a grounded experience orb that is at rest and has no following player, on 9 of every 10 ticks (Gale/SBETO-style entity sleep). Default false: the skip defers an orb's reaction to block changes by up to nine ticks. Item and arrow sleeps were removed because they broke item-transport timing and stuck-arrow support checks; only the orb case remains, and it is opt-in.")
+            public boolean entitySleepOptimizer = false;
+            @Comment("Runs mob pathfinding on worker threads against a PathNavigationRegion snapshot (Leaf-style async A*). Default false: the snapshot read set and the cross-thread hand-off still need a thread-safety proof, and a pending future can delay an AI's first path by a tick.")
+            public boolean asyncPathfinding = false;
+            @Comment("Caches the container a hopper pulls from / pushes into (keyed by dimension, position, facing and level identity) so the per-tick getContainerAt scan is skipped. Default false until the invalidation proof lands: a stale entry means items going into the wrong container, which is not a tradeoff a farm can absorb.")
+            public boolean hopperOptimizerCache = false;
+            @Comment("Enables the villager AI optimizer: golem-spawn gossip rate limiting plus villager POI/trade/gossip fast paths. Default false because rate limiting the golem-spawn check changes iron-farm output timing versus Paper.")
+            public boolean villagerAiOptimizer = false;
             // AGC start - hit rewind and adaptive view distance config
             @Comment("Enables server-authoritative hit rewind for PvP: rewinds the target player's position by the attacker's RTT/2 ticks when validating melee hits. Reduces the PvP disadvantage for high-ping players without changing damage values. Default false: hit validation must stay byte-identical to vanilla Paper unless the operator opts in.")
             public boolean hitRewindEnabled = false;
@@ -451,8 +463,8 @@ public class GlobalConfiguration extends ConfigurationPart {
             @Comment("Scales entity tracking range for high-ping players to reduce their packet load without affecting chunk loading. Default false: preserves equal render and combat distance for all players.")
             public boolean adaptiveViewDistanceFastPath = false;
             // AGC end - hit rewind and adaptive view distance config
-            @Comment("Enables multi-core parallel world ticking with wave dispatch. The server tick loop executes independent worlds concurrently on dedicated worker threads, with cross-world operations safely deferred to post-barrier main thread execution. Default true.")
-            public boolean parallelWorldTick = true;
+            @Comment("Enables multi-core parallel world ticking with wave dispatch. The server tick loop executes independent worlds concurrently on dedicated worker threads, with cross-world operations safely deferred to post-barrier main thread execution. Default false and additionally auto-disabled whenever any plugin is loaded: synchronous Bukkit events must run on the real primary thread, and world ticks running on workers cannot provide that guarantee without region ownership (Folia-style). Opt in only for plugin-free servers that accept the deviation.")
+            public boolean parallelWorldTick = false;
             @Comment("Worker tick-threads for parallelWorldTick. 0 = auto (available processors - 1). The main thread also ticks one world, so total parallelism is this + 1. Capped at the number of worlds each tick. Read once at engine bootstrap - the pool is not resizable, so a change needs a restart.")
             public int parallelWorldTickThreads = 0;
             @Comment("Only engage parallelWorldTick when at least this many worlds are tickable in the same tick. Below this the sequential path is used. Applied live on every config sync; 2 is the floor to parallelize whenever 2 or more worlds exist.")
@@ -469,8 +481,8 @@ public class GlobalConfiguration extends ConfigurationPart {
             public int packetBudgetBytesPerSecond = 512 * 1024;
             @Comment("Per-player packet budget burst in bytes when packetPriorityBudgeting is enabled.")
             public int packetBudgetBurstBytes = 1024 * 1024;
-            @Comment("Enables bounded chunk send/load/generation admission hooks for high-player servers. Enabled by default; AGC preserves queue order and only delays starting new load/generate work under pressure.")
-            public boolean chunkQueueBudgeting = true;
+            @Comment("Enables bounded chunk send/load/generation admission hooks for high-player servers. Default false: this is a throttle - it delays starting load/generate work (and packet flushes) under pressure, which players feel as chunks arriving later than Paper. Only turn it on if you measured that your workload needs it.")
+            public boolean chunkQueueBudgeting = false;
             @Comment("Per-player chunk packet flush budget per second when chunkQueueBudgeting is enabled. Exceeding the budget writes without an immediate flush instead of dropping chunks.")
             public int chunkBudgetSendsPerSecond = 128;
             @Comment("Reserved per-player chunk load budget per second for future queue integration.")
@@ -523,7 +535,7 @@ public class GlobalConfiguration extends ConfigurationPart {
             public int noInvasionMaxTranslatorPending = 8192;
             @Comment("Maximum token carry multiplier for the AGC per-player chunk FIFO fair queue. Higher values let returning players catch up without changing per-player chunk order.")
             public int chunkFairQueueMaxCarryMultiplier = 4;
-            @Comment("Enables the AGC max-optimization batch: Jigsaw BoxOctree culling, template-pool duplicate skip, FastNoise sampler, Lithium collision/POI predicates, NBT early-bounds prune, C2ME chunk pipeline and UniverseSpigot-style adaptive networking. All are vanilla-parity preserving; disable individually below for strict debugging.")
+            @Comment("Enables the AGC max-optimization batch: Jigsaw BoxOctree culling, template-pool duplicate skip, FastNoise sampler, Lithium collision/POI predicates and the NBT early-bounds prune. Each of these only skips work whose result Paper discards anyway; disable individually below for strict debugging. This master switch does NOT enable the non-lossless opt-ins (parallelWorldTick, c2meChunkPipeline, universeNetEngine, parallelLightEngine, regionTickBridge, chunkQueueBudgeting).")
             public boolean maxOptimizationBatch = true;
             @Comment("Enables Jigsaw BoxOctree intersection culling for structure layout (Structure Layout Optimizer port). Bit-identical placement decisions.")
             public boolean jigsawBoxOctree = true;
@@ -537,20 +549,20 @@ public class GlobalConfiguration extends ConfigurationPart {
             public boolean poiSearchEngine = true;
             @Comment("Enables giant structure-NBT early-bounds prune. Bypassed automatically for processors with finalizeProcessing.")
             public boolean structureNbtPruner = true;
-            @Comment("Enables ScalableLux-style parallel light-task splitting. Worker threads run propagation, joined by barrier before reads.")
-            public boolean parallelLightEngine = true;
-            @Comment("Enables fast player-exclusion boundary filtering for mob spawn candidates (NaturalSpawner).")
-            public boolean spawnerDensityOptimizer = true;
-            @Comment("Enables C2ME-style async chunk serialization, generation backpressure and IO autosizing.")
-            public boolean c2meChunkPipeline = true;
+            @Comment("Enables ScalableLux-style parallel light-task splitting. Worker threads run propagation, joined by barrier before reads. Default false: light propagation determinism must be proven bit-identical against Paper (including client-visible flicker behaviour) before it may ship as a default.")
+            public boolean parallelLightEngine = false;
+            @Comment("Enables fast player-exclusion boundary filtering for mob spawn candidates (NaturalSpawner). Default false: no production call site reads this flag today, so enabling it would advertise work that does not happen.")
+            public boolean spawnerDensityOptimizer = false;
+            @Comment("Enables C2ME-style async chunk serialization, generation backpressure and IO autosizing. Default false: asynchronously serialized/saved chunk state must be proven crash-safe and order-preserving against Paper before it may ship as a default.")
+            public boolean c2meChunkPipeline = false;
             @Comment("Maximum in-flight chunk generation jobs before backpressure defers new demand (C2ME-style). Prevents elytra-burst OOM.")
             public int c2meMaxInFlightGeneration = 256;
-            @Comment("Enables UniverseSpigot/SteelMC-style adaptive networking (compression follow-MSPT, tracker throttle, broadcast batching). Packet contents and order never change.")
-            public boolean universeNetEngine = true;
+            @Comment("Enables UniverseSpigot/SteelMC-style adaptive networking (compression follow-MSPT, tracker throttle, broadcast batching). Default false: the tracker throttle reduces the entity update cadence of non-player entities above 20 MSPT (visible stutter exactly when the server is stressed) and the admission path can delay logins/spawns. Opt in only if you accept those throttles.")
+            public boolean universeNetEngine = false;
             @Comment("View-distance margin for the no-tick policy (C2ME-style). 0 = vanilla behavior (tick radius equals view distance).")
             public int noTickViewDistanceMargin = 0;
-            @Comment("Enables the Folia-inspired region tick bridge: read-only helpers off-thread, all mutations committed FIFO on the primary thread. Plugin compatible by construction.")
-            public boolean regionTickBridge = true;
+            @Comment("Enables the Folia-inspired region tick bridge: read-only helpers off-thread, all mutations committed FIFO on the primary thread. Default false: the commit lane is currently a no-op drain, so enabling it advertises work that does not happen.")
+            public boolean regionTickBridge = false;
             @Comment("Enables AGC alpha10 per-player intent scheduler. It gives every player deterministic FIFO tickets for cosmetic network, chunk, entity-snapshot and arena work so aggressive optimisation cannot reorder their visible stream.")
             public boolean playerIntentScheduler = true;
             @Comment("Per-player cosmetic-network intent budget per tick. Interactive packets are never charged to this budget.")

@@ -18,8 +18,8 @@ public class AgcPluginVirtualizerTest {
     }
 
     @Test
-    void testVirtualPrimaryContext() {
-        // Explicitly bind a dummy thread as primary to simulate non-primary worker thread
+    void testContextBookkeepingWithoutThreadIdentityFaking() {
+        // Explicitly bind a dummy thread as primary to simulate a non-primary worker thread
         final Thread dummyPrimary = new Thread(() -> {}, "dummy-primary");
         AgcPluginSafetyGuard.get().bindPrimaryThread(dummyPrimary);
 
@@ -28,8 +28,12 @@ public class AgcPluginVirtualizerTest {
 
         final AtomicBoolean ranInContext = new AtomicBoolean(false);
         AgcPluginVirtualizer.get().runInContext("world_nether", 12345L, () -> {
-            assertTrue(AgcPluginVirtualizer.isVirtualPrimary());
-            assertTrue(AgcPluginSafetyGuard.get().isPrimaryThread());
+            // The context records WHERE work happens; it must never claim the work is on the
+            // primary thread (that lie let worker threads mutate world state unnoticed).
+            assertFalse(AgcPluginVirtualizer.isVirtualPrimary(),
+                "virtual contexts must not publish a fake primary identity");
+            assertFalse(AgcPluginSafetyGuard.get().isPrimaryThread(),
+                "an off-primary thread must stay off-primary inside a context");
             assertEquals("world_nether", AgcPluginVirtualizer.currentContext().worldId());
             assertEquals(12345L, AgcPluginVirtualizer.currentContext().regionKey());
             ranInContext.set(true);
@@ -62,7 +66,8 @@ public class AgcPluginVirtualizerTest {
     @Test
     void testSupplyInContext() {
         final Integer result = AgcPluginVirtualizer.get().supplyInContext("world", 42L, () -> {
-            assertTrue(AgcPluginVirtualizer.isVirtualPrimary());
+            assertFalse(AgcPluginVirtualizer.isVirtualPrimary());
+            assertEquals("world", AgcPluginVirtualizer.currentContext().worldId());
             return 999;
         });
 

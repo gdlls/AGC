@@ -28,14 +28,25 @@ public class AgcConfigSyncTest {
             final var config = io.papermc.paper.configuration.AgcConfigurations.load(directory, org.spongepowered.configurate.BasicConfigurationNode.root());
             org.junit.jupiter.api.Assertions.assertEquals("agc_aggressive", config.mode);
             assertFalse(config.performance.parallelWorldTickForceUnsafe);
-            assertTrue(config.singleplayerFeelCombat);
+            // Behaviour-changing opt-ins ship off by default (2026-09-21 honesty pass).
+            assertFalse(config.singleplayerFeelCombat,
+                "singleplayer-feel combat sends a second velocity packet - opt-in only");
             assertFalse(config.performance.hitRewindEnabled);
+            assertFalse(config.performance.parallelWorldTick,
+                "parallel world ticking cannot honour the Bukkit primary-thread contract - opt-in only");
+            assertFalse(config.performance.universeNetEngine);
+            // The tracker throttle lives under the universeNetEngine opt-in (it visibly changes
+            // entity update cadence above 20 MSPT), never under the lossless master batch.
+            assertFalse(config.performance.entitySleepOptimizer);
+            assertFalse(config.multiworldUnload,
+                "world hibernation changes farm/spawner timing in player-less worlds - opt-in only");
             final var node = org.spongepowered.configurate.yaml.YamlConfigurationLoader.builder()
                 .path(directory.resolve("agc.yml")).build().load();
             final long fields = java.util.Arrays.stream(config.performance.getClass().getFields())
                 .filter(field -> !java.lang.reflect.Modifier.isStatic(field.getModifiers())).count();
             org.junit.jupiter.api.Assertions.assertEquals(fields, node.node("performance").childrenMap().size());
-            assertTrue(node.node("performance", "parallel-world-tick").getBoolean());
+            assertFalse(node.node("performance", "parallel-world-tick").getBoolean(),
+                "the generated agc.yml must ship parallel-world-tick disabled");
         });
     }
 
@@ -84,8 +95,12 @@ public class AgcConfigSyncTest {
             final var legacy = org.spongepowered.configurate.BasicConfigurationNode.root();
             var config = io.papermc.paper.configuration.AgcConfigurations.load(directory, legacy);
             AgcConfigSync.get().syncLoadedConfiguration(config);
-            assertTrue(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.PARALLEL_WORLD_TICK));
-            assertTrue(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.SINGLEPLAYER_FEEL_COMBAT));
+            assertFalse(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.PARALLEL_WORLD_TICK),
+                "parallel world tick defaults off and must obey the config file");
+            assertFalse(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.SINGLEPLAYER_FEEL_COMBAT),
+                "singleplayer-feel combat defaults off and must obey the config file");
+            assertTrue(AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.JIGSAW_BOX_OCTREE),
+                "lossless worldgen culling stays on");
             java.nio.file.Files.writeString(directory.resolve("agc.yml"), "performance:\n  fast-noise-engine: false\n  parallel-world-tick: false\n  parallel-world-tick-min-worlds: 4\n");
             config = io.papermc.paper.configuration.AgcConfigurations.load(directory, legacy);
             AgcConfigSync.get().syncLoadedConfiguration(config);

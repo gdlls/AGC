@@ -120,6 +120,13 @@ public class AgcUniverseNetEngineTest {
         final java.util.concurrent.atomic.AtomicInteger executedSpawns = new java.util.concurrent.atomic.AtomicInteger();
         final int totalBots = 56; // 24 immediate + 32 staged (2 drain passes at budget 24/16)
         for (int i = 0; i < totalBots; i++) {
+            // In a fresh forked test JVM the first calls may stall on class loading long enough to
+            // cross the 18ms (no-server) tick deadline, which would stage everything for a reason
+            // unrelated to the budget contract under test. Re-arm the tick window when that happens
+            // (simulating the next tick, which is exactly what the deadline exists to model).
+            if (io.papermc.paper.agc.AgcHotPathRuntimeBridge.get().getCurrentTickElapsedMs() >= 17.0) {
+                io.papermc.paper.agc.AgcHotPathRuntimeBridge.get().onServerTickStart(1L);
+            }
             if (!engine.tryAcquireSpawnSlot(10.0)) {
                 engine.queueStagedSpawn(executedSpawns::incrementAndGet);
             } else {

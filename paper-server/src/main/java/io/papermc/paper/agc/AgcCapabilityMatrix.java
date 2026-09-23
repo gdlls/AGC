@@ -37,7 +37,11 @@ public final class AgcCapabilityMatrix {
         // Network: zstd requires 1.21+ client handshake negotiation
         Feature.NETWORK_ZSTD_COMPRESSION,
         // Chunk: view distance is owned by Paper's own config
-        Feature.DEFAULT_VIEW_DISTANCE
+        Feature.DEFAULT_VIEW_DISTANCE,
+        // Chunk: the load-budget throttle was removed (2026-09-21) — its canGenerate() gate was
+        // hardwired to true and its rate override silently overrode operator config. The feature
+        // has no production gate reader any more; dormancy records that instead of re-adding a lie.
+        Feature.CHUNK_LOAD_BUDGET
     );
 
     private AgcCapabilityMatrix() {}

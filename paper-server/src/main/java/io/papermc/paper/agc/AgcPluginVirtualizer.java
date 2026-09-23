@@ -5,16 +5,17 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
 /**
- * AGC — High-Throughput Plugin Virtualization & Context Manager.
+ * AGC — Execution Context Bookkeeping (formerly "Plugin Virtualizer").
  *
- * <p>Enables legacy Bukkit/Paper plugins to execute transparently across multi-threaded
- * parallel world workers and regionized actor threads without throwing {@link IllegalStateException}
- * or concurrency race conditions.</p>
+ * <p>This class records which world/region the calling thread is currently working on, which the
+ * AGC transaction bookkeeping uses for diagnostics.</p>
  *
- * <p>When a worker thread ticks a world or region on behalf of a plugin, it enters an authorized
- * {@link VirtualContext}. In this context, {@link AgcPluginSafetyGuard#isPrimaryThread()} and
- * plugin safety checks evaluate to {@code true}, providing the illusion of a single primary thread
- * while preserving region-level deterministic state isolation.</p>
+ * <p><b>It no longer publishes a fake primary-thread identity.</b> The previous design made
+ * {@link AgcPluginSafetyGuard#isPrimaryThread()} and
+ * {@code TickThread.isTickThread()} report {@code true} on parallel world-tick workers, which is
+ * precisely the invariant those guards exist to protect: plugins and the chunk system were told a
+ * worker was the main thread. Off-thread work must instead be deferred to the real primary thread
+ * through {@link AgcPluginSafetyGuard#ensurePrimaryThread}.</p>
  */
 public final class AgcPluginVirtualizer {
 
@@ -32,11 +33,16 @@ public final class AgcPluginVirtualizer {
     private AgcPluginVirtualizer() {}
 
     /**
-     * Checks if the calling thread is currently executing within an authorized virtual primary context.
+     * Always {@code false}. Kept as a stable accessor so callers that used to gate behaviour on the
+     * old "virtual primary" identity now simply take the real-primary-thread path.
+     *
+     * @deprecated There is no virtual primary thread any more; use
+     *             {@link AgcPluginSafetyGuard#isPrimaryThread()} for the real contract and
+     *             {@link AgcPluginSafetyGuard#ensurePrimaryThread} to hop onto the primary thread.
      */
+    @Deprecated(forRemoval = false)
     public static boolean isVirtualPrimary() {
-        final VirtualContext ctx = CURRENT_CONTEXT.get();
-        return ctx != null && ctx.isVirtualPrimary();
+        return false;
     }
 
     /**
@@ -58,10 +64,6 @@ public final class AgcPluginVirtualizer {
         final VirtualContext next = new VirtualContext(worldId, regionKey, true, previous);
         CURRENT_CONTEXT.set(next);
         this.totalContextSwitches.incrementAndGet();
-        // AGC start - arm the TickThread.isTickThread() fast-path latch before any thread can
-        // observe this context (see TickThread#VIRTUAL_POSSIBLE for the full rationale).
-        ca.spottedleaf.moonrise.common.util.TickThread.agc$noteVirtualContextPossible();
-        // AGC end
         return new ContextScope(previous);
     }
 

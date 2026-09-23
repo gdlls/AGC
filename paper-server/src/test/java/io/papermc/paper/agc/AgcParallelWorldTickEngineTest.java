@@ -23,12 +23,17 @@ class AgcParallelWorldTickEngineTest {
     @BeforeEach
     void setUp() {
         AgcCapabilityMatrix.clearRuntimeOverrides();
+        // These tests exercise the wave-dispatch path itself, so they declare "no plugins loaded"
+        // explicitly. Production cannot inspect a plugin manager here and therefore fails safe to
+        // sequential ticking (see AgcParallelWorldTickEngine#pluginsLoaded).
+        AgcParallelWorldTickEngine.setPluginPresenceProbe(() -> false);
         AgcParallelWorldTickEngine.get().applyTuning(0, 0);
         AgcParallelWorldTickEngine.get().bootstrap();
     }
 
     @AfterEach
     void tearDown() {
+        AgcParallelWorldTickEngine.setPluginPresenceProbe(null);
         AgcCapabilityMatrix.clearRuntimeOverrides();
         AgcParallelWorldTickEngine.get().applyTuning(0, 0);
         AgcParallelWorldTickEngine.get().shutdown();
@@ -260,8 +265,10 @@ class AgcParallelWorldTickEngineTest {
     }
 
     @Test
-    void tickWorkersAreTickThreadsAndVirtualPrimary() {
+    void tickWorkersAreTickThreadsButNeverClaimPrimaryThreadIdentity() {
         AgcCapabilityMatrix.setMode(AgcCapabilityMatrix.Mode.AGC_AGGRESSIVE);
+        // Bind the real primary thread so the worker assertions below mean something.
+        AgcPluginSafetyGuard.get().bindPrimaryThread(Thread.currentThread());
 
         final List<String> worlds = List.of("world_a", "world_b", "world_c", "world_d");
         final java.util.concurrent.atomic.AtomicBoolean anyWorkerVerified = new java.util.concurrent.atomic.AtomicBoolean(false);
@@ -276,14 +283,21 @@ class AgcParallelWorldTickEngineTest {
                     if (!(t instanceof ca.spottedleaf.moonrise.common.util.TickThread)) {
                         allChecksPassed.set(false);
                     }
-                }
-                if (!ca.spottedleaf.moonrise.common.util.TickThread.isTickThread()) {
-                    allChecksPassed.set(false);
-                }
-                if (!AgcPluginVirtualizer.isVirtualPrimary()) {
-                    allChecksPassed.set(false);
-                }
-                if (!AgcPluginSafetyGuard.get().isPrimaryThread()) {
+                    // Honest contract: a worker is a tick thread, so the chunk-system guard must
+                    // accept it ...
+                    if (!ca.spottedleaf.moonrise.common.util.TickThread.isTickThread()) {
+                        allChecksPassed.set(false);
+                    }
+                    // ...but it must NOT pretend to be the primary thread. Plugin thread checks and
+                    // the virtual-primary accessor stay false on workers.
+                    if (AgcPluginSafetyGuard.get().isPrimaryThread()) {
+                        allChecksPassed.set(false);
+                    }
+                    if (AgcPluginVirtualizer.isVirtualPrimary()) {
+                        allChecksPassed.set(false);
+                    }
+                } else if (!AgcPluginSafetyGuard.get().isPrimaryThread()) {
+                    // Non-worker invocations must be the real primary thread.
                     allChecksPassed.set(false);
                 }
             },
@@ -291,7 +305,8 @@ class AgcParallelWorldTickEngineTest {
         );
 
         assertTrue(anyWorkerVerified.get(), "Expected at least one worker thread to execute a world tick");
-        assertTrue(allChecksPassed.get(), "Worker threads must be TickThread and enter virtual primary context");
+        assertTrue(allChecksPassed.get(),
+            "Worker threads must be TickThreads that never claim the primary thread identity");
     }
 
     @Test

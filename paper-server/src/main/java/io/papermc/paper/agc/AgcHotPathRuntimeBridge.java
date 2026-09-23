@@ -76,7 +76,7 @@ public final class AgcHotPathRuntimeBridge {
         this.tickActive = true;
         this.totalServerTicks.incrementAndGet();
         io.papermc.paper.agc.profiling.AgcTickProfiler.get().startTick(tickCount);
-        io.papermc.paper.agc.chunk.AgcChunkGenThrottler.get().onTickStart();
+        io.papermc.paper.agc.chunk.AgcChunkGenThrottler.get().onTickStart(); // passive counter only
     }
 
     /**

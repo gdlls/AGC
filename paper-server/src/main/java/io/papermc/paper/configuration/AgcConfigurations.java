@@ -52,8 +52,9 @@ public final class AgcConfigurations {
             }
             node.mergeFrom(defaults);
             final String mode = node.node("mode").getString(defaultInstance.mode).toLowerCase(java.util.Locale.ROOT);
-            if (!mode.equals("agc_aggressive") && !mode.equals("unified") && !mode.equals("agc_baseline") && !mode.equals("vanilla")) {
-                throw new SerializationException(node.node("mode"), String.class, "Unknown AGC operating mode: " + mode);
+            if (!io.papermc.paper.agc.AgcModePolicy.isKnownMode(mode)) {
+                throw new SerializationException(node.node("mode"), String.class,
+                    "Unknown AGC operating mode: " + mode + " (expected one of: vanilla, lossless, agc_baseline, unified, agc_aggressive, experimental)");
             }
             node.node("mode").set(mode);
             final GlobalConfiguration.Agc configuration = node.require(GlobalConfiguration.Agc.class);

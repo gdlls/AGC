@@ -21,8 +21,9 @@ import java.util.function.Supplier;
  *       context or enqueued to {@link AgcPluginSafetyGuard}.</li>
  *   <li><b>World & Block Mutators:</b> Wrapped in {@link AgcOptimisticTransactionManager} transactions
  *       to eliminate cross-region deadlocks.</li>
- *   <li><b>Event Invocations:</b> Executed with thread-local {@link AgcPluginVirtualizer} scopes
- *       to satisfy plugin sanity checks.</li>
+ *   <li><b>Event Invocations:</b> Recorded with thread-local world/region context scopes for
+ *       diagnostics. No fake primary-thread identity is published: off-primary work is deferred to
+ *       the real primary thread via {@link AgcPluginSafetyGuard#ensurePrimaryThread}.</li>
  * </ul>
  * </p>
  */
@@ -55,15 +56,14 @@ public final class AgcBytecodeInstrumentationBridge {
 
         this.schedulerCallsRouted.incrementAndGet();
 
-        if (AgcPluginVirtualizer.isVirtualPrimary() || AgcPluginSafetyGuard.get().isPrimaryThread()) {
+        if (AgcPluginSafetyGuard.get().isPrimaryThread()) {
             this.directFastPathExecutions.incrementAndGet();
             task.run();
             return;
         }
 
-        AgcPluginSafetyGuard.get().ensurePrimaryThread(() -> {
-            AgcPluginVirtualizer.get().runInVirtualPrimary(task);
-        });
+        // Deferred to the real primary thread; no virtual-primary shortcut.
+        AgcPluginSafetyGuard.get().ensurePrimaryThread(task);
     }
 
     /**
@@ -100,7 +100,11 @@ public final class AgcBytecodeInstrumentationBridge {
             return;
         }
         this.eventsDispatchedVirtual.incrementAndGet();
-        AgcPluginVirtualizer.get().runInContext(worldId, regionKey, handler);
+        if (AgcPluginSafetyGuard.get().isPrimaryThread()) {
+            AgcPluginVirtualizer.get().runInContext(worldId, regionKey, handler);
+        } else {
+            AgcPluginSafetyGuard.get().ensurePrimaryThread(() -> AgcPluginVirtualizer.get().runInContext(worldId, regionKey, handler));
+        }
     }
 
     public void resetMetrics() {

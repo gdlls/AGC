@@ -332,10 +332,22 @@ public final class AgcParallelWorldTickEngine {
         // and 2 is the hard floor (wave dispatch for a single world is pure overhead).
         final int effectiveMinWorlds = Math.max(2, Math.max(minWorlds, this.minWorldsFloor));
         final BiPredicate<? super T, ? super T> effectiveConflicts = this.forceUnsafe ? null : conflicts;
+        // Plugin-loaded guard: Bukkit's contract says synchronous events, scheduler bodies and
+        // Bukkit API mutations run on the primary thread. Ticking two worlds at once makes that
+        // impossible to guarantee (a worker would have to fire sync events), so parallel ticking is
+        // refused when any plugin is installed, regardless of the config flag - except for the
+        // explicit force-unsafe debugging knob.
+        final boolean pluginGuardBlocks = !this.forceUnsafe && this.pluginsLoaded();
         final boolean allowParallel = AgcCapabilityMatrix.isEnabled(AgcCapabilityMatrix.Feature.PARALLEL_WORLD_TICK)
+            && !pluginGuardBlocks
             && this.started.get()
             && this.workerPool != null
             && worldCount >= effectiveMinWorlds;
+        if (pluginGuardBlocks && !this.pluginGuardLogged) {
+            this.pluginGuardLogged = true;
+            LOGGER.info("AGC parallel world tick refused: plugins are loaded (count: {}), so worlds tick sequentially on the primary thread (Bukkit thread contract). This is expected for plugin servers.",
+                this.pluginCountCache);
+        }
 
         if (!allowParallel) {
             // Sequential execution path
@@ -433,6 +445,63 @@ public final class AgcParallelWorldTickEngine {
         }
 
         return new ExecutionSummary(true, overlapped, waveCount, worldCount, duration);
+    }
+
+    /** Cached answer to "is any plugin installed?" - plugins are loaded before the first tick. */
+    private volatile Boolean pluginsLoadedCache;
+    private volatile int pluginCountCache = -1;
+    private volatile boolean pluginGuardLogged;
+
+    /**
+     * Test/embedding seam for plugin presence. {@code null} means "ask Bukkit" (the production
+     * behaviour); tests and embedding harnesses that run without a Bukkit server can declare the
+     * truth explicitly instead of relying on the fail-safe below.
+     */
+    private static volatile java.util.function.BooleanSupplier PLUGIN_PRESENCE_PROBE;
+
+    /** Installs an explicit plugin-presence probe (pass {@code null} to restore the Bukkit probe). */
+    public static void setPluginPresenceProbe(final java.util.function.BooleanSupplier probe) {
+        PLUGIN_PRESENCE_PROBE = probe;
+        INSTANCE.pluginsLoadedCache = null;
+        INSTANCE.pluginCountCache = -1;
+    }
+
+    /**
+     * @return {@code true} when at least one plugin is installed (or when plugin presence cannot be
+     *         determined, in which case we fail safe and assume plugins are present).
+     */
+    private boolean pluginsLoaded() {
+        final java.util.function.BooleanSupplier probe = PLUGIN_PRESENCE_PROBE;
+        if (probe != null) {
+            final boolean present;
+            try {
+                present = probe.getAsBoolean();
+            } catch (final Throwable ignored) {
+                return true;
+            }
+            return present;
+        }
+
+        final Boolean cached = this.pluginsLoadedCache;
+        if (cached != null) {
+            return cached;
+        }
+        boolean present;
+        int count = -1;
+        try {
+            final org.bukkit.plugin.PluginManager pluginManager = org.bukkit.Bukkit.getPluginManager();
+            if (pluginManager == null) {
+                present = true;
+            } else {
+                count = pluginManager.getPlugins().length;
+                present = count > 0;
+            }
+        } catch (final Throwable ignored) {
+            present = true;
+        }
+        this.pluginCountCache = count;
+        this.pluginsLoadedCache = present;
+        return present;
     }
 
     public static String extractWorldName(final Object world) {

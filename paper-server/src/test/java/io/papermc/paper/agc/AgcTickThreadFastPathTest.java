@@ -10,95 +10,83 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Locks in the {@link TickThread#isTickThread()} fast-path latch semantics.
+ * Locks in the {@link TickThread#isTickThread()} contract after the virtual-primary escape hatch was
+ * removed.
  *
- * The latch (TickThread#VIRTUAL_POSSIBLE) is one-way: while no virtual context has ever been
- * entered, isTickThread() must skip the ThreadLocal probe but still report plain tick threads
- * correctly. Once any context is entered (AgcPluginVirtualizer#enterContext arms the latch),
- * the full check including the virtualizer probe must be active for every thread — a guard
- * check must never miss a virtual primary that exists.
+ * <p>History: the guard used to also return {@code true} for any thread that had entered an
+ * {@link AgcPluginVirtualizer} "virtual primary" context. Parallel world-tick workers entered such a
+ * context for bookkeeping, which meant a worker thread passing this guard while plugins still
+ * believed they were on the main thread - the exact invariant the guard exists to protect. The
+ * escape hatch is gone: a tick thread is a {@link TickThread} instance, nothing else.</p>
  */
 class AgcTickThreadFastPathTest {
 
-    private static class PlainThread extends Thread {
+    private static class ProbingThread extends Thread {
         volatile boolean result;
+        private final boolean virtualContext;
 
-        PlainThread(final String name) {
+        ProbingThread(final String name, final boolean virtualContext) {
             super(name);
+            this.virtualContext = virtualContext;
         }
 
         @Override
         public void run() {
-            this.result = TickThread.isTickThread();
-        }
-    }
-
-    private static final class VirtualThread extends Thread {
-        volatile boolean result;
-
-        VirtualThread(final String name) {
-            super(name);
-        }
-
-        @Override
-        public void run() {
-            // enter a virtual primary context, then probe the guard from this non-tick thread
-            try (final AgcPluginVirtualizer.ContextScope ignored =
-                     AgcPluginVirtualizer.get().enterContext("test", 0L)) {
+            if (this.virtualContext) {
+                try (final AgcPluginVirtualizer.ContextScope ignored =
+                         AgcPluginVirtualizer.get().enterContext("test", 0L)) {
+                    this.result = TickThread.isTickThread();
+                } catch (final Exception e) {
+                    this.result = true; // fail loudly through the assertion below
+                }
+            } else {
                 this.result = TickThread.isTickThread();
-            } catch (final Exception e) {
-                this.result = false;
             }
         }
     }
 
     @Test
-    void tickThreadsAreStillRecognizedWithLatchArmed() throws InterruptedException {
-        // Arming the latch must not change the answer for real TickThreads (e.g. the tick loop
-        // worker threads): they are instances of TickThread, not virtual primaries.
-        AgcPluginVirtualizer.get().runInVirtualPrimary(() -> { /* arm the latch */ });
+    void realTickThreadsAreRecognized() throws InterruptedException {
         final AtomicBoolean result = new AtomicBoolean(false);
         final TickThread tickThread = new TickThread(
             () -> result.set(TickThread.isTickThread()), "agc-test-real-tick-thread");
         tickThread.start();
         tickThread.join(5_000L);
-        assertTrue(result.get(), "a real TickThread must be recognized regardless of latch state");
+        assertTrue(result.get(), "a real TickThread must pass the guard");
     }
 
     @Test
-    void plainThreadsAreRejectedWithLatchArmed() throws InterruptedException {
-        AgcPluginVirtualizer.get().runInVirtualPrimary(() -> { /* arm the latch */ });
-        final PlainThread plain = new PlainThread("agc-test-plain-thread");
+    void plainThreadsAreRejected() throws InterruptedException {
+        final ProbingThread plain = new ProbingThread("agc-test-plain-thread", false);
         plain.start();
         plain.join(5_000L);
-        assertFalse(plain.result, "a plain thread with no virtual context must fail the guard");
+        assertFalse(plain.result, "a plain thread must fail the guard");
     }
 
     @Test
-    void virtualPrimaryIsRecognizedAfterLatchIsArmed() throws InterruptedException {
-        AgcPluginVirtualizer.get().runInVirtualPrimary(() -> { /* arm the latch */ });
-        final VirtualThread virtual = new VirtualThread("agc-test-virtual-thread");
-        virtual.start();
-        virtual.join(5_000L);
-        assertTrue(virtual.result,
-            "after the latch is armed, a thread inside a virtual primary context must pass the guard");
+    void virtualContextNeverGrantsTickThreadIdentity() throws InterruptedException {
+        final ProbingThread virtualThread = new ProbingThread("agc-test-virtual-thread", true);
+        virtualThread.start();
+        virtualThread.join(5_000L);
+        assertFalse(virtualThread.result,
+            "a non-tick thread inside an AgcPluginVirtualizer context must still fail the guard - "
+                + "fake thread identity is what allowed worker threads to mutate world state");
     }
 
     @Test
     void guardAnswersAreConsistentUnderConcurrentProbing() throws InterruptedException {
-        AgcPluginVirtualizer.get().runInVirtualPrimary(() -> { /* arm the latch */ });
         final int readers = 8;
         final CountDownLatch start = new CountDownLatch(1);
         final CountDownLatch done = new CountDownLatch(readers);
         final AtomicBoolean failure = new AtomicBoolean(false);
         for (int i = 0; i < readers; i++) {
-            final PlainThread plain = new PlainThread("agc-test-concurrent-" + i) {
+            final ProbingThread prober = new ProbingThread("agc-test-concurrent-" + i, true) {
                 @Override
                 public void run() {
                     boolean ok = true;
                     try {
                         start.await();
-                        // probe repeatedly: any true for a plain thread would mean a missed guard
+                        // probe repeatedly: any true for a non-tick thread is a missed guard
                         for (int j = 0; j < 2_000; j++) {
                             if (TickThread.isTickThread()) {
                                 ok = false;
@@ -116,10 +104,10 @@ class AgcTickThreadFastPathTest {
                     }
                 }
             };
-            plain.start();
+            prober.start();
         }
         start.countDown();
-        assertTrue(done.await(30_000L, java.util.concurrent.TimeUnit.MILLISECONDS), "readers did not finish");
-        assertFalse(failure.get(), "plain threads must never pass the guard once armed");
+        assertTrue(done.await(30, java.util.concurrent.TimeUnit.SECONDS));
+        assertFalse(failure.get(), "guard results must be stable while many threads probe concurrently");
     }
 }

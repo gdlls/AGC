@@ -87,6 +87,13 @@ public final class AgcConfigSync {
     }
 
     synchronized boolean sync(final GlobalConfiguration.Agc agc, final boolean respectExistingOverrides) {
+        // mode is authoritative: vanilla is a real Paper-path control arm, not a decorative key.
+        if (AgcModePolicy.isVanilla(agc.mode)) {
+            this.configAppliedFeatures.clear();
+            AgcModePolicy.forceVanillaPath(agc);
+            return true;
+        }
+
         final Map<AgcCapabilityMatrix.Feature, Boolean> KEYS = new EnumMap<>(AgcCapabilityMatrix.Feature.class);
         final boolean master = agc.performance.maxOptimizationBatch;
         KEYS.put(AgcCapabilityMatrix.Feature.JIGSAW_BOX_OCTREE, master && agc.performance.jigsawBoxOctree);
@@ -98,6 +105,11 @@ public final class AgcConfigSync {
         KEYS.put(AgcCapabilityMatrix.Feature.STRUCTURE_NBT_PRUNER, master && agc.performance.structureNbtPruner);
         KEYS.put(AgcCapabilityMatrix.Feature.PARALLEL_LIGHT_ENGINE, master && agc.performance.parallelLightEngine);
         KEYS.put(AgcCapabilityMatrix.Feature.SPAWNER_DENSITY_OPTIMIZER, master && agc.performance.spawnerDensityOptimizer);
+        // Behaviour-affecting features that used to default on just because they were not listed here:
+        // the hopper target-container cache, the villager AI/golem-gossip rate limiter and the AI
+        // batch split. They are now config-authoritative and default off (see agc.yml comments).
+        KEYS.put(AgcCapabilityMatrix.Feature.HOPPER_OPTIMIZER, master && agc.performance.hopperOptimizerCache);
+        KEYS.put(AgcCapabilityMatrix.Feature.VILLAGER_AI_OPTIMIZER, master && agc.performance.villagerAiOptimizer);
         // Registry-sync encoding replay is byte-identical to the uncached encode (the payload is the
         // same shared packet instance for every recipient and it never reaches an outbound plugin
         // handler in a different form), so it rides the max-optimization batch with no extra config key.
@@ -113,7 +125,9 @@ public final class AgcConfigSync {
         KEYS.put(AgcCapabilityMatrix.Feature.CHUNK_UNLOAD_DRAIN, master);
         KEYS.put(AgcCapabilityMatrix.Feature.NETWORK_CHANNEL_WATERMARK, master);
         KEYS.put(AgcCapabilityMatrix.Feature.NETWORK_COMPRESSION_TUNING, master);
-        KEYS.put(AgcCapabilityMatrix.Feature.ENTITY_TRACKING_INTERVAL, master);
+        // The tracker throttle visibly changes entity update cadence above 20 MSPT, so it is part
+        // of the universeNetEngine opt-in (not the lossless master batch): off means Paper cadence.
+        KEYS.put(AgcCapabilityMatrix.Feature.ENTITY_TRACKING_INTERVAL, master && agc.performance.universeNetEngine);
         KEYS.put(AgcCapabilityMatrix.Feature.EXPLOSION_COALESCER, master && agc.performance.explosionCoalescing);
         KEYS.put(AgcCapabilityMatrix.Feature.UNIVERSE_NET_ENGINE, master && agc.performance.universeNetEngine);
         KEYS.put(AgcCapabilityMatrix.Feature.REGION_TICK_BRIDGE, master && agc.performance.regionTickBridge);

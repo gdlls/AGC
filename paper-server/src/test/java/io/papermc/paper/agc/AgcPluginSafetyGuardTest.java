@@ -126,7 +126,7 @@ class AgcPluginSafetyGuardTest {
     }
 
     @Test
-    void executeSynchronousPluginListenerOffPrimaryEnforcesVirtualPrimaryAndSerializes() throws Exception {
+    void executeSynchronousPluginListenerOffPrimaryStaysOffPrimaryAndSerializes() throws Exception {
         final Thread main = new Thread();
         AgcPluginSafetyGuard.get().bindPrimaryThread(main);
 
@@ -137,8 +137,10 @@ class AgcPluginSafetyGuardTest {
 
         final Runnable task = () -> {
             AgcPluginSafetyGuard.get().executeSynchronousPluginListener("test-plugin", () -> {
-                // Must evaluate to true under virtual primary context
-                assertTrue(AgcPluginSafetyGuard.get().isPrimaryThread());
+                // Honest contract: an off-primary dispatch stays visibly off-primary. It is
+                // serialized (no concurrent world mutation) but it must NOT claim to be the
+                // primary thread - that lie is what hid worker-thread plugin execution.
+                assertFalse(AgcPluginSafetyGuard.get().isPrimaryThread());
                 final int current = concurrentExecutions.incrementAndGet();
                 maxConcurrency.accumulateAndGet(current, Math::max);
                 try {
@@ -182,31 +184,28 @@ class AgcPluginSafetyGuardTest {
     }
 
     @Test
-    void testPrimaryThreadSerializesDuringParallelWorldTickPhase() throws Exception {
-        // Set up parallel ticking wave scenario with 2 worlds
+    void testWorldTickPhaseStaysOnPrimaryWhenPluginsMayBeLoaded() throws Exception {
+        // Set up a world-tick scenario with 2 worlds
         final Thread primaryThread = Thread.currentThread();
         AgcPluginSafetyGuard.get().bindPrimaryThread(primaryThread);
 
-        final java.util.concurrent.atomic.AtomicInteger concurrentExecutions = new java.util.concurrent.atomic.AtomicInteger(0);
-        final java.util.concurrent.atomic.AtomicInteger maxConcurrency = new java.util.concurrent.atomic.AtomicInteger(0);
+        final java.util.concurrent.atomic.AtomicInteger offPrimaryRuns = new java.util.concurrent.atomic.AtomicInteger(0);
         final java.util.concurrent.atomic.AtomicInteger totalRuns = new java.util.concurrent.atomic.AtomicInteger(0);
 
-        // Execute world ticks across 2 worlds (one runs on primary, one on worker pool)
+        // The engine refuses to tick worlds in parallel unless it can prove no plugin is loaded
+        // (unit tests cannot inspect a plugin manager, so it fails safe to sequential - which is
+        // exactly the production behaviour for plugin servers).
         AgcParallelWorldTickEngine.get().bootstrap();
         try {
-            AgcParallelWorldTickEngine.get().executeWorldTicks(
+            final AgcParallelWorldTickEngine.ExecutionSummary summary = AgcParallelWorldTickEngine.get().executeWorldTicks(
                 java.util.List.of("world_1", "world_2"),
                 world -> {
                     // Each world tick executes synchronous plugin listeners during the tick
                     for (int i = 0; i < 25; i++) {
                         AgcPluginSafetyGuard.get().executeSynchronousPluginListener("test-plugin", () -> {
-                            assertTrue(AgcPluginSafetyGuard.get().isPrimaryThread());
-                            final int current = concurrentExecutions.incrementAndGet();
-                            maxConcurrency.accumulateAndGet(current, Math::max);
-                            try {
-                                Thread.sleep(2);
-                            } catch (final InterruptedException ignored) {}
-                            concurrentExecutions.decrementAndGet();
+                            if (!AgcPluginSafetyGuard.get().isPrimaryThread()) {
+                                offPrimaryRuns.incrementAndGet();
+                            }
                             totalRuns.incrementAndGet();
                         });
                     }
@@ -215,8 +214,8 @@ class AgcPluginSafetyGuardTest {
             );
 
             assertEquals(50, totalRuns.get());
-            assertEquals(1, maxConcurrency.get(), "Primary thread and worker threads must be mutually exclusive during parallel phase");
-            assertTrue(AgcPluginSafetyGuard.get().metrics().pluginInvocationsProtected() > 0);
+            assertEquals(0, offPrimaryRuns.get(), "world ticks must stay on the primary thread when plugins may be present");
+            assertFalse(summary.parallel(), "the plugin guard must force the sequential world-tick path");
         } finally {
             AgcParallelWorldTickEngine.get().shutdown();
             AgcCapabilityMatrix.clearRuntimeOverrides();

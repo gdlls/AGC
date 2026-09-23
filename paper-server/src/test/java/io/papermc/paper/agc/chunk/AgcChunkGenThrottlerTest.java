@@ -39,4 +39,13 @@ public class AgcChunkGenThrottlerTest {
             assertTrue(throttler.canGenerate(), "Must preserve chunk generation even under congested level");
         }
     }
+
+    @Test
+    public void testGenRateIsNeverOverridden() {
+        // Paper parity (2026-09-21): the old Math.max(rate, 25) silently overrode operator config.
+        for (final double rate : new double[] {1.0, 5.0, 24.9, 25.0, 100.0}) {
+            org.junit.jupiter.api.Assertions.assertEquals(rate, AgcChunkGenThrottler.get().getEffectiveGenRate(rate),
+                "the configured gen rate must pass through untouched");
+        }
+    }
 }

@@ -76,8 +76,11 @@ public final class AgcPluginCompatibilityVerifier {
                         for (int op = 0; op < opsPerPlugin; op++) {
                             final int currentOp = op;
 
-                            // 1. Virtual Primary Thread Execution Simulation
-                            AgcPluginVirtualizer.get().runInContext(worldId, regionKey, () -> {
+                            // 1. Primary-thread execution simulation. Work is routed through the real
+                            // primary-thread mailbox (see the drain below) instead of a virtual-primary
+                            // context: the counting happens where the body actually runs, so an
+                            // off-primary execution is reported rather than masked by a fake identity.
+                            AgcPluginSafetyGuard.get().ensurePrimaryThread(() -> {
                                 if (AgcPluginSafetyGuard.get().isPrimaryThread()) {
                                     syncPrimaryAssertionsPassed.incrementAndGet();
                                 } else {
@@ -117,10 +120,12 @@ public final class AgcPluginCompatibilityVerifier {
                 concurrencyErrors.incrementAndGet();
             }
 
-            // Drain any pending cross-world operations safely on simulated primary thread
+            // Drain pending cross-world operations and the primary-thread mailbox on the simulated
+            // primary thread. The drain must actually run the queued work (a limit of 0 drained
+            // nothing, which used to hide unexecuted plugin work behind the virtual-primary shortcut).
             AgcCrossWorldQueue.get().drainAll();
             AgcPluginSafetyGuard.get().bindPrimaryThread(Thread.currentThread());
-            AgcPluginSafetyGuard.get().drainMailbox(0);
+            AgcPluginSafetyGuard.get().drainMailbox(Integer.MAX_VALUE);
 
             stmMutationsApplied.set(simulatedBlockGrid.size());
 
