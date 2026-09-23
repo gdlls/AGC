@@ -28,7 +28,10 @@ paperweight {
     gitFilePatches = false
 
     updatingMinecraft {
-        oldPaperCommit = "711c5de2b05df39b72c44ff54e9f9381f8d153cb"
+        // Only set while actively updating the Minecraft version. The 26.2 update left
+        // oldPaperCommit pointing at a local-only commit that was rebased away, so every
+        // CI applyPatches failed fetching it (MissingObjectException 711c5de2...).
+        //oldPaperCommit = "711c5de2b05df39b72c44ff54e9f9381f8d153cb"
     }
 }
 

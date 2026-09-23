@@ -83,4 +83,5 @@ libraries/
 paper-server/cache/
 paper-server/libraries/
 .nms_backup/
+.minecraft-tree-backup-*/
 packages/*.jar
